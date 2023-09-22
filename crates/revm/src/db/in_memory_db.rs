@@ -5,6 +5,7 @@ use crate::primitives::{
 use crate::Database;
 use alloc::vec::Vec;
 use core::convert::Infallible;
+use revm_interpreter::primitives::assets::init_balances;
 
 /// A [Database] implementation that stores all state changes in memory.
 pub type InMemoryDB = CacheDB<EmptyDB>;
@@ -127,13 +128,6 @@ impl<ExtDB: DatabaseRef> DatabaseCommit for CacheDB<ExtDB> {
     fn commit(&mut self, changes: HashMap<B160, Account>) {
         for (address, mut account) in changes {
             if !account.is_touched() {
-                continue;
-            }
-            if account.is_selfdestructed() {
-                let db_account = self.accounts.entry(address).or_default();
-                db_account.storage.clear();
-                db_account.account_state = AccountState::NotExisting;
-                db_account.info = AccountInfo::default();
                 continue;
             }
             let is_newly_created = account.is_created();
@@ -289,7 +283,7 @@ impl<ExtDB: DatabaseRef> DatabaseRef for CacheDB<ExtDB> {
 #[derive(Debug, Clone, Default)]
 pub struct DbAccount {
     pub info: AccountInfo,
-    /// If account is selfdestructed or newly created, storage will be cleared.
+    /// If account is newly created, storage will be cleared.
     pub account_state: AccountState,
     /// storage slots
     pub storage: HashMap<U256, U256>,
@@ -370,7 +364,7 @@ impl Database for BenchmarkDB {
         if address == B160::zero() {
             return Ok(Some(AccountInfo {
                 nonce: 1,
-                balance: U256::from(10000000),
+                balances: init_balances(10000000),
                 code: Some(self.0.clone()),
                 code_hash: self.1,
             }));
@@ -378,7 +372,7 @@ impl Database for BenchmarkDB {
         if address == B160::from(1) {
             return Ok(Some(AccountInfo {
                 nonce: 0,
-                balance: U256::from(10000000),
+                balances: init_balances(10000000),
                 code: None,
                 code_hash: KECCAK_EMPTY,
             }));

@@ -1,5 +1,4 @@
 use super::constants::*;
-use crate::inner_models::SelfDestructResult;
 use crate::primitives::{Spec, SpecId::*, B160, U256};
 use alloc::vec::Vec;
 
@@ -235,31 +234,6 @@ pub fn sstore_cost<SPEC: Spec>(
     } else {
         Some(gas_cost)
     }
-}
-
-pub fn selfdestruct_cost<SPEC: Spec>(res: SelfDestructResult) -> u64 {
-    // EIP-161: State trie clearing (invariant-preserving alternative)
-    let should_charge_topup = if SPEC::enabled(SPURIOUS_DRAGON) {
-        res.had_value && !res.target_exists
-    } else {
-        !res.target_exists
-    };
-
-    // EIP-150: Gas cost changes for IO-heavy operations
-    let selfdestruct_gas_topup = if SPEC::enabled(TANGERINE) && should_charge_topup {
-        25000
-    } else {
-        0
-    };
-
-    // EIP-150: Gas cost changes for IO-heavy operations
-    let selfdestruct_gas = if SPEC::enabled(TANGERINE) { 5000 } else { 0 };
-
-    let mut gas = selfdestruct_gas + selfdestruct_gas_topup;
-    if SPEC::enabled(BERLIN) && res.is_cold {
-        gas += COLD_ACCOUNT_ACCESS_COST
-    }
-    gas
 }
 
 pub fn call_cost<SPEC: Spec>(

@@ -9,32 +9,16 @@ pub enum AccountStatus {
     LoadedEmptyEIP161,
     InMemoryChange,
     Changed,
-    Destroyed,
-    DestroyedChanged,
-    DestroyedAgain,
 }
 
 impl AccountStatus {
-    /// Transition to other state while preserving
-    /// invariance of this state.
-    ///
-    /// It this account was Destroyed and other account is not:
-    /// we should mark extended account as destroyed too.
-    /// and as other account had some changes, extended account
-    /// should be marked as DestroyedChanged.
-    ///
-    /// If both account are not destroyed and if this account is in memory:
-    /// this means that extended account is in memory too.
-    ///
-    /// otherwise if both are destroyed or other is destroyed:
-    /// set other status to extended account.
-    pub fn transition(&mut self, other: Self) {
-        *self = match (self.was_destroyed(), other.was_destroyed()) {
-            (true, false) => Self::DestroyedChanged,
-            (false, false) if *self == Self::InMemoryChange => Self::InMemoryChange,
-            _ => other,
-        };
+    /// Account is modified.
+    /// This means that some storage values can be found in both
+    /// memory and database.
+    pub fn modified(&self) -> bool {
+        matches!(self, AccountStatus::Changed | AccountStatus::InMemoryChange)
     }
+
     /// Account is not modified and just loaded from database.
     pub fn not_modified(&self) -> bool {
         matches!(
@@ -45,34 +29,17 @@ impl AccountStatus {
         )
     }
 
-    /// Account was destroyed by calling SELFDESTRUCT.
-    /// This means that full account and storage are inside memory.
-    pub fn was_destroyed(&self) -> bool {
-        matches!(
-            self,
-            AccountStatus::Destroyed
-                | AccountStatus::DestroyedChanged
-                | AccountStatus::DestroyedAgain
-        )
-    }
-
-    /// This means storage is known, it can be newly created or storage got destroyed.
+    /// This means storage is known, a newly created account.
     pub fn storage_known(&self) -> bool {
         matches!(
             self,
-            AccountStatus::LoadedNotExisting
-                | AccountStatus::InMemoryChange
-                | AccountStatus::Destroyed
-                | AccountStatus::DestroyedChanged
-                | AccountStatus::DestroyedAgain
+            AccountStatus::LoadedNotExisting | AccountStatus::InMemoryChange
         )
     }
 
-    /// Account is modified but not destroyed.
-    /// This means that some of storage values can be found in both
-    /// memory and database.
-    pub fn modified_but_not_destroyed(&self) -> bool {
-        matches!(self, AccountStatus::Changed | AccountStatus::InMemoryChange)
+    /// Transition to other state while preserving invariance of this state.
+    pub fn transition(&mut self, other: Self) {
+        *self = other;
     }
 }
 
@@ -89,38 +56,19 @@ mod test {
         assert!(AccountStatus::LoadedNotExisting.not_modified());
         assert!(!AccountStatus::Changed.not_modified());
         assert!(!AccountStatus::InMemoryChange.not_modified());
-        assert!(!AccountStatus::Destroyed.not_modified());
-        assert!(!AccountStatus::DestroyedChanged.not_modified());
-        assert!(!AccountStatus::DestroyedAgain.not_modified());
 
         // we know full storage
         assert!(!AccountStatus::LoadedEmptyEIP161.storage_known());
         assert!(AccountStatus::LoadedNotExisting.storage_known());
         assert!(AccountStatus::InMemoryChange.storage_known());
-        assert!(AccountStatus::Destroyed.storage_known());
-        assert!(AccountStatus::DestroyedChanged.storage_known());
-        assert!(AccountStatus::DestroyedAgain.storage_known());
         assert!(!AccountStatus::Loaded.storage_known());
         assert!(!AccountStatus::Changed.storage_known());
 
-        // account was destroyed
-        assert!(!AccountStatus::LoadedEmptyEIP161.was_destroyed());
-        assert!(!AccountStatus::LoadedNotExisting.was_destroyed());
-        assert!(!AccountStatus::InMemoryChange.was_destroyed());
-        assert!(AccountStatus::Destroyed.was_destroyed());
-        assert!(AccountStatus::DestroyedChanged.was_destroyed());
-        assert!(AccountStatus::DestroyedAgain.was_destroyed());
-        assert!(!AccountStatus::Loaded.was_destroyed());
-        assert!(!AccountStatus::Changed.was_destroyed());
-
-        // account modified but not destroyed
-        assert!(AccountStatus::Changed.modified_but_not_destroyed());
-        assert!(AccountStatus::InMemoryChange.modified_but_not_destroyed());
-        assert!(!AccountStatus::Loaded.modified_but_not_destroyed());
-        assert!(!AccountStatus::LoadedEmptyEIP161.modified_but_not_destroyed());
-        assert!(!AccountStatus::LoadedNotExisting.modified_but_not_destroyed());
-        assert!(!AccountStatus::Destroyed.modified_but_not_destroyed());
-        assert!(!AccountStatus::DestroyedChanged.modified_but_not_destroyed());
-        assert!(!AccountStatus::DestroyedAgain.modified_but_not_destroyed());
+        // account modified
+        assert!(AccountStatus::Changed.modified());
+        assert!(AccountStatus::InMemoryChange.modified());
+        assert!(!AccountStatus::Loaded.modified());
+        assert!(!AccountStatus::LoadedEmptyEIP161.modified());
+        assert!(!AccountStatus::LoadedNotExisting.modified());
     }
 }

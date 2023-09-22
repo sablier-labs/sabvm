@@ -1,4 +1,4 @@
-use crate::interpreter::{inner_models::SelfDestructResult, InstructionResult};
+use crate::interpreter::InstructionResult;
 use crate::primitives::{
     db::Database, hash_map::Entry, Account, Bytecode, HashMap, Log, Spec, SpecId::*, State,
     StorageSlot, TransientStorage, B160, KECCAK_EMPTY, PRECOMPILE3, U256,
@@ -35,15 +35,6 @@ pub enum JournalEntry {
     /// Action: We will add Account to state.
     /// Revert: we will remove account from state.
     AccountLoaded { address: B160 },
-    /// Mark account to be destroyed and journal balance to be reverted
-    /// Action: Mark account and transfer the balance
-    /// Revert: Unmark the account and transfer balance back
-    AccountDestroyed {
-        address: B160,
-        target: B160,
-        was_destroyed: bool, // if account had already been destroyed before this journal entry
-        had_balance: U256,
-    },
     /// Loading account does not mean that account will need to be added to MerkleTree (touched).
     /// Only when account is called (to execute contract or transfer balance) only then account is made touched.
     /// Action: Mark account touched
@@ -304,7 +295,7 @@ impl JournaledState {
         // Sub balance from caller
         let caller_account = self.state.get_mut(&caller).unwrap();
         // Balance is already checked in `create_inner`, so it is safe to just subtract.
-        caller_account.info.balance -= balance;
+        caller_account.info.decrease_base_balance(balance);
 
         // add journal entry of transferred balance
         last_journal.push(JournalEntry::BalanceTransfer {
@@ -357,35 +348,13 @@ impl JournaledState {
                     // remove touched status
                     state.get_mut(&address).unwrap().unmark_touch();
                 }
-                JournalEntry::AccountDestroyed {
-                    address,
-                    target,
-                    was_destroyed,
-                    had_balance,
-                } => {
-                    let account = state.get_mut(&address).unwrap();
-                    // set previous ste of selfdestructed flag. as there could be multiple
-                    // selfdestructs in one transaction.
-                    if was_destroyed {
-                        // flag is still selfdestructed
-                        account.mark_selfdestruct();
-                    } else {
-                        // flag that is not selfdestructed
-                        account.unmark_selfdestruct();
-                    }
-                    account.info.balance += had_balance;
-
-                    if address != target {
-                        let target = state.get_mut(&target).unwrap();
-                        target.info.balance -= had_balance;
-                    }
-                }
                 JournalEntry::BalanceTransfer { from, to, balance } => {
                     // we don't need to check overflow and underflow when adding sub subtracting the balance.
                     let from = state.get_mut(&from).unwrap();
+                    from.info.increase_base_balance(balance);
                     from.info.balance += balance;
                     let to = state.get_mut(&to).unwrap();
-                    to.info.balance -= balance;
+                    to.info.decrease_base_balance(balance);
                 }
                 JournalEntry::NonceChange { address } => {
                     state.get_mut(&address).unwrap().info.nonce -= 1;
@@ -466,48 +435,6 @@ impl JournaledState {
 
         self.logs.truncate(checkpoint.log_i);
         self.journal.truncate(checkpoint.journal_i);
-    }
-
-    /// transfer balance from address to target. Check if target exist/is_cold
-    pub fn selfdestruct<DB: Database>(
-        &mut self,
-        address: B160,
-        target: B160,
-        db: &mut DB,
-    ) -> Result<SelfDestructResult, DB::Error> {
-        let (is_cold, target_exists) = self.load_account_exist(target, db)?;
-        // transfer all the balance
-        let acc = self.state.get_mut(&address).unwrap();
-        let balance = mem::take(&mut acc.info.balance);
-        let previously_destroyed = acc.is_selfdestructed();
-        acc.mark_selfdestruct();
-
-        // NOTE: In case that target and destroyed addresses are same, balance will be lost.
-        // ref: https://github.com/ethereum/go-ethereum/blob/141cd425310b503c5678e674a8c3872cf46b7086/core/vm/instructions.go#L832-L833
-        // https://github.com/ethereum/go-ethereum/blob/141cd425310b503c5678e674a8c3872cf46b7086/core/state/statedb.go#L449
-        if address != target {
-            let target_account = self.state.get_mut(&target).unwrap();
-            // touch target account
-            Self::touch_account(self.journal.last_mut().unwrap(), &target, target_account);
-            target_account.info.balance += balance;
-        }
-
-        self.journal
-            .last_mut()
-            .unwrap()
-            .push(JournalEntry::AccountDestroyed {
-                address,
-                target,
-                was_destroyed: previously_destroyed,
-                had_balance: balance,
-            });
-
-        Ok(SelfDestructResult {
-            had_value: balance != U256::ZERO,
-            is_cold,
-            target_exists,
-            previously_destroyed,
-        })
     }
 
     pub fn initial_account_and_code_load<DB: Database>(

@@ -1,7 +1,7 @@
 use crate::primitives::{hash_map::Entry, Bytecode, Bytes, HashMap, U256};
 use crate::{
     primitives::{Env, Log, B160, B256, KECCAK_EMPTY},
-    CallInputs, CreateInputs, Gas, Host, InstructionResult, Interpreter, SelfDestructResult,
+    CallInputs, CreateInputs, Gas, Host, InstructionResult, Interpreter,
 };
 use alloc::vec::Vec;
 
@@ -129,11 +129,6 @@ impl Host for DummyHost {
     }
 
     #[inline]
-    fn selfdestruct(&mut self, _address: B160, _target: B160) -> Option<SelfDestructResult> {
-        panic!("Selfdestruct is not supported for this host")
-    }
-
-    #[inline]
     fn create(
         &mut self,
         _inputs: &mut CreateInputs,
@@ -144,5 +139,20 @@ impl Host for DummyHost {
     #[inline]
     fn call(&mut self, _input: &mut CallInputs) -> (InstructionResult, Gas, Bytes) {
         panic!("Call is not supported for this host")
+    }
+
+    #[inline]
+    fn balance_of(&mut self, _asset_id: B256, _address: B160) -> Option<(U256, bool)> {
+        Some((U256::ZERO, false))
+    }
+
+    #[inline]
+    fn mint(&mut self, _address: B160, _value: U256) -> (InstructionResult, Gas) {
+        panic!("Mint is not supported for this host")
+    }
+
+    #[inline]
+    fn burn(&mut self, _address: B160, _value: U256) -> (InstructionResult, Gas) {
+        panic!("Burn is not supported for this host")
     }
 }

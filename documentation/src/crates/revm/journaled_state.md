@@ -26,12 +26,6 @@ This module is built around the `JournaledState` structure, which encapsulates t
 
 ## Methods
 
-- `selfdestruct`
-
-    This method marks an account as self-destructed and transfers its balance to a target account.
-    If the target account does not exist, it's created. If the self-destructed account and the
-    target are the same, the balance will be lost.
-
 -  `initial_account_and_code_load`
 
     This method initializes an account and loads its associated code from the database. If the
@@ -93,7 +87,7 @@ The [EIP-161](https://eips.ethereum.org/EIPS/eip-161) aims to optimize Ethereum'
 
 An account is considered "empty" if it has no code, and its nonce and balance are both zero. An account is considered "dead" if it is non-existent or it is empty. An account is considered "touched" when it is involved in any potentially state-changing operation.
 
-These rules have an impact on how state is managed within the [EIP-161](https://eips.ethereum.org/EIPS/eip-161) context, and this affects how the JournaledState module functions. For example, operations like `initial_account_and_code_load`, `initial_account_load`, and `selfdestruct` all need to take into account whether an account is empty or dead.
+These rules have an impact on how state is managed within the [EIP-161](https://eips.ethereum.org/EIPS/eip-161) context, and this affects how the JournaledState module functions. For example, operations like `initial_account_and_code_load`, and `initial_account_load` all need to take into account whether an account is empty or dead.
 
 #### Rationale
 
@@ -109,7 +103,7 @@ This EIP is particularly important because it introduced a way to unambiguously 
 
 [EIP-658](https://eips.ethereum.org/EIPS/eip-658) replaced the intermediate state root field in the receipt with a status code that indicates whether the top-level call of the transaction succeeded or failed. The status code is 1 for success and 0 for failure.
 
-This EIP affects the JournaledState module, as the result of executing transactions and their success or failure status directly influences the state of the blockchain. The execution of state-modifying methods like `initial_account_and_code_load`, `selfdestruct`, `sstore`, and `log` can result in success or failure, and the status needs to be properly reflected in the transaction receipt.
+This EIP affects the JournaledState module, as the result of executing transactions and their success or failure status directly influences the state of the blockchain. The execution of state-modifying methods like `initial_account_and_code_load`, `sstore`, and `log` can result in success or failure, and the status needs to be properly reflected in the transaction receipt.
 
 #### Rationale
 
@@ -134,8 +128,6 @@ In the context of this EIP, "cold" and "warm" (or "hot") refer to whether an add
 - Account access changes: When an address is the target of certain opcodes (`EXTCODESIZE`, `EXTCODECOPY`, `EXTCODEHASH`, `BALANCE`, `CALL`, `CALLCODE`, `DELEGATECALL`, `STATICCALL`), if the target is not in `accessed_addresses`, `COLD_ACCOUNT_ACCESS_COST` gas is charged, and the address is added to `accessed_addresses`. Otherwise, `WARM_STORAGE_READ_COST` gas is charged.
 
 - `SSTORE` changes: For `SSTORE` operation, if the (address, storage_key) pair is not in `accessed_storage_keys`, an additional `COLD_SLOAD_COST` gas is charged, and the pair is added to `accessed_storage_keys`.
-
-- `SELFDESTRUCT` changes: If the recipient of `SELFDESTRUCT` is not in `accessed_addresses`, an additional `COLD_ACCOUNT_ACCESS_COST` is charged, and the recipient is added to the set.
 
 This methodology allows Ethereum to maintain an internal record of accessed accounts and storage slots within a transaction, making it possible to charge lower gas fees for repeated operations, thereby reducing the cost for such operations.
 

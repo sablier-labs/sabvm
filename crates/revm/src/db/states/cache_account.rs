@@ -63,14 +63,6 @@ impl CacheAccount {
         }
     }
 
-    /// Create account that is destroyed.
-    pub fn new_destroyed() -> Self {
-        Self {
-            account: None,
-            status: AccountStatus::Destroyed,
-        }
-    }
-
     /// Create changed account
     pub fn new_changed(info: AccountInfo, storage: PlainStorage) -> Self {
         Self {
@@ -85,7 +77,6 @@ impl CacheAccount {
             self.status,
             AccountStatus::Changed
                 | AccountStatus::InMemoryChange
-                | AccountStatus::DestroyedChanged
                 | AccountStatus::Loaded
                 | AccountStatus::LoadedEmptyEIP161
         )
@@ -116,20 +107,6 @@ impl CacheAccount {
         let previous_status = self.status;
 
         self.status = match self.status {
-            AccountStatus::DestroyedChanged => {
-                if self
-                    .account
-                    .as_ref()
-                    .map(|a| a.info.is_empty())
-                    .unwrap_or_default()
-                {
-                    return None;
-                }
-                AccountStatus::DestroyedChanged
-            }
-            AccountStatus::Destroyed | AccountStatus::DestroyedAgain => {
-                AccountStatus::DestroyedChanged
-            }
             AccountStatus::LoadedEmptyEIP161 => {
                 return None;
             }
@@ -151,7 +128,6 @@ impl CacheAccount {
             previous_info,
             previous_status,
             storage,
-            storage_was_destroyed: false,
         })
     }
 
@@ -177,21 +153,8 @@ impl CacheAccount {
                 // This is a noop.
                 AccountStatus::LoadedNotExisting
             }
-            AccountStatus::DestroyedAgain | AccountStatus::DestroyedChanged => {
-                // do nothing
-                AccountStatus::DestroyedAgain
-            }
-            _ => {
-                // do nothing
-                unreachable!("Wrong state transition, touch empty is not possible from {self:?}");
-            }
         };
-        if matches!(
-            previous_status,
-            AccountStatus::LoadedNotExisting
-                | AccountStatus::Destroyed
-                | AccountStatus::DestroyedAgain
-        ) {
+        if previous_status == AccountStatus::LoadedNotExisting {
             None
         } else {
             Some(TransitionAccount {
@@ -200,45 +163,6 @@ impl CacheAccount {
                 previous_info,
                 previous_status,
                 storage: HashMap::default(),
-                storage_was_destroyed: true,
-            })
-        }
-    }
-
-    /// Consume self and make account as destroyed.
-    ///
-    /// Set account as None and set status to Destroyer or DestroyedAgain.
-    pub fn selfdestruct(&mut self) -> Option<TransitionAccount> {
-        // account should be None after selfdestruct so we can take it.
-        let previous_info = self.account.take().map(|a| a.info);
-        let previous_status = self.status;
-
-        self.status = match self.status {
-            AccountStatus::DestroyedChanged
-            | AccountStatus::DestroyedAgain
-            | AccountStatus::Destroyed => {
-                // mark as destroyed again, this can happen if account is created and
-                // then selfdestructed in same block.
-                // Note: there is no big difference between Destroyed and DestroyedAgain
-                // in this case, but was added for clarity.
-                AccountStatus::DestroyedAgain
-            }
-
-            _ => AccountStatus::Destroyed,
-        };
-
-        if previous_status == AccountStatus::LoadedNotExisting {
-            // transitions for account loaded as not existing.
-            self.status = AccountStatus::LoadedNotExisting;
-            None
-        } else {
-            Some(TransitionAccount {
-                info: None,
-                status: self.status,
-                previous_info,
-                previous_status,
-                storage: HashMap::new(),
-                storage_was_destroyed: true,
             })
         }
     }
@@ -258,10 +182,6 @@ impl CacheAccount {
             .collect();
 
         self.status = match self.status {
-            // if account was destroyed previously just copy new info to it.
-            AccountStatus::DestroyedAgain
-            | AccountStatus::Destroyed
-            | AccountStatus::DestroyedChanged => AccountStatus::DestroyedChanged,
             // if account is loaded from db.
             AccountStatus::LoadedNotExisting
             // Loaded empty eip161 to creates is not possible as CREATE2 was added after EIP-161
@@ -281,7 +201,6 @@ impl CacheAccount {
             previous_status,
             previous_info,
             storage: new_storage,
-            storage_was_destroyed: false,
         };
         self.account = Some(PlainAccount {
             info: new_info,
@@ -290,14 +209,24 @@ impl CacheAccount {
         transition_account
     }
 
-    /// Increment balance by `balance` amount. Assume that balance will not
-    /// overflow or be zero.
+    /// Increment balance of base asset by `value` amount. Assume that balance will not overflow or be zero.
     ///
     /// Note: to skip some edge cases we assume that additional balance is never zero.
     /// And as increment is always related to block fee/reward and withdrawals this is correct.
-    pub fn increment_balance(&mut self, balance: u128) -> TransitionAccount {
+    pub fn increment_base_balance(&mut self, value: u128) -> TransitionAccount {
         self.account_info_change(|info| {
-            info.balance += U256::from(balance);
+            info.increase_baes_balance(asset_id, U256::from(value));
+        })
+        .1
+    }
+
+    /// Increment balance of `asset_id` by `value` amount. Assume that balance will not overflow or be zero.
+    ///
+    /// Note: to skip some edge cases we assume that additional balance is never zero.
+    /// And as increment is always related to block fee/reward and withdrawals this is correct.
+    pub fn increment_balance(&mut self, asset_id: B256, value: u128) -> TransitionAccount {
+        self.account_info_change(|info| {
+            info.increase_balance(asset_id, U256::from(value));
         })
         .1
     }
@@ -326,9 +255,6 @@ impl CacheAccount {
             | AccountStatus::LoadedEmptyEIP161
             | AccountStatus::InMemoryChange => AccountStatus::InMemoryChange,
             AccountStatus::Changed => AccountStatus::Changed,
-            AccountStatus::Destroyed
-            | AccountStatus::DestroyedAgain
-            | AccountStatus::DestroyedChanged => AccountStatus::DestroyedChanged,
         };
 
         (
@@ -339,18 +265,28 @@ impl CacheAccount {
                 previous_info,
                 previous_status,
                 storage: HashMap::new(),
-                storage_was_destroyed: false,
             },
         )
     }
 
-    /// Drain balance from account and return transition and drained amount
+    /// Drain balance of `asset_id` from account and return drained amount and transition..
     ///
-    /// Used for DAO hardfork transition.
-    pub fn drain_balance(&mut self) -> (u128, TransitionAccount) {
+    /// Used for hardfork transitions.
+    pub fn drain_balance(&mut self, asset_id: B256) -> (u128, TransitionAccount) {
         self.account_info_change(|info| {
-            let output = info.balance;
-            info.balance = U256::ZERO;
+            let output = info.get_balance(asset_id);
+            info.set_balance(asset_id, U256::ZERO);
+            output.try_into().unwrap()
+        })
+    }
+
+    /// Drain balance of base asset from account and return drained amount and transition.
+    ///
+    /// Used for hardfork transitions.
+    pub fn drain_base_balance(&mut self) -> (u128, TransitionAccount) {
+        self.account_info_change(|info| {
+            let output = info.get_base_balance();
+            info.set_base_balance(U256::ZERO);
             output.try_into().unwrap()
         })
     }
@@ -394,10 +330,6 @@ impl CacheAccount {
                 // Check if account is empty is done outside of this fn.
                 AccountStatus::InMemoryChange
             }
-            AccountStatus::DestroyedChanged => {
-                // have same state
-                AccountStatus::DestroyedChanged
-            }
             AccountStatus::LoadedEmptyEIP161 => {
                 // Change on empty account, should transfer storage if there is any.
                 // There is possibility that there are storage inside db.
@@ -409,11 +341,6 @@ impl CacheAccount {
                 // This means this is balance transfer that created the account.
                 AccountStatus::InMemoryChange
             }
-            AccountStatus::Destroyed | AccountStatus::DestroyedAgain => {
-                // If account is destroyed and then changed this means this is
-                // balance transfer.
-                AccountStatus::DestroyedChanged
-            }
         };
         self.account = Some(changed_account);
 
@@ -423,7 +350,6 @@ impl CacheAccount {
             previous_info,
             previous_status,
             storage,
-            storage_was_destroyed: false,
         }
     }
 }

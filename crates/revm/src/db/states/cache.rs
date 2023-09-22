@@ -98,22 +98,11 @@ impl CacheState {
                 .get_mut(&address)
                 .expect("All accounts should be present inside cache");
 
-            if account.is_selfdestructed() {
-                // If it is marked as selfdestructed inside revm
-                // we need to changed state to destroyed.
-                if let Some(transition) = this_account.selfdestruct() {
-                    transitions.push((address, transition));
-                }
-                continue;
-            }
             if account.is_created() {
-                // Note: it can happen that created contract get selfdestructed in same block
-                // that is why is_created is checked after selfdestructed
-                //
                 // Note: Create2 opcode (Petersburg) was after state clear EIP (Spurious Dragon)
                 //
                 // Note: It is possibility to create KECCAK_EMPTY contract with some storage
-                // by just setting storage inside CRATE contstructor. Overlap of those contracts
+                // by just setting storage inside CRATE constructor. Overlap of those contracts
                 // is not possible because CREATE2 is introduced later.
 
                 transitions.push((
@@ -121,8 +110,7 @@ impl CacheState {
                     this_account.newly_created(account.info, account.storage),
                 ));
             } else {
-                // Account is touched, but not selfdestructed or newly created.
-                // Account can be touched and not changed.
+                // Account is touched, but newly created. Account can be touched and not changed.
 
                 // And when empty account is touched it needs to be removed from database.
                 // EIP-161 state clear

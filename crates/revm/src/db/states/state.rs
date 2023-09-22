@@ -250,8 +250,7 @@ impl<DB: Database> Database for State<DB> {
                 .map(|account| match account.storage.entry(index) {
                     hash_map::Entry::Occupied(entry) => Ok(*entry.get()),
                     hash_map::Entry::Vacant(entry) => {
-                        // if account was destroyed or account is newly built
-                        // we return zero and don't ask database.
+                        // if account is newly built, we return zero and don't ask database.
                         let value = if is_storage_known {
                             U256::ZERO
                         } else {
@@ -269,7 +268,7 @@ impl<DB: Database> Database for State<DB> {
     }
 
     fn block_hash(&mut self, number: U256) -> Result<B256, Self::Error> {
-        // block number is never biger then u64::MAX.
+        // block number is never bigger then u64::MAX.
         let u64num: u64 = number.to();
         match self.block_hashes.entry(u64num) {
             btree_map::Entry::Occupied(entry) => Ok(*entry.get()),
@@ -305,7 +304,7 @@ mod tests {
         states::reverts::AccountInfoRevert, AccountRevert, AccountStatus, BundleAccount,
         RevertToSlot,
     };
-    use revm_interpreter::primitives::StorageSlot;
+    use revm_interpreter::primitives::{assets::init_balances, StorageSlot};
 
     #[test]
     fn block_hash_cache() {
@@ -348,7 +347,7 @@ mod tests {
         let new_account_address = B160::from_slice(&[0x1; 20]);
         let new_account_created_info = AccountInfo {
             nonce: 1,
-            balance: U256::from(1),
+            balances: init_balances(1),
             ..Default::default()
         };
         let new_account_changed_info = AccountInfo {
@@ -403,7 +402,6 @@ mod tests {
                             present_value: U256::from(1000),
                         },
                     )]),
-                    storage_was_destroyed: false,
                 },
             ),
         ]));
@@ -436,7 +434,6 @@ mod tests {
                             present_value: U256::from(1),
                         },
                     )]),
-                    storage_was_destroyed: false,
                 },
             ),
             (
@@ -472,7 +469,6 @@ mod tests {
                             },
                         ),
                     ]),
-                    storage_was_destroyed: false,
                 },
             ),
         ]));
@@ -491,7 +487,6 @@ mod tests {
                         account: AccountInfoRevert::DeleteIt,
                         previous_status: AccountStatus::LoadedNotExisting,
                         storage: HashMap::from([(slot1, RevertToSlot::Some(U256::ZERO))]),
-                        wipe_storage: false,
                     }
                 ),
                 (
@@ -514,7 +509,6 @@ mod tests {
                             ),
                             (slot3, RevertToSlot::Some(U256::ZERO))
                         ]),
-                        wipe_storage: false,
                     }
                 ),
             ])]),
@@ -591,7 +585,7 @@ mod tests {
         let new_account_address = B160::from_slice(&[0x1; 20]);
         let new_account_created_info = AccountInfo {
             nonce: 1,
-            balance: U256::from(1),
+            balances: init_balances(1),
             ..Default::default()
         };
 
@@ -603,7 +597,7 @@ mod tests {
         };
         let existing_account_updated_info = AccountInfo {
             nonce: 1,
-            balance: U256::from(1),
+            balances: init_balances(1),
             ..Default::default()
         };
 
@@ -659,7 +653,6 @@ mod tests {
                             },
                         ),
                     ]),
-                    storage_was_destroyed: false,
                 },
             ),
         ]));
@@ -709,7 +702,6 @@ mod tests {
                             },
                         ),
                     ]),
-                    storage_was_destroyed: false,
                 },
             ),
         ]));
@@ -722,121 +714,5 @@ mod tests {
         // both account info and storage are left as before transitions,
         // therefore there is nothing to revert
         assert_eq!(bundle_state.reverts.as_ref(), Vec::from([Vec::from([])]));
-    }
-
-    /// Checks that the behavior of selfdestruct within the block is correct.
-    #[test]
-    fn selfdestruct_state_and_reverts() {
-        let mut state = State::builder().with_bundle_update().build();
-
-        // Existing account.
-        let existing_account_address = B160::from_slice(&[0x1; 20]);
-        let existing_account_info = AccountInfo {
-            nonce: 1,
-            ..Default::default()
-        };
-
-        let (slot1, slot2) = (U256::from(1), U256::from(2));
-
-        // Existing account is destroyed.
-        state.apply_transition(Vec::from([(
-            existing_account_address,
-            TransitionAccount {
-                status: AccountStatus::Destroyed,
-                info: None,
-                previous_status: AccountStatus::Loaded,
-                previous_info: Some(existing_account_info.clone()),
-                storage: HashMap::default(),
-                storage_was_destroyed: true,
-            },
-        )]));
-
-        // Existing account is re-created and slot 0x01 is changed.
-        state.apply_transition(Vec::from([(
-            existing_account_address,
-            TransitionAccount {
-                status: AccountStatus::DestroyedChanged,
-                info: Some(existing_account_info.clone()),
-                previous_status: AccountStatus::Destroyed,
-                previous_info: None,
-                storage: HashMap::from([(
-                    slot1,
-                    StorageSlot {
-                        previous_or_original_value: U256::ZERO,
-                        present_value: U256::from(1),
-                    },
-                )]),
-                storage_was_destroyed: false,
-            },
-        )]));
-
-        // Slot 0x01 is changed, but existing account is destroyed again.
-        state.apply_transition(Vec::from([(
-            existing_account_address,
-            TransitionAccount {
-                status: AccountStatus::DestroyedAgain,
-                info: None,
-                previous_status: AccountStatus::DestroyedChanged,
-                previous_info: Some(existing_account_info.clone()),
-                // storage change should be ignored
-                storage: HashMap::default(),
-                storage_was_destroyed: true,
-            },
-        )]));
-
-        // Existing account is re-created and slot 0x02 is changed.
-        state.apply_transition(Vec::from([(
-            existing_account_address,
-            TransitionAccount {
-                status: AccountStatus::DestroyedChanged,
-                info: Some(existing_account_info.clone()),
-                previous_status: AccountStatus::DestroyedAgain,
-                previous_info: None,
-                storage: HashMap::from([(
-                    slot2,
-                    StorageSlot {
-                        previous_or_original_value: U256::ZERO,
-                        present_value: U256::from(2),
-                    },
-                )]),
-                storage_was_destroyed: false,
-            },
-        )]));
-
-        state.merge_transitions(BundleRetention::Reverts);
-
-        let bundle_state = state.take_bundle();
-
-        assert_eq!(
-            bundle_state.state,
-            HashMap::from([(
-                existing_account_address,
-                BundleAccount {
-                    info: Some(existing_account_info.clone()),
-                    original_info: Some(existing_account_info.clone()),
-                    storage: HashMap::from([(
-                        slot2,
-                        StorageSlot {
-                            previous_or_original_value: U256::ZERO,
-                            present_value: U256::from(2),
-                        },
-                    )]),
-                    status: AccountStatus::DestroyedChanged,
-                }
-            )])
-        );
-
-        assert_eq!(
-            bundle_state.reverts.as_ref(),
-            Vec::from([Vec::from([(
-                existing_account_address,
-                AccountRevert {
-                    account: AccountInfoRevert::DoNothing,
-                    previous_status: AccountStatus::Loaded,
-                    storage: HashMap::from([(slot2, RevertToSlot::Destroyed)]),
-                    wipe_storage: true,
-                }
-            )])])
-        )
     }
 }

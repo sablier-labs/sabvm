@@ -8,7 +8,7 @@ pub enum InstructionResult {
     Continue = 0x00,
     Stop = 0x01,
     Return = 0x02,
-    SelfDestruct = 0x03,
+    // SelfDestruct = 0x03,
 
     // revert codes
     Revert = 0x20, // revert opcode
@@ -143,7 +143,7 @@ impl From<InstructionResult> for SuccessOrHalt {
             InstructionResult::Continue => Self::InternalContinue, // used only in interpreter loop
             InstructionResult::Stop => Self::Success(Eval::Stop),
             InstructionResult::Return => Self::Success(Eval::Return),
-            InstructionResult::SelfDestruct => Self::Success(Eval::SelfDestruct),
+            // InstructionResult::SelfDestruct => Self::Success(Eval::SelfDestruct),
             InstructionResult::Revert => Self::Revert,
             InstructionResult::CallTooDeep => Self::Halt(Halt::CallTooDeep), // not gonna happen for first call
             InstructionResult::OutOfFund => Self::Halt(Halt::OutOfFund), // Check for first call is done separately.
@@ -192,10 +192,7 @@ impl From<InstructionResult> for SuccessOrHalt {
 #[macro_export]
 macro_rules! return_ok {
     () => {
-        InstructionResult::Continue
-            | InstructionResult::Stop
-            | InstructionResult::Return
-            | InstructionResult::SelfDestruct
+        InstructionResult::Continue | InstructionResult::Stop | InstructionResult::Return
     };
 }
 

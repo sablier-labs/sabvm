@@ -1,4 +1,4 @@
-use crate::B160;
+use crate::{B160,B256};
 
 /// Interpreter stack limit
 pub const STACK_LIMIT: u64 = 1024;
@@ -37,3 +37,6 @@ pub const MIN_BLOB_GASPRICE: u64 = 1;
 pub const BLOB_GASPRICE_UPDATE_FRACTION: u64 = 3338477;
 /// First version of the blob.
 pub const VERSIONED_HASH_VERSION_KZG: u8 = 0x01;
+
+// ID of base asset
+pub const BASE_ASSET_ID: B256 = B256::zero();

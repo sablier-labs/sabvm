@@ -1,7 +1,7 @@
 use crate::interpreter::{
     analysis::to_analysed, gas, instruction_result::SuccessOrHalt, return_ok, return_revert,
     CallContext, CallInputs, CallScheme, Contract, CreateInputs, CreateScheme, Gas, Host,
-    InstructionResult, Interpreter, SelfDestructResult, Transfer, CALL_STACK_LIMIT,
+    InstructionResult, Interpreter, Transfer, CALL_STACK_LIMIT,
 };
 use crate::journaled_state::{is_precompile, JournalCheckpoint};
 use crate::primitives::{
@@ -167,7 +167,9 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> Transact<DB::Error>
             gas_cost = gas_cost.saturating_add(U256::from(data_fee));
         }
 
-        caller_account.info.balance = caller_account.info.balance.saturating_sub(gas_cost);
+        caller_account
+            .info
+            .decrease_base_balance_saturating(gas_cost);
 
         // touch account so we know it is changed.
         caller_account.mark_touch();
@@ -288,62 +290,61 @@ impl<'a, GSPEC: Spec, DB: Database, const INSPECT: bool> EVMImpl<'a, GSPEC, DB, 
     fn finalize<SPEC: Spec>(&mut self, gas: &Gas) -> (HashMap<B160, Account>, Vec<Log>, u64, u64) {
         let caller = self.data.env.tx.caller;
         let coinbase = self.data.env.block.coinbase;
-        let (gas_used, gas_refunded) =
-            if crate::USE_GAS {
-                let effective_gas_price = self.data.env.effective_gas_price();
-                let basefee = self.data.env.block.basefee;
+        let (gas_used, gas_refunded) = if crate::USE_GAS {
+            let effective_gas_price = self.data.env.effective_gas_price();
+            let basefee = self.data.env.block.basefee;
 
-                let gas_refunded = if self.env().cfg.is_gas_refund_disabled() {
-                    0
-                } else {
-                    // EIP-3529: Reduction in refunds
-                    let max_refund_quotient = if SPEC::enabled(LONDON) { 5 } else { 2 };
-                    min(gas.refunded() as u64, gas.spend() / max_refund_quotient)
-                };
-
-                // return balance of not spend gas.
-                let Ok((caller_account, _)) =
-                    self.data.journaled_state.load_account(caller, self.data.db)
-                else {
-                    panic!("caller account not found");
-                };
-
-                caller_account.info.balance = caller_account.info.balance.saturating_add(
-                    effective_gas_price * U256::from(gas.remaining() + gas_refunded),
-                );
-
-                // transfer fee to coinbase/beneficiary.
-                if !self.data.env.cfg.disable_coinbase_tip {
-                    // EIP-1559 discard basefee for coinbase transfer. Basefee amount of gas is discarded.
-                    let coinbase_gas_price = if SPEC::enabled(LONDON) {
-                        effective_gas_price.saturating_sub(basefee)
-                    } else {
-                        effective_gas_price
-                    };
-
-                    let Ok((coinbase_account, _)) = self
-                        .data
-                        .journaled_state
-                        .load_account(coinbase, self.data.db)
-                    else {
-                        panic!("coinbase account not found");
-                    };
-                    coinbase_account.mark_touch();
-                    coinbase_account.info.balance = coinbase_account.info.balance.saturating_add(
-                        coinbase_gas_price * U256::from(gas.spend() - gas_refunded),
-                    );
-                }
-
-                (gas.spend() - gas_refunded, gas_refunded)
+            let gas_refunded = if self.env().cfg.is_gas_refund_disabled() {
+                0
             } else {
-                // touch coinbase
-                let _ = self
+                // EIP-3529: Reduction in refunds
+                let max_refund_quotient = if SPEC::enabled(LONDON) { 5 } else { 2 };
+                min(gas.refunded() as u64, gas.spend() / max_refund_quotient)
+            };
+
+            // return balance of not spend gas.
+            let Ok((caller_account, _)) =
+                self.data.journaled_state.load_account(caller, self.data.db)
+            else {
+                panic!("caller account not found");
+            };
+
+            caller_account.info.increase_base_balance_saturating(
+                effective_gas_price * U256::from(gas.remaining() + gas_refunded),
+            );
+
+            // transfer fee to coinbase/beneficiary.
+            if !self.data.env.cfg.disable_coinbase_tip {
+                // EIP-1559 discard basefee for coinbase transfer. Basefee amount of gas is discarded.
+                let coinbase_gas_price = if SPEC::enabled(LONDON) {
+                    effective_gas_price.saturating_sub(basefee)
+                } else {
+                    effective_gas_price
+                };
+
+                let Ok((coinbase_account, _)) = self
                     .data
                     .journaled_state
-                    .load_account(coinbase, self.data.db);
-                self.data.journaled_state.touch(&coinbase);
-                (0, 0)
-            };
+                    .load_account(coinbase, self.data.db)
+                else {
+                    panic!("coinbase account not found");
+                };
+                coinbase_account.mark_touch();
+                coinbase_account.info.increase_base_balance_saturating(
+                    coinbase_gas_price * U256::from(gas.spend() - gas_refunded),
+                );
+            }
+
+            (gas.spend() - gas_refunded, gas_refunded)
+        } else {
+            // touch coinbase
+            let _ = self
+                .data
+                .journaled_state
+                .load_account(coinbase, self.data.db);
+            self.data.journaled_state.touch(&coinbase);
+            (0, 0)
+        };
         let (new_state, logs) = self.data.journaled_state.finalize();
         (new_state, logs, gas_used, gas_refunded)
     }
@@ -780,6 +781,7 @@ impl<'a, GSPEC: Spec, DB: Database + 'a, const INSPECT: bool> Host
             .ok()
     }
 
+    /// Original BALANCE opcode. Here for backwards compatibility.
     fn balance(&mut self, address: B160) -> Option<(U256, bool)> {
         let db = &mut self.data.db;
         let journal = &mut self.data.journaled_state;
@@ -788,7 +790,7 @@ impl<'a, GSPEC: Spec, DB: Database + 'a, const INSPECT: bool> Host
             .load_account(address, db)
             .map_err(|e| *error = Some(e))
             .ok()
-            .map(|(acc, is_cold)| (acc.info.balance, is_cold))
+            .map(|(acc, is_cold)| (acc.info.get_base_balance(), is_cold))
     }
 
     fn code(&mut self, address: B160) -> Option<(Bytecode, bool)> {
@@ -862,19 +864,6 @@ impl<'a, GSPEC: Spec, DB: Database + 'a, const INSPECT: bool> Host
         self.data.journaled_state.log(log);
     }
 
-    fn selfdestruct(&mut self, address: B160, target: B160) -> Option<SelfDestructResult> {
-        if INSPECT {
-            let acc = self.data.journaled_state.state.get(&address).unwrap();
-            self.inspector
-                .selfdestruct(address, target, acc.info.balance);
-        }
-        self.data
-            .journaled_state
-            .selfdestruct(address, target, self.data.db)
-            .map_err(|e| self.data.error = Some(e))
-            .ok()
-    }
-
     fn create(
         &mut self,
         inputs: &mut CreateInputs,
@@ -924,5 +913,26 @@ impl<'a, GSPEC: Spec, DB: Database + 'a, const INSPECT: bool> Host
         } else {
             (ret.result, ret.gas, ret.return_value)
         }
+    }
+
+    fn balance_of(&mut self, asset_id: B256, address: B160) -> Option<(U256, bool)> {
+        let db = &mut self.data.db;
+        let journal = &mut self.data.journaled_state;
+        let error = &mut self.data.error;
+        journal
+            .load_account(address, db)
+            .map_err(|e| *error = Some(e))
+            .ok()
+            .map(|(acc, is_cold)| (acc.info.get_balance(asset_id), is_cold))
+    }
+
+    /// TODO: implement
+    fn mint(&mut self, _address: B160, _value: U256) -> (InstructionResult, Gas) {
+        panic!("Mint is not supported for this host")
+    }
+
+    /// TODO: implement
+    fn burn(&mut self, _address: B160, _value: U256) -> (InstructionResult, Gas) {
+        panic!("Burn is not supported for this host")
     }
 }

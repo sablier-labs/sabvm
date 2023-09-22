@@ -163,7 +163,7 @@ pub fn execute_test_suite(
         let mut cache_state = revm::CacheState::new(false);
         for (address, info) in unit.pre {
             let acc_info = revm::primitives::AccountInfo {
-                balance: info.balance,
+                balances: info.balances,
                 code_hash: keccak256(&info.code),
                 code: Some(Bytecode::new_raw(info.code)),
                 nonce: info.nonce,

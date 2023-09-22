@@ -216,24 +216,6 @@ pub fn log<const N: usize>(interpreter: &mut Interpreter, host: &mut dyn Host) {
     host.log(interpreter.contract.address, topics, data);
 }
 
-pub fn selfdestruct<SPEC: Spec>(interpreter: &mut Interpreter, host: &mut dyn Host) {
-    check_staticcall!(interpreter);
-    pop_address!(interpreter, target);
-
-    let Some(res) = host.selfdestruct(interpreter.contract.address, target) else {
-        interpreter.instruction_result = InstructionResult::FatalExternalError;
-        return;
-    };
-
-    // EIP-3529: Reduction in refunds
-    if !SPEC::enabled(LONDON) && !res.previously_destroyed {
-        refund!(interpreter, gas::SELFDESTRUCT)
-    }
-    gas!(interpreter, gas::selfdestruct_cost::<SPEC>(res));
-
-    interpreter.instruction_result = InstructionResult::SelfDestruct;
-}
-
 #[inline(never)]
 pub fn prepare_create_inputs<const IS_CREATE2: bool, SPEC: Spec>(
     interpreter: &mut Interpreter,
@@ -565,3 +547,25 @@ pub fn call_inner<SPEC: Spec>(
         }
     }
 }
+
+pub fn balance_of<SPEC: Spec>(interpreter: &mut Interpreter, host: &mut dyn Host) {
+    pop_address!(interpreter, address);
+    pop!(interpreter, asset_id);
+
+    let asset_id = B256::from(asset_id);
+
+    let Some((balance, is_cold)) = host.balance_of(asset_id, address) else {
+        interpreter.instruction_result = InstructionResult::FatalExternalError;
+        return;
+    };
+    gas!(
+        interpreter,
+        // EIP-1884: Repricing for trie-size-dependent opcodes
+        gas::account_access_gas::<SPEC>(is_cold)
+    );
+    push!(interpreter, balance);
+}
+
+pub fn mint<SPEC: Spec>(_interpreter: &mut Interpreter, _host: &mut dyn Host) {}
+
+pub fn burn<SPEC: Spec>(_interpreter: &mut Interpreter, _host: &mut dyn Host) {}

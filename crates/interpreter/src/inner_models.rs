@@ -88,12 +88,3 @@ pub struct Transfer {
     /// Transfer value.
     pub value: U256,
 }
-
-#[derive(Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct SelfDestructResult {
-    pub had_value: bool,
-    pub target_exists: bool,
-    pub is_cold: bool,
-    pub previously_destroyed: bool,
-}

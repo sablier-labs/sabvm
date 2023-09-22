@@ -210,6 +210,10 @@ pub enum InvalidTransaction {
     TooManyBlobs,
     /// Blob transaction contains a versioned hash with an incorrect version
     BlobVersionNotSupported,
+    /// The base `value` has to be zero for asset transactions
+    BaseValueNotZero,
+    /// Asset IDs in transaction are not unique
+    AssetIdsNotUnique,
 }
 
 /// Reason a transaction successfully completed.
@@ -218,7 +222,6 @@ pub enum InvalidTransaction {
 pub enum Eval {
     Stop,
     Return,
-    SelfDestruct,
 }
 
 /// Indicates that the EVM has experienced an exceptional halt. This causes execution to

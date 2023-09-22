@@ -1,7 +1,7 @@
 use crate::primitives::Bytecode;
 use crate::{
     primitives::{Bytes, Env, B160, B256, U256},
-    CallInputs, CreateInputs, Gas, InstructionResult, Interpreter, SelfDestructResult,
+    CallInputs, CreateInputs, Gas, InstructionResult, Interpreter,
 };
 use alloc::vec::Vec;
 pub use dummy::DummyHost;
@@ -23,7 +23,7 @@ pub trait Host {
     fn load_account(&mut self, address: B160) -> Option<(bool, bool)>;
     /// Get environmental block hash.
     fn block_hash(&mut self, number: U256) -> Option<B256>;
-    /// Get balance of address and if account is cold loaded.
+    /// Get base asset balance of address and if account is cold loaded.
     fn balance(&mut self, address: B160) -> Option<(U256, bool)>;
     /// Get code of address and if account is cold loaded.
     fn code(&mut self, address: B160) -> Option<(Bytecode, bool)>;
@@ -45,8 +45,6 @@ pub trait Host {
     fn tstore(&mut self, address: B160, index: U256, value: U256);
     /// Create a log owned by address with given topics and data.
     fn log(&mut self, address: B160, topics: Vec<B256>, data: Bytes);
-    /// Mark an address to be deleted, with funds transferred to target.
-    fn selfdestruct(&mut self, address: B160, target: B160) -> Option<SelfDestructResult>;
     /// Invoke a create operation.
     fn create(
         &mut self,
@@ -54,4 +52,11 @@ pub trait Host {
     ) -> (InstructionResult, Option<B160>, Gas, Bytes);
     /// Invoke a call operation.
     fn call(&mut self, input: &mut CallInputs) -> (InstructionResult, Gas, Bytes);
+
+    /// Get asset balance of address and if account is cold loaded.
+    fn balance_of(&mut self, asset_id: B256, address: B160) -> Option<(U256, bool)>;
+    /// Mint a native asset.
+    fn mint(&mut self, address: B160, value: U256) -> (InstructionResult, Gas);
+    /// Burn a native asset.
+    fn burn(&mut self, address: B160, value: U256) -> (InstructionResult, Gas);
 }

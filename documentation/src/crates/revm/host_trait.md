@@ -44,10 +44,6 @@ The [`EVMImpl`](./evm_impl.md) struct implements this `Host` trait.
 
     This method is used to create log entries, which are a way for contracts to produce output that external observers (like dapps or the frontend of a blockchain explorer) can listen for and react to.
 
--  `selfdestruct`
-
-    The selfdestruct method attempts to terminate the specified address, transferring its remaining balance to a given target address. If the INSPECT constant is true, the self-destruction event is observed or logged via an inspector. The method returns an Option<SelfDestructResult>, encapsulating the outcome of the operation: Some(SelfDestructResult) on success and None if an error occurs, with the error being stored internally for later reference.
-
 - `create`
 
     The create method initiates the creation of a contract with the provided CreateInputs. If the INSPECT constant is true, the creation process is observed or logged using an inspector, both at the start and end of the creation. The method returns a tuple consisting of the operation's result (InstructionResult), the optional address (Option<B160>) of the newly created contract, the amount of gas consumed (Gas), and the output data (Bytes). If the inspector intervenes and determines the instruction shouldn't continue, an early return occurs with the observed outcomes.

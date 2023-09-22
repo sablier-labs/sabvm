@@ -2,6 +2,7 @@
 
 extern crate alloc;
 
+pub mod assets;
 pub mod bits;
 pub mod bytecode;
 pub mod constants;
@@ -16,6 +17,7 @@ pub mod specification;
 pub mod state;
 pub mod utilities;
 
+pub use assets::Balances;
 pub use bits::B160;
 pub use bits::B256;
 pub use bitvec;

@@ -34,6 +34,6 @@ The module provides several inspector implementations out of the box, which can 
 
 To use an inspector, you need to implement the `Inspector` trait. For each method, you can decide what you want to do at each point in the EVM execution.
 
-For example, if you wanted to log all `SELFDESTRUCT` operations, you could implement the selfdestruct method to write a log entry every time a contract initiates a `selfdestruct` operation.
+For example, if you wanted to log all `CALL` operations, you could implement the selfdestruct method to write a log entry every time a contract initiates a `call` operation.
 
 Remember, the methods in the `Inspector` trait are optional to implement; if you do not need specific functionality, you can use the provided default implementations.

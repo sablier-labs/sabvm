@@ -134,7 +134,4 @@ pub trait Inspector<DB: Database> {
     ) -> (InstructionResult, Option<B160>, Gas, Bytes) {
         (ret, address, remaining_gas, out)
     }
-
-    /// Called when a contract has been self-destructed with funds transferred to target.
-    fn selfdestruct(&mut self, _contract: B160, _target: B160, _value: U256) {}
 }

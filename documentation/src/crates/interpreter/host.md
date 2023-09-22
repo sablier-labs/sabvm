@@ -19,8 +19,6 @@ The `host.rs` module in this Rust EVM implementation defines a crucial trait `Ho
 
 - `log`: Creates a log entry with the specified address, topics, and data. Log entries are used by smart contracts to emit events.
 
-- `selfdestruct`: Marks an Ethereum account to be self-destructed, transferring its funds to a target account.
-
 - `create` & `call`: These methods handle the creation of new smart contracts and the invocation of smart contract functions, respectively.
 
 

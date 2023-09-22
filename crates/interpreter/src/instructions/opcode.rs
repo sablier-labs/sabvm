@@ -273,9 +273,9 @@ opcodes! {
     // 0xBD
     // 0xBE
     // 0xBF
-    // 0xC0
-    // 0xC1
-    // 0xC2
+    0xC0 => BALANCEOF => host::balance_of::<SPEC>,
+    // 0xC1 => MINT => (),
+    // 0xC2 => BURN => (),
     // 0xC3
     // 0xC4
     // 0xC5
@@ -336,7 +336,7 @@ opcodes! {
     // 0xF
     0xFD => REVERT       => control::revert::<SPEC>,
     0xFE => INVALID      => control::invalid,
-    0xFF => SELFDESTRUCT => host::selfdestruct::<SPEC>,
+    // 0xFF This is the historical SELFDESTRUCT, do not override
 }
 
 /// An EVM opcode.
@@ -709,7 +709,6 @@ const fn opcode_gas_info(opcode: u8, spec: SpecId) -> OpInfo {
 
         REVERT => OpInfo::gas_block_end(0),
         INVALID => OpInfo::gas_block_end(0),
-        SELFDESTRUCT => OpInfo::gas_block_end(0),
 
         _ => OpInfo::none(),
     }

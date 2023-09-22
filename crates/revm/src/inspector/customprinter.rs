@@ -114,13 +114,6 @@ impl<DB: Database> Inspector<DB> for CustomPrintTracer {
         );
         (InstructionResult::Continue, None, Gas::new(0), Bytes::new())
     }
-
-    fn selfdestruct(&mut self, contract: B160, target: B160, value: U256) {
-        println!(
-            "SELFDESTRUCT: contract: {:?}, refund target: {:?}, value {:?}",
-            contract, target, value
-        );
-    }
 }
 
 #[cfg(test)]

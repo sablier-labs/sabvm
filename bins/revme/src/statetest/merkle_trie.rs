@@ -48,7 +48,15 @@ pub fn state_merkle_trie_root<'a>(
 pub fn trie_account_rlp(acc: &PlainAccount) -> Bytes {
     let mut stream = RlpStream::new_list(4);
     stream.append(&acc.info.nonce);
-    stream.append(&acc.info.balance);
+    // TODO: double check that this is RLP compliant
+    stream.append(&{
+        sec_trie_root::<KeccakHasher, _, _, _>(
+            acc.info
+                .balances
+                .iter()
+                .map(|(&k, v)| (H256::from(k.to_be_bytes()), rlp::encode(v))),
+        )
+    });
     stream.append(&{
         sec_trie_root::<KeccakHasher, _, _, _>(
             acc.storage
