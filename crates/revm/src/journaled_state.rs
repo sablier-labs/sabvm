@@ -165,7 +165,7 @@ impl JournaledState {
         // sub balance from
         let from_account = &mut self.state.get_mut(from).unwrap();
         Self::touch_account(self.journal.last_mut().unwrap(), from, from_account);
-        let from_balance = &mut from_account.info.balance;
+        let from_balance = &mut from_account.info.get_base_balance();
         *from_balance = from_balance
             .checked_sub(balance)
             .ok_or(InstructionResult::OutOfFund)?;
@@ -173,7 +173,7 @@ impl JournaledState {
         // add balance to
         let to_account = &mut self.state.get_mut(to).unwrap();
         Self::touch_account(self.journal.last_mut().unwrap(), to, to_account);
-        let to_balance = &mut to_account.info.balance;
+        let to_balance = &mut to_account.info.get_base_balance();
         *to_balance = to_balance
             .checked_add(balance)
             .ok_or(InstructionResult::OverflowPayment)?;
@@ -253,11 +253,11 @@ impl JournaledState {
         Self::touch_account(last_journal, &address, account);
 
         // Add balance to created account, as we already have target here.
-        let Some(new_balance) = account.info.balance.checked_add(balance) else {
+        let Some(new_balance) = account.info.get_base_balance().checked_add(balance) else {
             self.checkpoint_revert(checkpoint);
             return Err(InstructionResult::OverflowPayment);
         };
-        account.info.balance = new_balance;
+        account.info.set_base_balance(new_balance);
 
         // EIP-161: State trie clearing (invariant-preserving alternative)
         if SPEC::enabled(SPURIOUS_DRAGON) {
@@ -268,7 +268,7 @@ impl JournaledState {
         // Sub balance from caller
         let caller_account = self.state.get_mut(&caller).unwrap();
         // Balance is already checked in `create_inner`, so it is safe to just subtract.
-        caller_account.info.balance -= balance;
+        caller_account.info.decrease_base_balance(balance);
 
         // add journal entry of transferred balance
         last_journal.push(JournalEntry::BalanceTransfer {
@@ -316,19 +316,19 @@ impl JournaledState {
                         // flag that is not selfdestructed
                         account.unmark_selfdestruct();
                     }
-                    account.info.balance += had_balance;
+                    account.info.increase_base_balance(had_balance);
 
                     if address != target {
                         let target = state.get_mut(&target).unwrap();
-                        target.info.balance -= had_balance;
+                        target.info.decrease_base_balance(had_balance);
                     }
                 }
                 JournalEntry::BalanceTransfer { from, to, balance } => {
                     // we don't need to check overflow and underflow when adding and subtracting the balance.
                     let from = state.get_mut(&from).unwrap();
-                    from.info.balance += balance;
+                    from.info.increase_base_balance(balance);
                     let to = state.get_mut(&to).unwrap();
-                    to.info.balance -= balance;
+                    to.info.decrease_base_balance(balance);
                 }
                 JournalEntry::NonceChange { address } => {
                     state.get_mut(&address).unwrap().info.nonce -= 1;
@@ -417,6 +417,8 @@ impl JournaledState {
         self.journal.truncate(checkpoint.journal_i);
     }
 
+    /// DEPRECATED: this opcode is not available in the SabVM
+    ///
     /// Performans selfdestruct action.
     /// Transfers balance from address to target. Check if target exist/is_cold
     ///
@@ -442,20 +444,22 @@ impl JournaledState {
             // and `target` at the beginning of the function.
             let [acc, target_account] = self.state.get_many_mut([&address, &target]).unwrap();
             Self::touch_account(self.journal.last_mut().unwrap(), &target, target_account);
-            target_account.info.balance += acc.info.balance;
+            target_account
+                .info
+                .increase_base_balance(acc.info.get_base_balance());
             acc
         } else {
             self.state.get_mut(&address).unwrap()
         };
 
-        let balance = acc.info.balance;
+        let balance = acc.info.get_base_balance();
         let previously_destroyed = acc.is_selfdestructed();
         let is_cancun_enabled = SpecId::enabled(self.spec, CANCUN);
 
         // EIP-6780 (Cancun hard-fork): selfdestruct only if contract is created in the same tx
         let journal_entry = if acc.is_created() || !is_cancun_enabled {
             acc.mark_selfdestruct();
-            acc.info.balance = U256::ZERO;
+            acc.info.set_base_balance(U256::ZERO);
             Some(JournalEntry::AccountDestroyed {
                 address,
                 target,
@@ -463,7 +467,7 @@ impl JournaledState {
                 had_balance: balance,
             })
         } else if address != target {
-            acc.info.balance = U256::ZERO;
+            acc.info.set_base_balance(U256::ZERO);
             Some(JournalEntry::BalanceTransfer {
                 from: address,
                 to: target,

@@ -171,6 +171,14 @@ impl Env {
             }
         }
 
+        if self.tx.asset_values.is_some() {
+            // If `asset_values` is set, check that `value` is zero.
+            if self.tx.value != U256::ZERO {
+                return Err(InvalidTransaction::BaseValueNotZero);
+            }
+            // TODO: check that asset IDs are unique
+        }
+
         Ok(())
     }
 
@@ -222,14 +230,17 @@ impl Env {
 
         // Check if account has enough balance for gas_limit*gas_price and value transfer.
         // Transfer will be done inside `*_inner` functions.
-        if balance_check > account.info.balance {
+        let base_asset_balance = account.info.get_base_balance();
+        if balance_check > base_asset_balance {
             if self.cfg.is_balance_check_disabled() {
                 // Add transaction cost to balance to ensure execution doesn't fail.
+                //TODO: adapt the below for MNAs
+                //TODO: how is it even possible to execute txs without someone paying for all of the gas??
                 account.info.balance = balance_check;
             } else {
                 return Err(InvalidTransaction::LackOfFundForMaxFee {
                     fee: Box::new(balance_check),
-                    balance: Box::new(account.info.balance),
+                    balance: Box::new(base_asset_balance),
                 });
             }
         }
@@ -544,6 +555,11 @@ pub struct TxEnv {
     /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
     pub max_fee_per_blob_gas: Option<U256>,
 
+    /// A list of asset IDs and values to transfer in the transaction.
+    ///
+    /// If this is set, `value` must be zero.
+    pub asset_values: Option<Vec<(B256, U256)>>,
+
     #[cfg_attr(feature = "serde", serde(flatten))]
     #[cfg(feature = "optimism")]
     pub optimism: OptimismFields,
@@ -574,6 +590,7 @@ impl Default for TxEnv {
             access_list: Vec::new(),
             blob_hashes: Vec::new(),
             max_fee_per_blob_gas: None,
+            asset_values: None,
             #[cfg(feature = "optimism")]
             optimism: OptimismFields::default(),
         }

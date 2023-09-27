@@ -7,8 +7,8 @@ use revm::{
     inspectors::TracerEip3155,
     interpreter::CreateScheme,
     primitives::{
-        address, b256, calc_excess_blob_gas, keccak256, Bytecode, Env, HashMap, SpecId, TransactTo,
-        B256, U256,
+        address, b256, calc_excess_blob_gas, keccak256, Bytecode, Env, HashMap, SpecId, init_balances, 
+        TransactTo, B256, U256,
     },
 };
 use std::{
@@ -144,7 +144,7 @@ pub fn execute_test_suite(
         let mut cache_state = revm::CacheState::new(false);
         for (address, info) in unit.pre {
             let acc_info = revm::primitives::AccountInfo {
-                balance: info.balance,
+                balances: init_balances(info.balance),
                 code_hash: keccak256(&info.code),
                 code: Some(Bytecode::new_raw(info.code)),
                 nonce: info.nonce,

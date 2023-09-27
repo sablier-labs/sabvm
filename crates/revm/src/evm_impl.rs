@@ -461,7 +461,9 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
             gas_cost = gas_cost.saturating_add(data_fee);
         }
 
-        caller_account.info.balance = caller_account.info.balance.saturating_sub(gas_cost);
+        caller_account
+            .info
+            .decrease_base_balance_saturating(gas_cost);
 
         // touch account so we know it is changed.
         caller_account.mark_touch();
@@ -594,8 +596,9 @@ impl<'a, SPEC: Spec + 'static, DB: Database> Host for EVMImpl<'a, SPEC, DB> {
         self.context.load_account(address)
     }
 
+/// Original BALANCE opcode. Here for backwards compatibility.
     fn balance(&mut self, address: Address) -> Option<(U256, bool)> {
-        self.context.balance(address)
+        self.context.balance(address) //TODO: return the base balance here
     }
 
     fn code(&mut self, address: Address) -> Option<(Bytecode, bool)> {
@@ -643,7 +646,7 @@ impl<'a, SPEC: Spec + 'static, DB: Database> Host for EVMImpl<'a, SPEC, DB> {
     fn selfdestruct(&mut self, address: Address, target: Address) -> Option<SelfDestructResult> {
         if let Some(inspector) = self.inspector.as_mut() {
             let acc = self.context.journaled_state.state.get(&address).unwrap();
-            inspector.selfdestruct(address, target, acc.info.balance);
+            inspector.selfdestruct(address, target, acc.info.get_base_balance());
         }
         self.context
             .journaled_state
@@ -828,5 +831,26 @@ mod tests {
                 },
             ))
         );
+    }
+
+    fn balanceof(&mut self, asset_id: B256, address: B160) -> Option<(U256, bool)> {
+        let db = &mut self.data.db;
+        let journal = &mut self.data.journaled_state;
+        let error = &mut self.data.error;
+        journal
+            .load_account(address, db)
+            .map_err(|e| *error = Some(e))
+            .ok()
+            .map(|(acc, is_cold)| (acc.info.get_balance(asset_id), is_cold))
+    }
+
+    /// TODO: implement
+    fn mint(&mut self, _address: B160, _value: U256) -> (InstructionResult, Gas) {
+        panic!("Mint is not supported for this host")
+    }
+
+    /// TODO: implement
+    fn burn(&mut self, _address: B160, _value: U256) -> (InstructionResult, Gas) {
+        panic!("Burn is not supported for this host")
     }
 }

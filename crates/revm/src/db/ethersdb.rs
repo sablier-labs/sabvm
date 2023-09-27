@@ -1,4 +1,4 @@
-use crate::primitives::{AccountInfo, Address, Bytecode, B256, KECCAK_EMPTY, U256};
+use crate::primitives::{init_balances, AccountInfo, Address, Bytecode, B256, KECCAK_EMPTY, U256};
 use crate::{Database, DatabaseRef};
 use ethers_core::types::{BlockId, H160 as eH160, H256, U64 as eU64};
 use ethers_providers::Middleware;
@@ -65,11 +65,11 @@ impl<M: Middleware> DatabaseRef for EthersDB<M> {
         let bytecode = Bytecode::new_raw(bytecode.0.into());
         let code_hash = bytecode.hash_slow();
         Ok(Some(AccountInfo::new(
-            U256::from_limbs(
+            init_balances(U256::from_limbs(
                 balance
                     .unwrap_or_else(|e| panic!("ethers get balance error: {e:?}"))
                     .0,
-            ),
+            )),
             nonce
                 .unwrap_or_else(|e| panic!("ethers get nonce error: {e:?}"))
                 .as_u64(),

@@ -73,7 +73,7 @@ impl<DB: Database> State<DB> {
         self.bundle_state.size_hint()
     }
 
-    /// Iterate over received balances and increment all account balances.
+    /// Iterate over received balances and increment all base asset balances.
     /// If account is not found inside cache state it will be loaded from database.
     ///
     /// Update will create transitions for all accounts that are updated.
@@ -95,7 +95,7 @@ impl<DB: Database> State<DB> {
             transitions.push((
                 address,
                 original_account
-                    .increment_balance(balance)
+                    .increment_base_balance(balance)
                     .expect("Balance is not zero"),
             ))
         }
@@ -106,10 +106,31 @@ impl<DB: Database> State<DB> {
         Ok(())
     }
 
-    /// Drain balances from given account and return those values.
+    /// Drain all asset balances from given account and return those values.
+    pub fn drain_balances(
+        &mut self,
+        asset_ids_and_addresses: impl IntoIterator<Item = (B256, B160)>,
+    ) -> Result<Vec<(B256, u128)>, DB::Error> {
+        // make transition and update cache state
+        let mut transitions = Vec::new();
+        let mut balances = Vec::new();
+        for (asset_id, address) in asset_ids_and_addresses {
+            let original_account = self.load_cache_account(address)?;
+            let (balance, transition) = original_account.drain_balance(asset_id);
+            balances.push((asset_id, balance));
+            transitions.push((address, transition))
+        }
+        // append transition
+        if let Some(s) = self.transition_state.as_mut() {
+            s.add_transitions(transitions)
+        }
+        Ok(balances)
+    }
+
+    /// Drain base asset balances from given account and return those values.
     ///
     /// It is used for DAO hardfork state change to move values from given accounts.
-    pub fn drain_balances(
+    pub fn drain_base_balances(
         &mut self,
         addresses: impl IntoIterator<Item = Address>,
     ) -> Result<Vec<u128>, DB::Error> {
@@ -118,7 +139,7 @@ impl<DB: Database> State<DB> {
         let mut balances = Vec::new();
         for address in addresses {
             let original_account = self.load_cache_account(address)?;
-            let (balance, transition) = original_account.drain_balance();
+            let (balance, transition) = original_account.drain_base_balance();
             balances.push(balance);
             transitions.push((address, transition))
         }
@@ -305,7 +326,7 @@ mod tests {
         states::reverts::AccountInfoRevert, AccountRevert, AccountStatus, BundleAccount,
         RevertToSlot,
     };
-    use revm_interpreter::primitives::{keccak256, StorageSlot};
+    use revm_interpreter::primitives::{init_balances, keccak256, StorageSlot};
 
     #[test]
     fn block_hash_cache() {
@@ -348,7 +369,7 @@ mod tests {
         let new_account_address = Address::from_slice(&[0x1; 20]);
         let new_account_created_info = AccountInfo {
             nonce: 1,
-            balance: U256::from(1),
+            balances: init_balances(U256::from(1)),
             ..Default::default()
         };
         let new_account_changed_info = AccountInfo {
@@ -591,7 +612,7 @@ mod tests {
         let new_account_address = Address::from_slice(&[0x1; 20]);
         let new_account_created_info = AccountInfo {
             nonce: 1,
-            balance: U256::from(1),
+            balances: init_balances(U256::from(1)),
             ..Default::default()
         };
 
@@ -603,7 +624,7 @@ mod tests {
         };
         let existing_account_updated_info = AccountInfo {
             nonce: 1,
-            balance: U256::from(1),
+            balances: init_balances(U256::from(1)),
             ..Default::default()
         };
 

@@ -20,7 +20,7 @@ pub trait Host {
     /// Get the block hash of the given block `number`.
     fn block_hash(&mut self, number: U256) -> Option<B256>;
 
-    /// Get balance of `address` and if the account is cold.
+    /// Get base asset balance of `address` and if the account is cold.
     fn balance(&mut self, address: Address) -> Option<(U256, bool)>;
 
     /// Get code of `address` and if the account is cold.
@@ -53,4 +53,13 @@ pub trait Host {
 
     /// Mark `address` to be deleted, with funds transferred to `target`.
     fn selfdestruct(&mut self, address: Address, target: Address) -> Option<SelfDestructResult>;
+
+    /// Get asset balance of address and if account is cold loaded.
+    fn balanceof(&mut self, asset_id: B256, address: B160) -> Option<(U256, bool)>;
+
+    /// Mint a native asset.
+    fn mint(&mut self, address: B160, value: U256) -> (InstructionResult, Gas);
+    
+    /// Burn a native asset.
+    fn burn(&mut self, address: B160, value: U256) -> (InstructionResult, Gas);
 }
