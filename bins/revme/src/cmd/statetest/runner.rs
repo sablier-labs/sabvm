@@ -153,7 +153,7 @@ pub fn execute_test_suite(
         }
 
         let mut env = Env::default();
-        // for mainnet
+        // Ethereum Mainnet chain id, not changed to 706 to remain compatible with ethereum/tests
         env.cfg.chain_id = 1;
         // env.cfg.spec_id is set down the road
 
