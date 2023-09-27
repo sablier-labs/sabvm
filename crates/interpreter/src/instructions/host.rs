@@ -216,22 +216,9 @@ pub fn log<const N: usize, H: Host>(interpreter: &mut Interpreter, host: &mut H)
     host.log(interpreter.contract.address, topics, data);
 }
 
-pub fn selfdestruct<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
-    check_staticcall!(interpreter);
-    pop_address!(interpreter, target);
-
-    let Some(res) = host.selfdestruct(interpreter.contract.address, target) else {
-        interpreter.instruction_result = InstructionResult::FatalExternalError;
-        return;
-    };
-
-    // EIP-3529: Reduction in refunds
-    if !SPEC::enabled(LONDON) && !res.previously_destroyed {
-        refund!(interpreter, gas::SELFDESTRUCT)
-    }
-    gas!(interpreter, gas::selfdestruct_cost::<SPEC>(res));
-
-    interpreter.instruction_result = InstructionResult::SelfDestruct;
+/// DEPRECATED: the SELFDESTRUCT opcode is not available in the SabVM
+pub fn selfdestruct<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, _host: &mut H) {
+    interpreter.instruction_result = InstructionResult::NotActivated;
 }
 
 pub fn create<const IS_CREATE2: bool, H: Host, SPEC: Spec>(
@@ -470,3 +457,25 @@ pub fn call_inner<SPEC: Spec, H: Host>(
     });
     interpreter.instruction_result = InstructionResult::CallOrCreate;
 }
+
+pub fn balanceof<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    pop_address!(interpreter, address);
+    pop!(interpreter, asset_id);
+
+    let asset_id = B256::from(asset_id);
+
+    let Some((balance, is_cold)) = host.balanceof(asset_id, address) else {
+        interpreter.instruction_result = InstructionResult::FatalExternalError;
+        return;
+    };
+    gas!(
+        interpreter,
+        // EIP-1884: Repricing for trie-size-dependent opcodes
+        gas::account_access_gas::<SPEC>(is_cold)
+    );
+    push!(interpreter, balance);
+}
+
+pub fn mint<H: Host, SPEC: Spec>(_interpreter: &mut Interpreter, _host: &mut H) {}
+
+pub fn burn<H: Host, SPEC: Spec>(_interpreter: &mut Interpreter, _host: &mut H) {}

@@ -1,5 +1,6 @@
 use crate::{
-    b256, B256, BLOB_GASPRICE_UPDATE_FRACTION, MIN_BLOB_GASPRICE, TARGET_BLOB_GAS_PER_BLOCK,
+    Balances, BASE_ASSET_ID, b256, B160, B256, BLOB_GASPRICE_UPDATE_FRACTION, MIN_BLOB_GASPRICE,
+    TARGET_BLOB_GAS_PER_BLOCK, U256
 };
 pub use alloy_primitives::keccak256;
 
@@ -57,6 +58,13 @@ pub fn fake_exponential(factor: u64, numerator: u64, denominator: u64) -> u128 {
         i += 1;
     }
     output / denominator
+}
+
+/// Creates a simple balances map with the given balance for the base asset.
+pub fn init_balances(base_asset_balance: U256) -> Balances {
+    let mut balances = Balances::new();
+    balances.insert(BASE_ASSET_ID, base_asset_balance);
+    balances
 }
 
 #[cfg(test)]

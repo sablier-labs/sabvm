@@ -6,6 +6,7 @@ use crate::primitives::{
 use crate::Database;
 use alloc::vec::Vec;
 use core::convert::Infallible;
+use revm_interpreter::primitives::init_balances;
 
 /// A [Database] implementation that stores all state changes in memory.
 pub type InMemoryDB = CacheDB<EmptyDB>;
@@ -371,7 +372,7 @@ impl Database for BenchmarkDB {
         if address == Address::ZERO {
             return Ok(Some(AccountInfo {
                 nonce: 1,
-                balance: U256::from(10000000),
+                balances: init_balances(U256::from(10000000)),
                 code: Some(self.0.clone()),
                 code_hash: self.1,
             }));
@@ -379,7 +380,7 @@ impl Database for BenchmarkDB {
         if address == Address::with_last_byte(1) {
             return Ok(Some(AccountInfo {
                 nonce: 0,
-                balance: U256::from(10000000),
+                balances: init_balances(U256::from(10000000)),
                 code: None,
                 code_hash: KECCAK_EMPTY,
             }));

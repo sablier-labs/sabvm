@@ -216,6 +216,10 @@ pub enum InvalidTransaction {
     TooManyBlobs,
     /// Blob transaction contains a versioned hash with an incorrect version
     BlobVersionNotSupported,
+    /// The base `value` has to be zero for asset transactions
+    BaseValueNotZero,
+    /// Asset IDs in transaction are not unique
+    AssetIdsNotUnique,
     /// System transactions are not supported
     /// post-regolith hardfork.
     #[cfg(feature = "optimism")]

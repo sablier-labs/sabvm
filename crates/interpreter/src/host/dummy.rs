@@ -118,4 +118,19 @@ impl Host for DummyHost {
     fn selfdestruct(&mut self, _address: Address, _target: Address) -> Option<SelfDestructResult> {
         panic!("Selfdestruct is not supported for this host")
     }
+    
+    #[inline]
+    fn balanceof(&mut self, _asset_id: B256, _address: B160) -> Option<(U256, bool)> {
+        Some((U256::ZERO, false))
+    }
+
+    #[inline]
+    fn mint(&mut self, _address: B160, _sub_id: B256, _value: U256) -> Option<bool> {
+        panic!("Mint is not supported for this host")
+    }
+
+    #[inline]
+    fn burn(&mut self, _address: B160, _sub_id: B256, _value: U256) -> Option<bool> {
+        panic!("Burn is not supported for this host")
+    }
 }
