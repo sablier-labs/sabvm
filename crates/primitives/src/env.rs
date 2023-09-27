@@ -376,7 +376,7 @@ impl CfgEnv {
 impl Default for CfgEnv {
     fn default() -> Self {
         Self {
-            chain_id: 1,
+            chain_id: 706, // sum of the ASCII values for "Sablier"
             perf_analyse_created_bytecodes: AnalysisKind::default(),
             limit_contract_code_size: None,
             #[cfg(feature = "c-kzg")]
