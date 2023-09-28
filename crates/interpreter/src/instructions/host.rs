@@ -476,6 +476,16 @@ pub fn balanceof<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut 
     push!(interpreter, balance);
 }
 
-pub fn mint<H: Host, SPEC: Spec>(_interpreter: &mut Interpreter, _host: &mut H) {}
+pub fn mint<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    pop!(interpreter, sub_id, value);
+
+    let sub_id = B256::from(sub_id);
+
+    let Some(is_cold) = host.mint(interpreter.contract.address, sub_id, value) else {
+        interpreter.instruction_result = InstructionResult::FatalExternalError;
+        return;
+    };
+    gas_or_fail!(interpreter, { gas::mint_cost::<SPEC>(is_cold) });
+}
 
 pub fn burn<H: Host, SPEC: Spec>(_interpreter: &mut Interpreter, _host: &mut H) {}

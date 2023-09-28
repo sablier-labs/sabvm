@@ -1,7 +1,7 @@
 use crate::interpreter::{InstructionResult, SelfDestructResult};
 use crate::primitives::{
     db::Database, hash_map::Entry, Account, Address, Bytecode, HashMap, Log, Spec, SpecId::*,
-    State, StorageSlot, TransientStorage, KECCAK_EMPTY, PRECOMPILE3, U256,
+    State, StorageSlot, TransientStorage, KECCAK_EMPTY, PRECOMPILE3, U256, B160, B256
 };
 use alloc::vec::Vec;
 use core::mem;
@@ -730,6 +730,16 @@ impl JournaledState {
     #[inline]
     pub fn log(&mut self, log: Log) {
         self.logs.push(log);
+    }
+
+    pub fn mint<DB: Database>(
+        &mut self,
+        _address: B160,
+        _asset_id: B256,
+        _value: U256,
+        _db: &mut DB,
+    ) -> Result<(bool), DB::Error> {
+        Ok(true)
     }
 }
 
