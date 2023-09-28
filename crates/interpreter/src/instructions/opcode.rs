@@ -307,7 +307,7 @@ opcodes! {
     // 0xBE
     // 0xBF
     0xC0 => BALANCEOF => host::balanceof::<H, SPEC>,
-    // 0xC1 => MINT => (),
+    0xC1 => MINT => host::mint::<H,SPEC>,
     // 0xC2 => BURN => (),
     // 0xC3
     // 0xC4
@@ -785,7 +785,7 @@ const fn opcode_gas_info(opcode: u8, spec: SpecId) -> OpInfo {
         0xBE => OpInfo::none(),
         0xBF => OpInfo::none(),
         BALANCEOF => OpInfo::dynamic_gas(),
-        0xC1 => OpInfo::none(),
+        MINT => OpInfo::none(),
         0xC2 => OpInfo::none(),
         0xC3 => OpInfo::none(),
         0xC4 => OpInfo::none(),

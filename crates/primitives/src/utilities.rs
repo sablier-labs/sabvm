@@ -8,6 +8,14 @@ pub use alloy_primitives::keccak256;
 pub const KECCAK_EMPTY: B256 =
     b256!("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470");
 
+/// Returns the asset ID by hashing the address and sub ID.
+pub fn asset_id_address(address: B160, sub_id: B256) -> B256 {
+    let mut hasher = Keccak256::new();
+    hasher.update(&address[..]);
+    hasher.update(&sub_id[..]);
+    B256(hasher.finalize().as_slice().try_into().unwrap())
+}
+
 /// Calculates the `excess_blob_gas` from the parent header's `blob_gas_used` and `excess_blob_gas`.
 ///
 /// See also [the EIP-4844 helpers]<https://eips.ethereum.org/EIPS/eip-4844#helpers>

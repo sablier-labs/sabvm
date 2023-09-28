@@ -19,6 +19,7 @@ use crate::{
 use alloc::{boxed::Box, sync::Arc, vec::Vec};
 use auto_impl::auto_impl;
 use core::{fmt, marker::PhantomData, ops::Range};
+use revm_interpreter::primitives::asset_id_address;
 
 #[cfg(feature = "optimism")]
 use crate::optimism;
@@ -844,9 +845,18 @@ mod tests {
             .map(|(acc, is_cold)| (acc.info.get_balance(asset_id), is_cold))
     }
 
-    /// TODO: implement
-    fn mint(&mut self, _address: B160, _value: U256) -> (InstructionResult, Gas) {
-        panic!("Mint is not supported for this host")
+    fn mint(&mut self, address: B160, sub_id: B160, value: U256) -> Option<bool> {
+        let asset_id = asset_id_address(address, sub_id);
+
+        let db = &mut self.data.db;
+        let journal = &mut self.data.journaled_state;
+        let error = &mut self.data.error;
+
+        self.data
+            .journaled_state
+            .mint(address, asset_id, value, self.data.db)
+            .map_err(|e| self.data.error = Some(e))
+            .ok()
     }
 
     /// TODO: implement

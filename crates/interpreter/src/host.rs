@@ -56,10 +56,10 @@ pub trait Host {
 
     /// Get asset balance of address and if account is cold loaded.
     fn balanceof(&mut self, asset_id: B256, address: B160) -> Option<(U256, bool)>;
-
+    
     /// Mint a native asset.
-    fn mint(&mut self, address: B160, value: U256) -> (InstructionResult, Gas);
+    fn mint(&mut self, address: B160, sub_id: B256, value: U256) -> Option<bool>;
     
     /// Burn a native asset.
-    fn burn(&mut self, address: B160, value: U256) -> (InstructionResult, Gas);
+    fn burn(&mut self, address: B160, sub_id: B256, value: U256) -> Option<bool>;
 }
