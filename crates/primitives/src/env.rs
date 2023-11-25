@@ -216,33 +216,53 @@ impl Env {
             }
         }
 
-        let mut balance_check = U256::from(self.tx.gas_limit)
+        let mut required_base_balance = U256::from(self.tx.gas_limit)
             .checked_mul(self.tx.gas_price)
             .and_then(|gas_cost| gas_cost.checked_add(self.tx.value))
             .ok_or(InvalidTransaction::OverflowPaymentInTransaction)?;
 
         if SpecId::enabled(self.cfg.spec_id, SpecId::CANCUN) {
             let data_fee = self.calc_data_fee().expect("already checked");
-            balance_check = balance_check
+            required_base_balance = required_base_balance
                 .checked_add(U256::from(data_fee))
                 .ok_or(InvalidTransaction::OverflowPaymentInTransaction)?;
         }
 
-        // Check if account has enough balance for gas_limit*gas_price and value transfer.
+        // Check if the account has enough base balance for gas_limit*gas_price and value transfer.
         // Transfer will be done inside `*_inner` functions.
         let base_asset_balance = account.info.get_base_balance();
-        if balance_check > base_asset_balance {
+        if required_base_balance > base_asset_balance {
             if self.cfg.is_balance_check_disabled() {
                 // Add transaction cost to balance to ensure execution doesn't fail.
-                //TODO: adapt the below for MNAs
                 //TODO: how is it even possible to execute txs without someone paying for all of the gas??
-                account.info.balance = balance_check;
+                account.info.set_base_balance(required_base_balance);
             } else {
-                return Err(InvalidTransaction::LackOfFundForMaxFee {
-                    fee: Box::new(balance_check),
-                    balance: Box::new(base_asset_balance),
-                });
+                return Err(
+                    InvalidTransaction::NotEnoughBaseAssetBalanceForTransferAndMaxFee {
+                        fee: Box::new(required_base_balance),
+                        balance: Box::new(base_asset_balance),
+                    },
+                );
             }
+        }
+
+        // If other native assets are being transferred in the tx, then, for each of the assets,
+        // check that the account has a balance big enough to cover the transfer amount
+        match self.tx.asset_values {
+            Some(vector) => {
+                for (asset_id, transfer_amount) in vector.into_iter() {
+                    let asset_balance = account.info.get_balance(asset_id);
+                    if asset_balance < transfer_amount {
+                        return Err(InvalidTransaction::NotEnoughAssetBalanceForTransfer {
+                            asset_id: (asset_id),
+                            required_balance: (transfer_amount),
+                            actual_balance: (asset_balance),
+                        });
+                    }
+                }
+            }
+
+            None => {}
         }
 
         Ok(())

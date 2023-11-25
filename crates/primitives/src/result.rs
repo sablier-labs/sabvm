@@ -1,4 +1,4 @@
-use crate::{Address, Bytes, Log, State, U256};
+use crate::{Address, Bytes, Log, State, B256, U256};
 use alloc::{boxed::Box, vec::Vec};
 use core::fmt;
 
@@ -178,10 +178,16 @@ pub enum InvalidTransaction {
     CallGasCostMoreThanGasLimit,
     /// EIP-3607 Reject transactions from senders with deployed code
     RejectCallerWithCode,
-    /// Transaction account does not have enough amount of ether to cover transferred value and gas_limit*gas_price.
-    LackOfFundForMaxFee {
+    /// Transaction account doesn't have enough ether to cover the transferred value and gas_limit*gas_price.
+    NotEnoughBaseAssetBalanceForTransferAndMaxFee {
         fee: Box<U256>,
         balance: Box<U256>,
+    },
+    /// Transaction account doesn't have enough asset balance to cover the transferred value.
+    NotEnoughAssetBalanceForTransfer{
+        asset_id: B256,
+        required_balance: U256,
+        actual_balance: U256
     },
     /// Overflow payment in transaction.
     OverflowPaymentInTransaction,
@@ -251,7 +257,7 @@ impl fmt::Display for InvalidTransaction {
             InvalidTransaction::RejectCallerWithCode => {
                 write!(f, "Reject transactions from senders with deployed code")
             }
-            InvalidTransaction::LackOfFundForMaxFee { fee, balance } => {
+            InvalidTransaction::NotEnoughBaseAssetBalanceForTransferAndMaxFee { fee, balance } => {
                 write!(f, "Lack of funds {} for max fee {}", balance, fee)
             }
             InvalidTransaction::OverflowPaymentInTransaction => {

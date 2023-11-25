@@ -68,7 +68,7 @@ impl<'a, SPEC: Spec, DB: Database> EVMImpl<'a, SPEC, DB> {
             .0;
         if l1_cost.gt(&acc.info.balance) {
             return Err(EVMError::Transaction(
-                InvalidTransaction::LackOfFundForMaxFee {
+                InvalidTransaction::NotEnoughBaseAssetBalanceForTransferAndMaxFee {
                     fee: Box::new(l1_cost),
                     balance: Box::new(acc.info.balance),
                 },
@@ -826,7 +826,7 @@ mod tests {
                 &mut journal
             ),
             Err(EVMError::Transaction(
-                InvalidTransaction::LackOfFundForMaxFee {
+                InvalidTransaction::NotEnoughBaseAssetBalanceForTransferAndMaxFee {
                     fee: Box::new(U256::from(101)),
                     balance: Box::new(U256::from(100)),
                 },

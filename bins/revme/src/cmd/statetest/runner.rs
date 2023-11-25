@@ -7,8 +7,8 @@ use revm::{
     inspectors::TracerEip3155,
     interpreter::CreateScheme,
     primitives::{
-        address, b256, calc_excess_blob_gas, keccak256, Bytecode, Env, HashMap, SpecId, init_balances, 
-        TransactTo, B256, U256,
+        address, b256, calc_excess_blob_gas, init_balances, keccak256, Bytecode, Env, HashMap,
+        SpecId, TransactTo, B256, U256,
     },
 };
 use std::{
