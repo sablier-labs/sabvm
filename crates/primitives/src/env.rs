@@ -1,10 +1,13 @@
 use crate::{
     alloc::vec::Vec, calc_blob_gasprice, Account, Address, Bytes, InvalidHeader,
-    InvalidTransaction, Spec, SpecId, B256, GAS_PER_BLOB, KECCAK_EMPTY, MAX_BLOB_NUMBER_PER_BLOCK,
-    MAX_INITCODE_SIZE, U256, VERSIONED_HASH_VERSION_KZG,
+    InvalidTransaction, Spec, SpecId, B256, BASE_ASSET_ID, GAS_PER_BLOB, KECCAK_EMPTY,
+    MAX_BLOB_NUMBER_PER_BLOCK, MAX_INITCODE_SIZE, U256, VERSIONED_HASH_VERSION_KZG,
 };
 use alloc::boxed::Box;
-use core::cmp::{min, Ordering};
+use core::{
+    cmp::{min, Ordering},
+    ops::Deref,
+};
 
 /// EVM environment configuration.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
@@ -250,7 +253,10 @@ impl Env {
         // check that the account has a balance big enough to cover the transfer amount
         match self.tx.asset_values {
             Some(vector) => {
-                for (asset_id, transfer_amount) in vector.into_iter() {
+                for (asset_id, transfer_amount) in vector
+                    .into_iter()
+                    .filter(|(asset_id, transfer_amount)| asset_id.deref() != BASE_ASSET_ID)
+                {
                     let asset_balance = account.info.get_balance(asset_id);
                     if asset_balance < transfer_amount {
                         return Err(InvalidTransaction::NotEnoughAssetBalanceForTransfer {
