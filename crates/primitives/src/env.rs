@@ -1,6 +1,6 @@
 use crate::{
-    alloc::vec::Vec, calc_blob_gasprice, Account, Address, Bytes, InvalidHeader,
-    InvalidTransaction, Spec, SpecId, B256, BASE_ASSET_ID, GAS_PER_BLOB, KECCAK_EMPTY,
+    alloc::vec::Vec, calc_blob_gasprice, Account, Address, Bytes, InvalidHeaderReason,
+    InvalidTransactionReason, Spec, SpecId, B256, BASE_ASSET_ID, GAS_PER_BLOB, KECCAK_EMPTY,
     MAX_BLOB_NUMBER_PER_BLOCK, MAX_INITCODE_SIZE, U256, VERSIONED_HASH_VERSION_KZG,
 };
 use alloc::boxed::Box;
@@ -8,6 +8,7 @@ use core::{
     cmp::{min, Ordering},
     ops::Deref,
 };
+use std::collections::HashSet;
 
 /// EVM environment configuration.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
@@ -46,14 +47,14 @@ impl Env {
 
     /// Validate the block environment.
     #[inline]
-    pub fn validate_block_env<SPEC: Spec>(&self) -> Result<(), InvalidHeader> {
+    pub fn validate_block_env<SPEC: Spec>(&self) -> Result<(), InvalidHeaderReason> {
         // `prevrandao` is required for the merge
         if SPEC::enabled(SpecId::MERGE) && self.block.prevrandao.is_none() {
-            return Err(InvalidHeader::PrevrandaoNotSet);
+            return Err(InvalidHeaderReason::PrevrandaoNotSet);
         }
         // `excess_blob_gas` is required for Cancun
         if SPEC::enabled(SpecId::CANCUN) && self.block.blob_excess_gas_and_price.is_none() {
-            return Err(InvalidHeader::ExcessBlobGasNotSet);
+            return Err(InvalidHeaderReason::ExcessBlobGasNotSet);
         }
         Ok(())
     }
@@ -62,14 +63,14 @@ impl Env {
     ///
     /// Return initial spend gas (Gas needed to execute transaction).
     #[inline]
-    pub fn validate_tx<SPEC: Spec>(&self) -> Result<(), InvalidTransaction> {
+    pub fn validate_tx<SPEC: Spec>(&self) -> Result<(), InvalidTransactionReason> {
         #[cfg(feature = "optimism")]
         if self.cfg.optimism {
             // Do not allow for a system transaction to be processed if Regolith is enabled.
             if self.tx.optimism.is_system_transaction.unwrap_or(false)
                 && SPEC::enabled(SpecId::REGOLITH)
             {
-                return Err(InvalidTransaction::DepositSystemTxPostRegolith);
+                return Err(InvalidTransactionReason::DepositSystemTxPostRegolith);
             }
 
             // Do not perform any extra validation for deposit transactions, they are pre-verified on L1.
@@ -87,20 +88,20 @@ impl Env {
             if let Some(priority_fee) = self.tx.gas_priority_fee {
                 if priority_fee > self.tx.gas_price {
                     // or gas_max_fee for eip1559
-                    return Err(InvalidTransaction::PriorityFeeGreaterThanMaxFee);
+                    return Err(InvalidTransactionReason::PriorityFeeGreaterThanMaxFee);
                 }
             }
             let basefee = self.block.basefee;
 
             // check minimal cost against basefee
             if !self.cfg.is_base_fee_check_disabled() && effective_gas_price < basefee {
-                return Err(InvalidTransaction::GasPriceLessThanBasefee);
+                return Err(InvalidTransactionReason::GasPriceLessThanBasefee);
             }
         }
 
         // Check if gas_limit is more than block_gas_limit
         if !self.cfg.is_block_gas_limit_disabled() && U256::from(gas_limit) > self.block.gas_limit {
-            return Err(InvalidTransaction::CallerGasLimitMoreThanBlock);
+            return Err(InvalidTransactionReason::CallerGasLimitMoreThanBlock);
         }
 
         // EIP-3860: Limit and meter initcode
@@ -111,20 +112,20 @@ impl Env {
                 .map(|limit| limit.saturating_mul(2))
                 .unwrap_or(MAX_INITCODE_SIZE);
             if self.tx.data.len() > max_initcode_size {
-                return Err(InvalidTransaction::CreateInitcodeSizeLimit);
+                return Err(InvalidTransactionReason::CreateInitcodeSizeLimit);
             }
         }
 
         // Check if the transaction's chain id is correct
         if let Some(tx_chain_id) = self.tx.chain_id {
             if tx_chain_id != self.cfg.chain_id {
-                return Err(InvalidTransaction::InvalidChainId);
+                return Err(InvalidTransactionReason::InvalidChainId);
             }
         }
 
         // Check that access list is empty for transactions before BERLIN
         if !SPEC::enabled(SpecId::BERLIN) && !self.tx.access_list.is_empty() {
-            return Err(InvalidTransaction::AccessListNotSupported);
+            return Err(InvalidTransactionReason::AccessListNotSupported);
         }
 
         // - For CANCUN and later, check that the gas price is not more than the tx max
@@ -135,13 +136,13 @@ impl Env {
                 // ensure that the user was willing to at least pay the current blob gasprice
                 let price = self.block.get_blob_gasprice().expect("already checked");
                 if U256::from(price) > max {
-                    return Err(InvalidTransaction::BlobGasPriceGreaterThanMax);
+                    return Err(InvalidTransactionReason::BlobGasPriceGreaterThanMax);
                 }
 
                 // there must be at least one blob
                 // assert len(tx.blob_versioned_hashes) > 0
                 if self.tx.blob_hashes.is_empty() {
-                    return Err(InvalidTransaction::EmptyBlobs);
+                    return Err(InvalidTransactionReason::EmptyBlobs);
                 }
 
                 // The field `to` deviates slightly from the semantics with the exception
@@ -149,37 +150,49 @@ impl Env {
                 // a 20-byte address. This means that blob transactions cannot
                 // have the form of a create transaction.
                 if self.tx.transact_to.is_create() {
-                    return Err(InvalidTransaction::BlobCreateTransaction);
+                    return Err(InvalidTransactionReason::BlobCreateTransaction);
                 }
 
                 // all versioned blob hashes must start with VERSIONED_HASH_VERSION_KZG
                 for blob in self.tx.blob_hashes.iter() {
                     if blob[0] != VERSIONED_HASH_VERSION_KZG {
-                        return Err(InvalidTransaction::BlobVersionNotSupported);
+                        return Err(InvalidTransactionReason::BlobVersionNotSupported);
                     }
                 }
 
                 // ensure the total blob gas spent is at most equal to the limit
                 // assert blob_gas_used <= MAX_BLOB_GAS_PER_BLOCK
                 if self.tx.blob_hashes.len() > MAX_BLOB_NUMBER_PER_BLOCK as usize {
-                    return Err(InvalidTransaction::TooManyBlobs);
+                    return Err(InvalidTransactionReason::TooManyBlobs);
                 }
             }
         } else {
             if !self.tx.blob_hashes.is_empty() {
-                return Err(InvalidTransaction::BlobVersionedHashesNotSupported);
+                return Err(InvalidTransactionReason::BlobVersionedHashesNotSupported);
             }
+
             if self.tx.max_fee_per_blob_gas.is_some() {
-                return Err(InvalidTransaction::MaxFeePerBlobGasNotSupported);
+                return Err(InvalidTransactionReason::MaxFeePerBlobGasNotSupported);
             }
         }
 
-        if self.tx.asset_values.is_some() {
-            // If `asset_values` is set, check that `value` is zero.
-            if self.tx.value != U256::ZERO {
-                return Err(InvalidTransaction::BaseValueNotZero);
+        match self.tx.asset_values {
+            Some(vector) => {
+                // If `asset_values` is set, check that `value` is zero.
+                if self.tx.value != U256::ZERO {
+                    return Err(InvalidTransactionReason::BaseValueNotZero);
+                }
+
+                //TODO: check that the submitted asset IDs are valid/exist
+
+                // Check that the submitted asset IDs are unique
+                let unique_ids: HashSet<B256> = vector.into_iter().map(|(id, _)| id).collect();
+                if unique_ids.len() != vector.len() {
+                    return Err(InvalidTransactionReason::AssetIdsNotUnique);
+                }
             }
-            // TODO: check that asset IDs are unique
+
+            None => {}
         }
 
         Ok(())
@@ -190,12 +203,12 @@ impl Env {
     pub fn validate_tx_against_state(
         &self,
         account: &mut Account,
-    ) -> Result<(), InvalidTransaction> {
+    ) -> Result<(), InvalidTransactionReason> {
         // EIP-3607: Reject transactions from senders with deployed code
         // This EIP is introduced after london but there was no collision in past
         // so we can leave it enabled always
         if !self.cfg.is_eip3607_disabled() && account.info.code_hash != KECCAK_EMPTY {
-            return Err(InvalidTransaction::RejectCallerWithCode);
+            return Err(InvalidTransactionReason::RejectCallerWithCode);
         }
 
         // On Optimism, deposit transactions do not have verification on the nonce
@@ -210,10 +223,10 @@ impl Env {
             let state = account.info.nonce;
             match tx.cmp(&state) {
                 Ordering::Greater => {
-                    return Err(InvalidTransaction::NonceTooHigh { tx, state });
+                    return Err(InvalidTransactionReason::NonceTooHigh { tx, state });
                 }
                 Ordering::Less => {
-                    return Err(InvalidTransaction::NonceTooLow { tx, state });
+                    return Err(InvalidTransactionReason::NonceTooLow { tx, state });
                 }
                 _ => {}
             }
@@ -222,13 +235,13 @@ impl Env {
         let mut required_base_balance = U256::from(self.tx.gas_limit)
             .checked_mul(self.tx.gas_price)
             .and_then(|gas_cost| gas_cost.checked_add(self.tx.value))
-            .ok_or(InvalidTransaction::OverflowPaymentInTransaction)?;
+            .ok_or(InvalidTransactionReason::OverflowPaymentInTransaction)?;
 
         if SpecId::enabled(self.cfg.spec_id, SpecId::CANCUN) {
             let data_fee = self.calc_data_fee().expect("already checked");
             required_base_balance = required_base_balance
                 .checked_add(U256::from(data_fee))
-                .ok_or(InvalidTransaction::OverflowPaymentInTransaction)?;
+                .ok_or(InvalidTransactionReason::OverflowPaymentInTransaction)?;
         }
 
         // Check if the account has enough base balance for gas_limit*gas_price and value transfer.
@@ -241,7 +254,7 @@ impl Env {
                 account.info.set_base_balance(required_base_balance);
             } else {
                 return Err(
-                    InvalidTransaction::NotEnoughBaseAssetBalanceForTransferAndMaxFee {
+                    InvalidTransactionReason::NotEnoughBaseAssetBalanceForTransferAndMaxFee {
                         fee: Box::new(required_base_balance),
                         balance: Box::new(base_asset_balance),
                     },
@@ -259,7 +272,7 @@ impl Env {
                 {
                     let asset_balance = account.info.get_balance(asset_id);
                     if asset_balance < transfer_amount {
-                        return Err(InvalidTransaction::NotEnoughAssetBalanceForTransfer {
+                        return Err(InvalidTransactionReason::NotEnoughAssetBalanceForTransfer {
                             asset_id: (asset_id),
                             required_balance: (transfer_amount),
                             actual_balance: (asset_balance),
@@ -538,6 +551,8 @@ pub struct TxEnv {
     pub gas_price: U256,
     /// The destination of the transaction.
     pub transact_to: TransactTo,
+
+    //TODO: remove `value`, in favor of `asset_values`
     /// The value sent to `transact_to`.
     pub value: U256,
     /// The data of the transaction.
@@ -764,7 +779,7 @@ mod tests {
         env.tx.optimism.is_system_transaction = Some(true);
         assert_eq!(
             env.validate_tx::<crate::RegolithSpec>(),
-            Err(InvalidTransaction::DepositSystemTxPostRegolith)
+            Err(InvalidTransactionReason::DepositSystemTxPostRegolith)
         );
 
         // Pre-regolith system transactions should be allowed.
@@ -802,7 +817,7 @@ mod tests {
         env.cfg.chain_id = 2;
         assert_eq!(
             env.validate_tx::<crate::LatestSpec>(),
-            Err(InvalidTransaction::InvalidChainId)
+            Err(InvalidTransactionReason::InvalidChainId)
         );
     }
 
@@ -812,7 +827,7 @@ mod tests {
         env.tx.access_list = vec![(Address::ZERO, vec![])];
         assert_eq!(
             env.validate_tx::<crate::FrontierSpec>(),
-            Err(InvalidTransaction::AccessListNotSupported)
+            Err(InvalidTransactionReason::AccessListNotSupported)
         );
     }
 }

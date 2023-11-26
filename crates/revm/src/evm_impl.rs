@@ -11,8 +11,8 @@ use crate::{
     journaled_state::JournaledState,
     precompile::Precompiles,
     primitives::{
-        specification, Address, Bytecode, Bytes, EVMError, EVMResult, Env, InvalidTransaction, Log,
-        Output, Spec, SpecId::*, TransactTo, B256, U256,
+        specification, Address, Bytecode, Bytes, EVMError, EVMResult, Env,
+        InvalidTransactionReason, Log, Output, Spec, SpecId::*, TransactTo, B256, U256,
     },
     CallStackFrame, EvmContext, Inspector,
 };
@@ -68,7 +68,7 @@ impl<'a, SPEC: Spec, DB: Database> EVMImpl<'a, SPEC, DB> {
             .0;
         if l1_cost.gt(&acc.info.balance) {
             return Err(EVMError::Transaction(
-                InvalidTransaction::NotEnoughBaseAssetBalanceForTransferAndMaxFee {
+                InvalidTransactionReason::NotEnoughBaseAssetBalanceForTransferAndMaxFee {
                     fee: Box::new(l1_cost),
                     balance: Box::new(acc.info.balance),
                 },
@@ -364,7 +364,7 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
 
         // Additional check to see if limit is big enough to cover initial gas.
         if initial_gas_spend > env.tx.gas_limit {
-            return Err(InvalidTransaction::CallGasCostMoreThanGasLimit.into());
+            return Err(InvalidTransactionReason::CallGasCostMoreThanGasLimit.into());
         }
 
         // load acc
@@ -597,7 +597,7 @@ impl<'a, SPEC: Spec + 'static, DB: Database> Host for EVMImpl<'a, SPEC, DB> {
         self.context.load_account(address)
     }
 
-/// Original BALANCE opcode. Here for backwards compatibility.
+    /// Original BALANCE opcode. Here for backwards compatibility.
     fn balance(&mut self, address: Address) -> Option<(U256, bool)> {
         self.context.balance(address) //TODO: return the base balance here
     }
@@ -826,7 +826,7 @@ mod tests {
                 &mut journal
             ),
             Err(EVMError::Transaction(
-                InvalidTransaction::NotEnoughBaseAssetBalanceForTransferAndMaxFee {
+                InvalidTransactionReason::NotEnoughBaseAssetBalanceForTransferAndMaxFee {
                     fee: Box::new(U256::from(101)),
                     balance: Box::new(U256::from(100)),
                 },

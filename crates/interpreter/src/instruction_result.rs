@@ -1,4 +1,4 @@
-use crate::primitives::{Eval, Halt};
+use crate::primitives::{Eval, HaltReason};
 
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -97,7 +97,7 @@ impl InstructionResult {
 pub enum SuccessOrHalt {
     Success(Eval),
     Revert,
-    Halt(Halt),
+    Halt(HaltReason),
     FatalExternalError,
     /// Internal instruction that signals Interpreter should continue running.
     InternalContinue,
@@ -135,7 +135,7 @@ impl SuccessOrHalt {
 
     /// Returns the [Halt] value the EVM has experienced an exceptional halt
     #[inline]
-    pub fn to_halt(self) -> Option<Halt> {
+    pub fn to_halt(self) -> Option<HaltReason> {
         match self {
             SuccessOrHalt::Halt(halt) => Some(halt),
             _ => None,
@@ -152,45 +152,49 @@ impl From<InstructionResult> for SuccessOrHalt {
             InstructionResult::SelfDestruct => Self::Success(Eval::SelfDestruct),
             InstructionResult::Revert => Self::Revert,
             InstructionResult::CallOrCreate => Self::InternalCallOrCreate, // used only in interpreter loop
-            InstructionResult::CallTooDeep => Self::Halt(Halt::CallTooDeep), // not gonna happen for first call
-            InstructionResult::OutOfFund => Self::Halt(Halt::OutOfFund), // Check for first call is done separately.
-            InstructionResult::OutOfGas => Self::Halt(Halt::OutOfGas(
+            InstructionResult::CallTooDeep => Self::Halt(HaltReason::CallTooDeep), // not gonna happen for first call
+            InstructionResult::OutOfFund => Self::Halt(HaltReason::OutOfFund), // Check for first call is done separately.
+            InstructionResult::OutOfGas => Self::Halt(HaltReason::OutOfGas(
                 revm_primitives::OutOfGasError::BasicOutOfGas,
             )),
-            InstructionResult::MemoryLimitOOG => {
-                Self::Halt(Halt::OutOfGas(revm_primitives::OutOfGasError::MemoryLimit))
-            }
+            InstructionResult::MemoryLimitOOG => Self::Halt(HaltReason::OutOfGas(
+                revm_primitives::OutOfGasError::MemoryLimit,
+            )),
             InstructionResult::MemoryOOG => {
-                Self::Halt(Halt::OutOfGas(revm_primitives::OutOfGasError::Memory))
+                Self::Halt(HaltReason::OutOfGas(revm_primitives::OutOfGasError::Memory))
             }
-            InstructionResult::PrecompileOOG => {
-                Self::Halt(Halt::OutOfGas(revm_primitives::OutOfGasError::Precompile))
-            }
-            InstructionResult::InvalidOperandOOG => Self::Halt(Halt::OutOfGas(
+            InstructionResult::PrecompileOOG => Self::Halt(HaltReason::OutOfGas(
+                revm_primitives::OutOfGasError::Precompile,
+            )),
+            InstructionResult::InvalidOperandOOG => Self::Halt(HaltReason::OutOfGas(
                 revm_primitives::OutOfGasError::InvalidOperand,
             )),
-            InstructionResult::OpcodeNotFound => Self::Halt(Halt::OpcodeNotFound),
+            InstructionResult::OpcodeNotFound => Self::Halt(HaltReason::OpcodeNotFound),
             InstructionResult::CallNotAllowedInsideStatic => {
-                Self::Halt(Halt::CallNotAllowedInsideStatic)
+                Self::Halt(HaltReason::CallNotAllowedInsideStatic)
             } // first call is not static call
             InstructionResult::StateChangeDuringStaticCall => {
-                Self::Halt(Halt::StateChangeDuringStaticCall)
+                Self::Halt(HaltReason::StateChangeDuringStaticCall)
             }
-            InstructionResult::InvalidFEOpcode => Self::Halt(Halt::InvalidFEOpcode),
-            InstructionResult::InvalidJump => Self::Halt(Halt::InvalidJump),
-            InstructionResult::NotActivated => Self::Halt(Halt::NotActivated),
-            InstructionResult::StackUnderflow => Self::Halt(Halt::StackUnderflow),
-            InstructionResult::StackOverflow => Self::Halt(Halt::StackOverflow),
-            InstructionResult::OutOfOffset => Self::Halt(Halt::OutOfOffset),
-            InstructionResult::CreateCollision => Self::Halt(Halt::CreateCollision),
-            InstructionResult::OverflowPayment => Self::Halt(Halt::OverflowPayment), // Check for first call is done separately.
-            InstructionResult::PrecompileError => Self::Halt(Halt::PrecompileError),
-            InstructionResult::NonceOverflow => Self::Halt(Halt::NonceOverflow),
-            InstructionResult::CreateContractSizeLimit => Self::Halt(Halt::CreateContractSizeLimit),
+            InstructionResult::InvalidFEOpcode => Self::Halt(HaltReason::InvalidFEOpcode),
+            InstructionResult::InvalidJump => Self::Halt(HaltReason::InvalidJump),
+            InstructionResult::NotActivated => Self::Halt(HaltReason::NotActivated),
+            InstructionResult::StackUnderflow => Self::Halt(HaltReason::StackUnderflow),
+            InstructionResult::StackOverflow => Self::Halt(HaltReason::StackOverflow),
+            InstructionResult::OutOfOffset => Self::Halt(HaltReason::OutOfOffset),
+            InstructionResult::CreateCollision => Self::Halt(HaltReason::CreateCollision),
+            InstructionResult::OverflowPayment => Self::Halt(HaltReason::OverflowPayment), // Check for first call is done separately.
+            InstructionResult::PrecompileError => Self::Halt(HaltReason::PrecompileError),
+            InstructionResult::NonceOverflow => Self::Halt(HaltReason::NonceOverflow),
+            InstructionResult::CreateContractSizeLimit => {
+                Self::Halt(HaltReason::CreateContractSizeLimit)
+            }
             InstructionResult::CreateContractStartingWithEF => {
-                Self::Halt(Halt::CreateContractSizeLimit)
+                Self::Halt(HaltReason::CreateContractSizeLimit)
             }
-            InstructionResult::CreateInitcodeSizeLimit => Self::Halt(Halt::CreateInitcodeSizeLimit),
+            InstructionResult::CreateInitcodeSizeLimit => {
+                Self::Halt(HaltReason::CreateInitcodeSizeLimit)
+            }
             InstructionResult::FatalExternalError => Self::FatalExternalError,
         }
     }

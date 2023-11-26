@@ -31,12 +31,8 @@ pub enum ExecutionResult {
     },
     /// Reverted by `REVERT` opcode that doesn't spend all gas.
     Revert { gas_used: u64, output: Bytes },
-    /// Reverted for various reasons and spend all gas.
-    Halt {
-        reason: Halt,
-        /// Halting will spend all the gas, and will be equal to gas_limit.
-        gas_used: u64,
-    },
+    /// Reverted for various reasons. Spend all gas(equal to gas_limit).
+    Halt { reason: HaltReason, gas_used: u64 },
 }
 
 impl ExecutionResult {
@@ -51,6 +47,8 @@ impl ExecutionResult {
     pub fn is_halt(&self) -> bool {
         matches!(self, Self::Halt { .. })
     }
+
+    //TODO: why isn't there an "is_revert()", too?
 
     /// Return logs, if execution is not successful, function will return empty vec.
     pub fn logs(&self) -> Vec<Log> {
@@ -108,7 +106,7 @@ pub enum Output {
 }
 
 impl Output {
-    /// Returns the output data of the execution output.
+    /// Consumes the type and returns the output data of the execution output.
     pub fn into_data(self) -> Bytes {
         match self {
             Output::Call(data) => data,
@@ -130,9 +128,9 @@ impl Output {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum EVMError<DBError> {
     /// Transaction validation error.
-    Transaction(InvalidTransaction),
+    Transaction(InvalidTransactionReason),
     /// Header validation error.
-    Header(InvalidHeader),
+    Header(InvalidHeaderReason),
     /// Database error.
     Database(DBError),
 }
@@ -150,16 +148,16 @@ impl<DBError: fmt::Display> fmt::Display for EVMError<DBError> {
     }
 }
 
-impl<DBError> From<InvalidTransaction> for EVMError<DBError> {
-    fn from(invalid: InvalidTransaction) -> Self {
+impl<DBError> From<InvalidTransactionReason> for EVMError<DBError> {
+    fn from(invalid: InvalidTransactionReason) -> Self {
         EVMError::Transaction(invalid)
     }
 }
 
-/// Transaction validation error.
+/// The reason for the transaction validation error.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum InvalidTransaction {
+pub enum InvalidTransactionReason {
     /// When using the EIP-1559 fee model introduced in the London upgrade, transactions specify two primary fee fields:
     /// - `gas_max_fee`: The maximum total fee a user is willing to pay, inclusive of both base fee and priority fee.
     /// - `gas_priority_fee`: The extra amount a user is willing to give directly to the miner, often referred to as the "tip".
@@ -178,16 +176,16 @@ pub enum InvalidTransaction {
     CallGasCostMoreThanGasLimit,
     /// EIP-3607 Reject transactions from senders with deployed code
     RejectCallerWithCode,
-    /// Transaction account doesn't have enough ether to cover the transferred value and gas_limit*gas_price.
+    /// Transaction account doesn't have enough base asset to cover the transferred value and gas_limit*gas_price.
     NotEnoughBaseAssetBalanceForTransferAndMaxFee {
         fee: Box<U256>,
         balance: Box<U256>,
     },
     /// Transaction account doesn't have enough asset balance to cover the transferred value.
-    NotEnoughAssetBalanceForTransfer{
+    NotEnoughAssetBalanceForTransfer {
         asset_id: B256,
         required_balance: U256,
-        actual_balance: U256
+        actual_balance: U256,
     },
     /// Overflow payment in transaction.
     OverflowPaymentInTransaction,
@@ -237,70 +235,75 @@ pub enum InvalidTransaction {
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for InvalidTransaction {}
+impl std::error::Error for InvalidTransactionReason {}
 
-impl fmt::Display for InvalidTransaction {
+impl fmt::Display for InvalidTransactionReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            InvalidTransaction::PriorityFeeGreaterThanMaxFee => {
+            InvalidTransactionReason::PriorityFeeGreaterThanMaxFee => {
                 write!(f, "Priority fee is greater than max fee")
             }
-            InvalidTransaction::GasPriceLessThanBasefee => {
+            InvalidTransactionReason::GasPriceLessThanBasefee => {
                 write!(f, "Gas price is less than basefee")
             }
-            InvalidTransaction::CallerGasLimitMoreThanBlock => {
+            InvalidTransactionReason::CallerGasLimitMoreThanBlock => {
                 write!(f, "Caller gas limit exceeds the block gas limit")
             }
-            InvalidTransaction::CallGasCostMoreThanGasLimit => {
+            InvalidTransactionReason::CallGasCostMoreThanGasLimit => {
                 write!(f, "Call gas cost exceeds the gas limit")
             }
-            InvalidTransaction::RejectCallerWithCode => {
+            InvalidTransactionReason::RejectCallerWithCode => {
                 write!(f, "Reject transactions from senders with deployed code")
             }
-            InvalidTransaction::NotEnoughBaseAssetBalanceForTransferAndMaxFee { fee, balance } => {
+            InvalidTransactionReason::NotEnoughBaseAssetBalanceForTransferAndMaxFee {
+                fee,
+                balance,
+            } => {
                 write!(f, "Lack of funds {} for max fee {}", balance, fee)
             }
-            InvalidTransaction::OverflowPaymentInTransaction => {
+            InvalidTransactionReason::OverflowPaymentInTransaction => {
                 write!(f, "Overflow payment in transaction")
             }
-            InvalidTransaction::NonceOverflowInTransaction => {
+            InvalidTransactionReason::NonceOverflowInTransaction => {
                 write!(f, "Nonce overflow in transaction")
             }
-            InvalidTransaction::NonceTooHigh { tx, state } => {
+            InvalidTransactionReason::NonceTooHigh { tx, state } => {
                 write!(f, "Nonce too high {}, expected {}", tx, state)
             }
-            InvalidTransaction::NonceTooLow { tx, state } => {
+            InvalidTransactionReason::NonceTooLow { tx, state } => {
                 write!(f, "Nonce {} too low, expected {}", tx, state)
             }
-            InvalidTransaction::CreateInitcodeSizeLimit => {
+            InvalidTransactionReason::CreateInitcodeSizeLimit => {
                 write!(f, "Create initcode size limit")
             }
-            InvalidTransaction::InvalidChainId => write!(f, "Invalid chain id"),
-            InvalidTransaction::AccessListNotSupported => {
+            InvalidTransactionReason::InvalidChainId => write!(f, "Invalid chain id"),
+            InvalidTransactionReason::AccessListNotSupported => {
                 write!(f, "Access list not supported")
             }
-            InvalidTransaction::MaxFeePerBlobGasNotSupported => {
+            InvalidTransactionReason::MaxFeePerBlobGasNotSupported => {
                 write!(f, "Max fee per blob gas not supported")
             }
-            InvalidTransaction::BlobVersionedHashesNotSupported => {
+            InvalidTransactionReason::BlobVersionedHashesNotSupported => {
                 write!(f, "Blob versioned hashes not supported")
             }
-            InvalidTransaction::BlobGasPriceGreaterThanMax => {
+            InvalidTransactionReason::BlobGasPriceGreaterThanMax => {
                 write!(f, "Blob gas price is greater than max fee per blob gas")
             }
-            InvalidTransaction::EmptyBlobs => write!(f, "Empty blobs"),
-            InvalidTransaction::BlobCreateTransaction => write!(f, "Blob create transaction"),
-            InvalidTransaction::TooManyBlobs => write!(f, "Too many blobs"),
-            InvalidTransaction::BlobVersionNotSupported => write!(f, "Blob version not supported"),
+            InvalidTransactionReason::EmptyBlobs => write!(f, "Empty blobs"),
+            InvalidTransactionReason::BlobCreateTransaction => write!(f, "Blob create transaction"),
+            InvalidTransactionReason::TooManyBlobs => write!(f, "Too many blobs"),
+            InvalidTransactionReason::BlobVersionNotSupported => {
+                write!(f, "Blob version not supported")
+            }
             #[cfg(feature = "optimism")]
-            InvalidTransaction::DepositSystemTxPostRegolith => {
+            InvalidTransactionReason::DepositSystemTxPostRegolith => {
                 write!(
                     f,
                     "Deposit system transactions post regolith hardfork are not supported"
                 )
             }
             #[cfg(feature = "optimism")]
-            InvalidTransaction::HaltedDepositPostRegolith => {
+            InvalidTransactionReason::HaltedDepositPostRegolith => {
                 write!(
                     f,
                     "Deposit transaction halted post-regolith. Error will be bubbled up to main return handler."
@@ -310,8 +313,8 @@ impl fmt::Display for InvalidTransaction {
     }
 }
 
-impl<DBError> From<InvalidHeader> for EVMError<DBError> {
-    fn from(invalid: InvalidHeader) -> Self {
+impl<DBError> From<InvalidHeaderReason> for EVMError<DBError> {
+    fn from(invalid: InvalidHeaderReason) -> Self {
         EVMError::Header(invalid)
     }
 }
@@ -319,7 +322,7 @@ impl<DBError> From<InvalidHeader> for EVMError<DBError> {
 /// Errors related to misconfiguration of a [`crate::env::BlockEnv`].
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum InvalidHeader {
+pub enum InvalidHeaderReason {
     /// `prevrandao` is not set for Merge and above.
     PrevrandaoNotSet,
     /// `excess_blob_gas` is not set for Cancun and above.
@@ -327,13 +330,13 @@ pub enum InvalidHeader {
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for InvalidHeader {}
+impl std::error::Error for InvalidHeaderReason {}
 
-impl fmt::Display for InvalidHeader {
+impl fmt::Display for InvalidHeaderReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            InvalidHeader::PrevrandaoNotSet => write!(f, "Prevrandao not set"),
-            InvalidHeader::ExcessBlobGasNotSet => write!(f, "Excess blob gas not set"),
+            InvalidHeaderReason::PrevrandaoNotSet => write!(f, "Prevrandao not set"),
+            InvalidHeaderReason::ExcessBlobGasNotSet => write!(f, "Excess blob gas not set"),
         }
     }
 }
@@ -351,7 +354,7 @@ pub enum Eval {
 /// immediately end with all gas being consumed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum Halt {
+pub enum HaltReason {
     OutOfGas(OutOfGasError),
     OpcodeNotFound,
     InvalidFEOpcode,
