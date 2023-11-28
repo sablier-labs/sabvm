@@ -738,7 +738,7 @@ impl JournaledState {
         _asset_id: B256,
         _value: U256,
         _db: &mut DB,
-    ) -> Result<(bool), DB::Error> {
+    ) -> Result<bool, DB::Error> {
         Ok(true)
     }
 }

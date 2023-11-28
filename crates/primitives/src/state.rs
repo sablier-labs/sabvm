@@ -225,7 +225,8 @@ impl PartialEq for AccountInfo {
 
 impl Hash for AccountInfo {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.balance.hash(state);
+        //TODO: take into account the other Native Assets, as well
+        self.get_balance(BASE_ASSET_ID).hash(state);
         self.nonce.hash(state);
         self.code_hash.hash(state);
     }

@@ -57,7 +57,7 @@ impl TransitionAccount {
     pub fn previous_balance(&self) -> U256 {
         self.previous_info
             .as_ref()
-            .map(|info| info.balance)
+            .map(|info| info.get_base_balance()) //TODO: also take into account the other Native Asset Balances
             .unwrap_or_default()
     }
 
@@ -65,7 +65,7 @@ impl TransitionAccount {
     pub fn current_balance(&self) -> U256 {
         self.info
             .as_ref()
-            .map(|info| info.balance)
+            .map(|info| info.get_base_balance()) //TODO: also take into account the other Native Asset Balances
             .unwrap_or_default()
     }
 

@@ -1,19 +1,21 @@
 use crate::{
-    b256, Balances, B160, B256, BASE_ASSET_ID, BLOB_GASPRICE_UPDATE_FRACTION, MIN_BLOB_GASPRICE,
+    b256, Address, Balances, B256, BASE_ASSET_ID, BLOB_GASPRICE_UPDATE_FRACTION, MIN_BLOB_GASPRICE,
     TARGET_BLOB_GAS_PER_BLOCK, U256,
 };
+pub use alloy_primitives::aliases::B160;
 pub use alloy_primitives::keccak256;
 
 /// The Keccak-256 hash of the empty string `""`.
 pub const KECCAK_EMPTY: B256 =
     b256!("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470");
 
-/// Returns the asset ID by hashing the address and sub ID.
-pub fn asset_id_address(address: B160, sub_id: B256) -> B256 {
-    let mut hasher = Keccak256::new();
-    hasher.update(&address[..]);
-    hasher.update(&sub_id[..]);
-    B256(hasher.finalize().as_slice().try_into().unwrap())
+//q: how to transform address into bytes?
+
+// Returns the asset ID by hashing the address and sub ID.
+pub fn asset_id_address(address: Address, sub_id: B256) -> B256 {
+    let first = &address[..];
+    let second = &sub_id[..];
+    keccak256(&[first, second].concat())
 }
 
 /// Calculates the `excess_blob_gas` from the parent header's `blob_gas_used` and `excess_blob_gas`.

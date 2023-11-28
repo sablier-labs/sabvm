@@ -48,10 +48,14 @@ pub fn handle_reimburse_caller<SPEC: Spec, DB: Database>(
         .load_account(caller, context.db)
         .map_err(EVMError::Database)?;
 
-    caller_account.info.balance = caller_account
+    let base_amount_to_reimburse = caller_account
         .info
-        .balance
+        .get_base_balance()
         .saturating_add(effective_gas_price * U256::from(gas.remaining() + gas.refunded() as u64));
+
+    caller_account
+        .info
+        .set_base_balance(base_amount_to_reimburse);
 
     Ok(())
 }
@@ -79,10 +83,14 @@ pub fn reward_beneficiary<SPEC: Spec, DB: Database>(
         .map_err(EVMError::Database)?;
 
     coinbase_account.mark_touch();
-    coinbase_account.info.balance = coinbase_account
+    let base_amount_to_reimburse = coinbase_account
         .info
-        .balance
+        .get_base_balance()
         .saturating_add(coinbase_gas_price * U256::from(gas.spend() - gas.refunded() as u64));
+
+    coinbase_account
+        .info
+        .set_base_balance(base_amount_to_reimburse);
 
     Ok(())
 }

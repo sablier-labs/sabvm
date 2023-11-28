@@ -69,13 +69,14 @@ impl<'a, DB: Database> EvmContext<'a, DB> {
             .ok()
     }
 
+    //TODO: also take into account the other Native Asset Balances
     /// Return account balance and is_cold flag.
     pub fn balance(&mut self, address: Address) -> Option<(U256, bool)> {
         self.journaled_state
             .load_account(address, &mut self.db)
             .map_err(|e| self.error = Some(e))
             .ok()
-            .map(|(acc, is_cold)| (acc.info.balance, is_cold))
+            .map(|(acc, is_cold)| (acc.info.get_base_balance(), is_cold))
     }
 
     /// Return account code and if address is cold loaded.

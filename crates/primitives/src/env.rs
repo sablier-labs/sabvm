@@ -176,12 +176,12 @@ impl Env {
             }
         }
 
-        match self.tx.asset_values {
+        match &self.tx.asset_values {
             Some(vector) => {
                 //TODO: check that the submitted asset IDs are valid/exist
 
                 // Check that the submitted asset IDs are unique
-                let unique_ids: HashSet<B256> = vector.into_iter().map(|(id, _)| id).collect();
+                let unique_ids: HashSet<&B256> = vector.into_iter().map(|(id, _)| id).collect();
                 if unique_ids.len() != vector.len() {
                     return Err(InvalidTransactionReason::AssetIdsNotUnique);
                 }
@@ -265,17 +265,17 @@ impl Env {
 
         // If other native assets are being transferred in the tx, then, for each of the assets,
         // check that the account has a balance big enough to cover the transfer amount
-        match self.tx.asset_values {
+        match &self.tx.asset_values {
             Some(vector) => {
                 for (asset_id, transfer_amount) in vector
                     .into_iter()
-                    .filter(|(asset_id, transfer_amount)| asset_id.deref() != BASE_ASSET_ID)
+                    .filter(|(id, _)| id.deref() != BASE_ASSET_ID)
                 {
-                    let asset_balance = account.info.get_balance(asset_id);
-                    if asset_balance < transfer_amount {
+                    let asset_balance = account.info.get_balance(*asset_id);
+                    if asset_balance < *transfer_amount {
                         return Err(InvalidTransactionReason::NotEnoughAssetBalanceForTransfer {
-                            asset_id: (asset_id),
-                            required_balance: (transfer_amount),
+                            asset_id: (*asset_id),
+                            required_balance: (*transfer_amount),
                             actual_balance: (asset_balance),
                         });
                     }
@@ -612,9 +612,9 @@ impl TxEnv {
     }
 
     pub fn get_base_transfer_value(&self) -> U256 {
-        match self.asset_values {
+        match &self.asset_values {
             Some(vector) => {
-                if let Some(tuple) = vector.iter().find(|&&(id, value)| id == BASE_ASSET_ID) {
+                if let Some(tuple) = vector.iter().find(|&&(id, _)| id == BASE_ASSET_ID) {
                     tuple.1
                 } else {
                     Default::default()

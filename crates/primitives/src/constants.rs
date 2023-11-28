@@ -34,4 +34,4 @@ pub const BLOB_GASPRICE_UPDATE_FRACTION: u64 = 3338477;
 pub const VERSIONED_HASH_VERSION_KZG: u8 = 0x01;
 
 // ID of base asset
-pub const BASE_ASSET_ID: B256 = B256::zero();
+pub const BASE_ASSET_ID: B256 = B256::ZERO;
