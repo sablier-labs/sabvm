@@ -189,6 +189,8 @@ pub enum InvalidTransactionReason {
     },
     /// Overflow payment in transaction.
     OverflowPaymentInTransaction,
+
+    //TODO: NonceOverflowInTransaction isn't being used anywhere
     /// Nonce overflows in transaction.
     NonceOverflowInTransaction,
     NonceTooHigh {
@@ -220,8 +222,6 @@ pub enum InvalidTransactionReason {
     TooManyBlobs,
     /// Blob transaction contains a versioned hash with an incorrect version
     BlobVersionNotSupported,
-    /// The base `value` has to be zero for asset transactions
-    BaseValueNotZero,
     /// Asset IDs in transaction are not unique
     AssetIdsNotUnique,
     /// System transactions are not supported
@@ -295,6 +295,17 @@ impl fmt::Display for InvalidTransactionReason {
             InvalidTransactionReason::BlobVersionNotSupported => {
                 write!(f, "Blob version not supported")
             }
+            InvalidTransactionReason::NotEnoughAssetBalanceForTransfer {
+                asset_id,
+                required_balance,
+                actual_balance,
+            } => {
+                write!(f, "The account balance {actual_balance} of asset id {asset_id} is not enough to cover the required {required_balance}")
+            }
+            InvalidTransactionReason::AssetIdsNotUnique => {
+                write!(f, "The ids of the submitted native assets are not unique")
+            }
+
             #[cfg(feature = "optimism")]
             InvalidTransactionReason::DepositSystemTxPostRegolith => {
                 write!(

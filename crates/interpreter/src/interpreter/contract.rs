@@ -16,7 +16,9 @@ pub struct Contract {
     pub address: Address,
     /// Caller of the EVM.
     pub caller: Address,
-    /// Value send to contract.
+
+    //TODO: make the struct keep track of all of the MNAs balances?
+    /// Value sent to the contract.
     pub value: U256,
 }
 
@@ -56,7 +58,7 @@ impl Contract {
             hash,
             contract_address,
             env.tx.caller,
-            env.tx.value,
+            env.tx.get_base_transfer_value(),
         )
     }
 

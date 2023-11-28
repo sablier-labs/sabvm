@@ -216,7 +216,11 @@ pub fn execute_test_suite(
                     .get(test.indexes.data)
                     .unwrap()
                     .clone();
-                env.tx.value = unit.transaction.value[test.indexes.value];
+                let base_transfer_value = unit.transaction.value[test.indexes.value];
+                evm.env.tx.asset_values = Some(vec![(
+                    B256::from(BASE_ASSET_ID),
+                    U256::from(base_transfer_value),
+                )]);
 
                 env.tx.access_list = unit
                     .transaction

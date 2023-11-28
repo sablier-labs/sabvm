@@ -178,11 +178,6 @@ impl Env {
 
         match self.tx.asset_values {
             Some(vector) => {
-                // If `asset_values` is set, check that `value` is zero.
-                if self.tx.value != U256::ZERO {
-                    return Err(InvalidTransactionReason::BaseValueNotZero);
-                }
-
                 //TODO: check that the submitted asset IDs are valid/exist
 
                 // Check that the submitted asset IDs are unique
@@ -219,14 +214,20 @@ impl Env {
         }
 
         // Check that the transaction's nonce is correct
-        if let Some(tx) = self.tx.nonce {
-            let state = account.info.nonce;
-            match tx.cmp(&state) {
+        if let Some(tx_nonce) = self.tx.nonce {
+            let state_nonce = account.info.nonce;
+            match tx_nonce.cmp(&state_nonce) {
                 Ordering::Greater => {
-                    return Err(InvalidTransactionReason::NonceTooHigh { tx, state });
+                    return Err(InvalidTransactionReason::NonceTooHigh {
+                        tx: tx_nonce,
+                        state: state_nonce,
+                    });
                 }
                 Ordering::Less => {
-                    return Err(InvalidTransactionReason::NonceTooLow { tx, state });
+                    return Err(InvalidTransactionReason::NonceTooLow {
+                        tx: tx_nonce,
+                        state: state_nonce,
+                    });
                 }
                 _ => {}
             }
@@ -234,7 +235,7 @@ impl Env {
 
         let mut required_base_balance = U256::from(self.tx.gas_limit)
             .checked_mul(self.tx.gas_price)
-            .and_then(|gas_cost| gas_cost.checked_add(self.tx.value))
+            .and_then(|gas_cost| gas_cost.checked_add(self.tx.get_base_transfer_value()))
             .ok_or(InvalidTransactionReason::OverflowPaymentInTransaction)?;
 
         if SpecId::enabled(self.cfg.spec_id, SpecId::CANCUN) {
@@ -552,9 +553,6 @@ pub struct TxEnv {
     /// The destination of the transaction.
     pub transact_to: TransactTo,
 
-    //TODO: remove `value`, in favor of `asset_values`
-    /// The value sent to `transact_to`.
-    pub value: U256,
     /// The data of the transaction.
     pub data: Bytes,
     /// The nonce of the transaction. If set to `None`, no checks are performed.
@@ -597,8 +595,6 @@ pub struct TxEnv {
     pub max_fee_per_blob_gas: Option<U256>,
 
     /// A list of asset IDs and values to transfer in the transaction.
-    ///
-    /// If this is set, `value` must be zero.
     pub asset_values: Option<Vec<(B256, U256)>>,
 
     #[cfg_attr(feature = "serde", serde(flatten))]
@@ -614,6 +610,19 @@ impl TxEnv {
     pub fn get_total_blob_gas(&self) -> u64 {
         GAS_PER_BLOB * self.blob_hashes.len() as u64
     }
+
+    pub fn get_base_transfer_value(&self) -> U256 {
+        match self.asset_values {
+            Some(vector) => {
+                if let Some(tuple) = vector.iter().find(|&&(id, value)| id == BASE_ASSET_ID) {
+                    tuple.1
+                } else {
+                    Default::default()
+                }
+            }
+            None => Default::default(),
+        }
+    }
 }
 
 impl Default for TxEnv {
@@ -624,7 +633,6 @@ impl Default for TxEnv {
             gas_price: U256::ZERO,
             gas_priority_fee: None,
             transact_to: TransactTo::Call(Address::ZERO), // will do nothing
-            value: U256::ZERO,
             data: Bytes::new(),
             chain_id: None,
             nonce: None,

@@ -385,7 +385,9 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
     pub fn transact_preverified_inner(&mut self) -> EVMResult<DB::Error> {
         let env = &self.context.env;
         let tx_caller = env.tx.caller;
-        let tx_value = env.tx.value;
+
+        //TODO: also take into account the other Native Assets
+        let tx_value = env.tx.get_base_transfer_value();
         let tx_data = env.tx.data.clone();
         let tx_gas_limit = env.tx.gas_limit;
 
