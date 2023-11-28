@@ -243,10 +243,10 @@ impl CacheAccount {
         if value == 0 {
             return None;
         }
-        
+
         let (_, transition) = self.account_info_change(|info| {
             info.increase_balance(asset_id, U256::from(value));
-        })
+        });
         Some(transition)
     }
     fn account_info_change<T, F: FnOnce(&mut AccountInfo) -> T>(

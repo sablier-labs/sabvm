@@ -59,6 +59,7 @@ impl Account {
             storage: HashMap::new(),
             status: AccountStatus::LoadedAsNotExisting,
         }
+    }
 
     /// Mark account as self destructed.
     pub fn mark_selfdestruct(&mut self) {
@@ -99,15 +100,13 @@ impl Account {
     pub fn unmark_created(&mut self) {
         self.status -= AccountStatus::Created;
     }
-    
+
     /// Is account loaded as not existing from database
     /// This is needed for pre spurious dragon hardforks where
     /// existing and empty were two separate states.
     pub fn is_loaded_as_not_existing(&self) -> bool {
         self.status.contains(AccountStatus::LoadedAsNotExisting)
     }
-
-}
 
     /// Is account newly created in this transaction.
     pub fn is_created(&self) -> bool {
@@ -254,7 +253,7 @@ impl AccountInfo {
         self.take_bytecode();
         self
     }
-    
+
     /// Returns if an account is empty.
     ///
     /// An account is empty if the following conditions are met.
