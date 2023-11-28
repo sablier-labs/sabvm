@@ -181,7 +181,7 @@ impl Env {
                 //TODO: check that the submitted asset IDs are valid/exist
 
                 // Check that the submitted asset IDs are unique
-                let unique_ids: HashSet<&B256> = vector.into_iter().map(|(id, _)| id).collect();
+                let unique_ids: HashSet<&B256> = vector.iter().map(|(id, _)| id).collect();
                 if unique_ids.len() != vector.len() {
                     return Err(InvalidTransactionReason::AssetIdsNotUnique);
                 }
@@ -267,9 +267,8 @@ impl Env {
         // check that the account has a balance big enough to cover the transfer amount
         match &self.tx.asset_values {
             Some(vector) => {
-                for (asset_id, transfer_amount) in vector
-                    .into_iter()
-                    .filter(|(id, _)| id.deref() != BASE_ASSET_ID)
+                for (asset_id, transfer_amount) in
+                    vector.iter().filter(|(id, _)| id.deref() != BASE_ASSET_ID)
                 {
                     let asset_balance = account.info.get_balance(*asset_id);
                     if asset_balance < *transfer_amount {

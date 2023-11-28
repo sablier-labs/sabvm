@@ -15,7 +15,7 @@ pub const KECCAK_EMPTY: B256 =
 pub fn asset_id_address(address: Address, sub_id: B256) -> B256 {
     let first = &address[..];
     let second = &sub_id[..];
-    keccak256(&[first, second].concat())
+    keccak256([first, second].concat())
 }
 
 /// Calculates the `excess_blob_gas` from the parent header's `blob_gas_used` and `excess_blob_gas`.
