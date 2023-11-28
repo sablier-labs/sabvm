@@ -113,7 +113,7 @@ mod test {
     #[test]
     #[cfg(not(feature = "optimism"))]
     fn gas_calculation_underflow() {
-        use crate::primitives::{address, bytes, init_balances};
+        use crate::primitives::{address, bytes, init_balances, B256, BASE_ASSET_ID, U256};
 
         // https://github.com/bluealloy/revm/issues/277
         // checks this use case

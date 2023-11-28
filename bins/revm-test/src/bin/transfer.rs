@@ -1,6 +1,6 @@
 use revm::{
     db::BenchmarkDB,
-    primitives::{Bytecode, TransactTo, U256},
+    primitives::{Bytecode, TransactTo, B256, BASE_ASSET_ID, U256},
 };
 use std::time::{Duration, Instant};
 extern crate alloc;

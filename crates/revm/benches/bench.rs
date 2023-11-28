@@ -5,7 +5,8 @@ use revm::{
     db::BenchmarkDB,
     interpreter::{analysis::to_analysed, BytecodeLocked, Contract, DummyHost, Interpreter},
     primitives::{
-        address, bytes, hex, BerlinSpec, Bytecode, BytecodeState, Bytes, TransactTo, U256,
+        address, bytes, hex, BerlinSpec, Bytecode, BytecodeState, Bytes, TransactTo, B256,
+        BASE_ASSET_ID, U256,
     },
 };
 use revm_interpreter::{opcode::make_instruction_table, SharedMemory, EMPTY_SHARED_MEMORY};

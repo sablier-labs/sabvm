@@ -3,7 +3,7 @@ use ethers_core::abi::parse_abi;
 use ethers_providers::{Http, Provider};
 use revm::{
     db::{CacheDB, EmptyDB, EthersDB},
-    primitives::{address, ExecutionResult, Output, TransactTo, U256},
+    primitives::{address, ExecutionResult, Output, TransactTo, B256, BASE_ASSET_ID, U256},
     Database, EVM,
 };
 use std::sync::Arc;

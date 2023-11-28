@@ -5,8 +5,8 @@ use crate::{
     interpreter::{return_ok, return_revert, Gas, InstructionResult},
     optimism,
     primitives::{
-        db::Database, Account, EVMError, Env, ExecutionResult, Halt, HashMap, InvalidTransaction,
-        Output, ResultAndState, Spec, SpecId::REGOLITH, U256,
+        db::Database, Account, EVMError, Env, ExecutionResult, HaltReason, HashMap,
+        InvalidTransactionReason, Output, ResultAndState, Spec, SpecId::REGOLITH, U256,
     },
     EvmContext,
 };
@@ -124,7 +124,7 @@ pub fn reward_beneficiary<SPEC: Spec, DB: Database>(
             panic!("[OPTIMISM] Failed to load L1 Fee Vault account");
         };
         l1_fee_vault_account.mark_touch();
-        l1_fee_vault_account.info.balance += l1_cost;
+        l1_fee_vault_account.info.increase_base_balance(l1_cost);
 
         // Send the base fee of the transaction to the Base Fee Vault.
         let Ok((base_fee_vault_account, _)) = context
@@ -134,11 +134,13 @@ pub fn reward_beneficiary<SPEC: Spec, DB: Database>(
             panic!("[OPTIMISM] Failed to load Base Fee Vault account");
         };
         base_fee_vault_account.mark_touch();
-        base_fee_vault_account.info.balance += context
-            .env
-            .block
-            .basefee
-            .mul(U256::from(gas.spend() - gas.refunded() as u64));
+        base_fee_vault_account.info.increase_base_balance(
+            context
+                .env
+                .block
+                .basefee
+                .mul(U256::from(gas.spend() - gas.refunded() as u64)),
+        );
     }
     Ok(())
 }
@@ -161,7 +163,7 @@ pub fn main_return<SPEC: Spec, DB: Database>(
         let optimism_regolith = context.env.cfg.optimism && SPEC::enabled(REGOLITH);
         if is_deposit && optimism_regolith {
             return Err(EVMError::Transaction(
-                InvalidTransaction::HaltedDepositPostRegolith,
+                InvalidTransactionReason::HaltedDepositPostRegolith,
             ));
         }
     }
@@ -198,10 +200,11 @@ pub fn end_handle<SPEC: Spec, DB: Database>(
                         .unwrap_or_default(),
                 );
                 acc.info.nonce = acc.info.nonce.saturating_add(1);
-                acc.info.balance = acc
-                    .info
-                    .balance
-                    .saturating_add(U256::from(context.env().tx.optimism.mint.unwrap_or(0)));
+                acc.info.set_base_balance(
+                    acc.info
+                        .get_base_balance()
+                        .saturating_add(U256::from(context.env().tx.optimism.mint.unwrap_or(0))),
+                );
                 acc.mark_touch();
                 acc
             };
@@ -225,7 +228,7 @@ pub fn end_handle<SPEC: Spec, DB: Database>(
 
             Ok(ResultAndState {
                 result: ExecutionResult::Halt {
-                    reason: Halt::FailedDeposit,
+                    reason: HaltReason::FailedDeposit,
                     gas_used,
                 },
                 state,

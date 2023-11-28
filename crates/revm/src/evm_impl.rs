@@ -66,15 +66,16 @@ impl<'a, SPEC: Spec, DB: Database> EVMImpl<'a, SPEC, DB> {
             .load_account(tx_caller, db)
             .map_err(EVMError::Database)?
             .0;
-        if l1_cost.gt(&acc.info.balance) {
+        if l1_cost.gt(&acc.info.get_base_balance()) {
             return Err(EVMError::Transaction(
                 InvalidTransactionReason::NotEnoughBaseAssetBalanceForTransferAndMaxFee {
                     fee: Box::new(l1_cost),
-                    balance: Box::new(acc.info.balance),
+                    balance: Box::new(acc.info.get_base_balance()),
                 },
             ));
         }
-        acc.info.balance = acc.info.balance.saturating_sub(l1_cost);
+        acc.info
+            .set_base_balance(acc.info.get_base_balance().saturating_sub(l1_cost));
         Ok(())
     }
 
@@ -93,7 +94,7 @@ impl<'a, SPEC: Spec, DB: Database> EVMImpl<'a, SPEC, DB> {
                 .map_err(EVMError::Database)?
                 .0
                 .info
-                .balance += U256::from(mint);
+                .increase_base_balance(U256::from(mint));
             journal.checkpoint();
         }
         Ok(())
@@ -741,7 +742,9 @@ mod tests {
     use super::*;
 
     use crate::db::InMemoryDB;
-    use crate::primitives::{specification::BedrockSpec, state::AccountInfo, SpecId};
+    use crate::primitives::{
+        specification::BedrockSpec, state::AccountInfo, state::Balances, SpecId, BASE_ASSET_ID,
+    };
 
     #[test]
     fn test_commit_mint_value() {
@@ -752,7 +755,7 @@ mod tests {
             caller,
             AccountInfo {
                 nonce: 0,
-                balance: U256::from(100),
+                balances: Balances::from([(BASE_ASSET_ID, U256::from(100))]),
                 code_hash: B256::ZERO,
                 code: None,
             },
@@ -771,7 +774,7 @@ mod tests {
 
         // Check the account balance is updated.
         let (account, _) = journal.load_account(caller, &mut db).unwrap();
-        assert_eq!(account.info.balance, U256::from(101));
+        assert_eq!(account.info.get_base_balance(), U256::from(101));
 
         // No mint value should be a no-op.
         assert!(EVMImpl::<BedrockSpec, InMemoryDB>::commit_mint_value(
@@ -782,7 +785,7 @@ mod tests {
         )
         .is_ok(),);
         let (account, _) = journal.load_account(caller, &mut db).unwrap();
-        assert_eq!(account.info.balance, U256::from(101));
+        assert_eq!(account.info.get_base_balance(), U256::from(101));
     }
 
     #[test]
@@ -812,7 +815,7 @@ mod tests {
             caller,
             AccountInfo {
                 nonce: 0,
-                balance: U256::from(100),
+                balances: Balances::from([(BASE_ASSET_ID, U256::from(100))]),
                 code_hash: B256::ZERO,
                 code: None,
             },
@@ -832,7 +835,7 @@ mod tests {
 
         // Check the account balance is updated.
         let (account, _) = journal.load_account(caller, &mut db).unwrap();
-        assert_eq!(account.info.balance, U256::from(99));
+        assert_eq!(account.info.get_base_balance(), U256::from(99));
     }
 
     #[test]
@@ -843,7 +846,7 @@ mod tests {
             caller,
             AccountInfo {
                 nonce: 0,
-                balance: U256::from(100),
+                balances: Balances::from([(BASE_ASSET_ID, U256::from(100))]),
                 code_hash: B256::ZERO,
                 code: None,
             },

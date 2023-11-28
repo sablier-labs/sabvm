@@ -259,7 +259,7 @@ impl AccountInfo {
     ///
     /// An account is empty if the following conditions are met.
     /// - code hash is zero or set to the Keccak256 hash of the empty string `""`
-    /// - balance is zero
+    /// - the balances of the Account haven't been set
     /// - nonce is zero
     pub fn is_empty(&self) -> bool {
         let code_empty = self.code_hash == KECCAK_EMPTY || self.code_hash == B256::ZERO;
@@ -380,11 +380,8 @@ mod tests {
         let mut account = Account::default();
         assert!(account.is_empty());
 
-        account.info.balance = U256::from(1);
+        account.info.set_base_balance(U256::from(1));
         assert!(!account.is_empty());
-
-        account.info.balance = U256::ZERO;
-        assert!(account.is_empty());
     }
 
     #[test]
