@@ -173,7 +173,7 @@ impl StorageSlot {
     }
 }
 
-pub type Balances = HashMap<B256, U256>;
+pub type Balances = HashMap<B256, U256>; //TODO: create a custom type w/ a suggestive name for the (B256, U256) tuple. This will make the code more readable - especially in places where the tuple members are currently accessed via `.0` and `.1`.
 
 /// The account information.
 #[derive(Clone, Debug, Eq)]
@@ -201,6 +201,7 @@ impl Default for AccountInfo {
     }
 }
 
+//TODO: shouldn't it be enough to just compare the hashes of the 2 accounts?
 impl PartialEq for AccountInfo {
     fn eq(&self, other: &Self) -> bool {
         if self.nonce != other.nonce
@@ -217,8 +218,13 @@ impl PartialEq for AccountInfo {
 
 impl Hash for AccountInfo {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        //TODO: take into account the other Native Assets, as well
-        self.get_balance(BASE_ASSET_ID).hash(state);
+        //Hash the (asset_id, balance) tuples in a deterministic-order
+        let mut balances: Vec<_> = self.balances.iter().collect();
+        balances.sort_by(|a, b| a.0.cmp(b.0));
+        balances
+            .iter()
+            .for_each(|(id, balance)| (id, balance).hash(state)); //TODO: does this way of hashing distinguish between, say, (id: 1, balance: 25) and (id: 12, balance: 5)? Maybe, we should rather create a custom aggregate object from the tuple values (e.g. stringify [id] + [separator] + [balance]) - and hash the resulting string?
+
         self.nonce.hash(state);
         self.code_hash.hash(state);
     }
