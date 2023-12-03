@@ -175,7 +175,7 @@ impl StorageSlot {
 
 pub type Balances = HashMap<B256, U256>;
 
-/// AccountInfo account information.
+/// The account information.
 #[derive(Clone, Debug, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AccountInfo {
@@ -210,16 +210,8 @@ impl PartialEq for AccountInfo {
             return false;
         }
 
-        // Iterate over all balances and check if they are equal.
-        for (asset_id, balance) in &self.balances {
-            if let Some(other_balance) = other.balances.get(asset_id) {
-                if balance != other_balance {
-                    return false;
-                }
-            }
-        }
-
-        true
+        // Check whether the balances of the accounts are the same.
+        self.balances == other.balances
     }
 }
 

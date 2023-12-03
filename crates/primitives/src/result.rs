@@ -268,10 +268,10 @@ impl fmt::Display for InvalidTransactionReason {
                 write!(f, "Nonce overflow in transaction")
             }
             InvalidTransactionReason::NonceTooHigh { tx, state } => {
-                write!(f, "Nonce too high {}, expected {}", tx, state)
+                write!(f, "Nonce {} too high: expected {}", tx, state)
             }
             InvalidTransactionReason::NonceTooLow { tx, state } => {
-                write!(f, "Nonce {} too low, expected {}", tx, state)
+                write!(f, "Nonce {} too low: expected {}", tx, state)
             }
             InvalidTransactionReason::CreateInitCodeSizeLimit => {
                 write!(f, "Create initcode size limit")

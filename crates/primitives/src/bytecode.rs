@@ -46,7 +46,7 @@ pub enum BytecodeState {
     /// No analysis has been performed.
     Raw,
     /// The bytecode has been checked for validity.
-    Checked { len: usize },
+    Checked { len: usize }, //TODO: How is it assured that `len` isn't past the max length of the bytecode Bytes?
     /// The bytecode has been analyzed for valid jump destinations.
     Analysed { len: usize, jump_map: JumpMap },
 }
