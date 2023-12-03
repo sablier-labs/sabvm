@@ -202,7 +202,7 @@ pub enum InvalidTransactionReason {
         state: u64,
     },
     /// EIP-3860: Limit and meter initcode
-    CreateInitcodeSizeLimit,
+    CreateInitCodeSizeLimit,
     /// Transaction chain id does not match the config chain id.
     InvalidChainId,
     /// Access list is not supported for blocks before the Berlin hardfork.
@@ -273,7 +273,7 @@ impl fmt::Display for InvalidTransactionReason {
             InvalidTransactionReason::NonceTooLow { tx, state } => {
                 write!(f, "Nonce {} too low, expected {}", tx, state)
             }
-            InvalidTransactionReason::CreateInitcodeSizeLimit => {
+            InvalidTransactionReason::CreateInitCodeSizeLimit => {
                 write!(f, "Create initcode size limit")
             }
             InvalidTransactionReason::InvalidChainId => write!(f, "Invalid chain id"),
@@ -382,7 +382,7 @@ pub enum HaltReason {
     /// Error on created contract that begins with EF
     CreateContractStartingWithEF,
     /// EIP-3860: Limit and meter initcode. Initcode size limit exceeded.
-    CreateInitcodeSizeLimit,
+    CreateInitCodeSizeLimit,
 
     /* Internal Halts that can be only found inside Inspector */
     OverflowPayment,
