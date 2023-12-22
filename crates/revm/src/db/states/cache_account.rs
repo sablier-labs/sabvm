@@ -2,6 +2,7 @@ use super::{
     plain_account::PlainStorage, AccountStatus, BundleAccount, PlainAccount,
     StorageWithOriginalValues, TransitionAccount,
 };
+use crate::primitives::BASE_ASSET_ID;
 use revm_interpreter::primitives::{AccountInfo, B256, U256};
 use revm_precompile::HashMap;
 
@@ -226,13 +227,7 @@ impl CacheAccount {
     ///
     /// Note: only if balance is zero we would return None as no transition would be made.
     pub fn increment_base_balance(&mut self, value: u128) -> Option<TransitionAccount> {
-        if value == 0 {
-            return None;
-        }
-        let (_, transition) = self.account_info_change(|info| {
-            info.increase_base_balance(U256::from(value)); //TODO: what about info.balance.saturating_add()?
-        });
-        Some(transition)
+        self.increment_balance(BASE_ASSET_ID, value)
     }
 
     /// Increment balance of `asset_id` by `value` amount. Assume that balance will not overflow or be zero.

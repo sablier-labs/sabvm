@@ -286,18 +286,28 @@ impl AccountInfo {
         self.code_hash == KECCAK_EMPTY
     }
 
+    /// Decreases the asset balance of the account, wrapping around `0` on underflow.
+    pub fn decrease_balance(&mut self, asset_id: B256, balance: U256) -> Option<U256> {
+        let current_balance = self.get_balance(asset_id);
+        self.balances
+            .insert(asset_id, current_balance.wrapping_sub(balance))
+    }
+
+    /// Decreases the asset balance of the account, saturating at zero.
+    pub fn decrease_balance_saturating(&mut self, asset_id: B256, balance: U256) -> Option<U256> {
+        let current_balance = self.get_balance(asset_id);
+        self.balances
+            .insert(asset_id, current_balance.saturating_sub(balance))
+    }
+
     /// Decreases the base asset balance of the account, wrapping around `0` on underflow.
     pub fn decrease_base_balance(&mut self, balance: U256) -> Option<U256> {
-        let current_base_balance = self.get_base_balance();
-        self.balances
-            .insert(BASE_ASSET_ID, current_base_balance.wrapping_sub(balance))
+        self.decrease_balance(BASE_ASSET_ID, balance)
     }
 
     /// Decreases the base asset balance of the account, saturating at zero.
     pub fn decrease_base_balance_saturating(&mut self, balance: U256) -> Option<U256> {
-        let current_base_balance = self.get_base_balance();
-        self.balances
-            .insert(BASE_ASSET_ID, current_base_balance.saturating_sub(balance))
+        self.decrease_balance_saturating(BASE_ASSET_ID, balance)
     }
 
     /// Returns the balance of `asset_id`, defaulting to zero if none is set.
@@ -307,10 +317,7 @@ impl AccountInfo {
 
     /// Returns the balance of the base asset, defaulting to zero if none is set.
     pub fn get_base_balance(&self) -> U256 {
-        self.balances
-            .get(&BASE_ASSET_ID)
-            .copied()
-            .unwrap_or_default()
+        self.get_balance(BASE_ASSET_ID)
     }
 
     /// Increases the `asset_id` balance of the account, wrapping around `U256::MAX` on overflow.
@@ -329,16 +336,12 @@ impl AccountInfo {
 
     /// Increases the base asset balance of the account, wrapping around `U256::MAX` on overflow.
     pub fn increase_base_balance(&mut self, value: U256) -> Option<U256> {
-        let current_base_balance = self.get_base_balance();
-        self.balances
-            .insert(BASE_ASSET_ID, current_base_balance.wrapping_add(value))
+        self.increase_balance(BASE_ASSET_ID, value)
     }
 
     /// Increases the base asset balance of the account, saturating at `U256::MAX`.
     pub fn increase_base_balance_saturating(&mut self, value: U256) -> Option<U256> {
-        let current_base_balance = self.get_base_balance();
-        self.balances
-            .insert(BASE_ASSET_ID, current_base_balance.saturating_add(value))
+        self.increase_balance_saturating(BASE_ASSET_ID, value)
     }
 
     pub fn set_balance(&mut self, asset_id: B256, balance: U256) -> Option<U256> {
@@ -346,7 +349,7 @@ impl AccountInfo {
     }
 
     pub fn set_base_balance(&mut self, balance: U256) -> Option<U256> {
-        self.balances.insert(BASE_ASSET_ID, balance)
+        self.set_balance(BASE_ASSET_ID, balance)
     }
 
     /// Take bytecode from account. Code will be set to None.
