@@ -261,7 +261,7 @@ impl AccountInfo {
     /// - nonce is zero
     pub fn is_empty(&self) -> bool {
         let code_empty = self.code_hash == KECCAK_EMPTY || self.code_hash == B256::ZERO;
-        self.balances.len() == 0 && self.nonce == 0 && code_empty
+        code_empty && self.balances.len() == 0 && self.nonce == 0
     }
 
     /// Returns `true` if the account is not empty.
