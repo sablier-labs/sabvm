@@ -286,20 +286,6 @@ impl AccountInfo {
         self.code_hash == KECCAK_EMPTY
     }
 
-    /// Decreases the `asset_id` balance of the account, wrapping around `0` on underflow.
-    pub fn decrease_balance(&mut self, balance: U256) -> Option<U256> {
-        let current_base_balance = self.get_base_balance();
-        self.balances
-            .insert(BASE_ASSET_ID, current_base_balance.wrapping_sub(balance))
-    }
-
-    /// Decreases the `asset_id` balance of the account, saturating at zero.
-    pub fn decrease_balance_saturating(&mut self, balance: U256) -> Option<U256> {
-        let current_base_balance = self.get_base_balance();
-        self.balances
-            .insert(BASE_ASSET_ID, current_base_balance.saturating_sub(balance))
-    }
-
     /// Decreases the base asset balance of the account, wrapping around `0` on underflow.
     pub fn decrease_base_balance(&mut self, balance: U256) -> Option<U256> {
         let current_base_balance = self.get_base_balance();
