@@ -26,6 +26,7 @@ impl Env {
     /// Calculates the effective gas price of the transaction.
     #[inline]
     pub fn effective_gas_price(&self) -> U256 {
+        //TODO: this being the calculation of how much gas the tx signer is willing to pay for the tx, find the place where it's dynamically calculated how much gas the ongoing tx is consuming - and add the cost to process the MNAs there
         if let Some(priority_fee) = self.tx.gas_priority_fee {
             min(self.tx.gas_price, self.block.basefee + priority_fee)
         } else {
@@ -597,8 +598,8 @@ pub struct TxEnv {
     /// A list of asset IDs and values to transfer in the transaction.
     pub asset_values: Option<Vec<(B256, U256)>>,
 
-    #[cfg_attr(feature = "serde", serde(flatten))]
     #[cfg(feature = "optimism")]
+    #[cfg_attr(feature = "serde", serde(flatten))]
     pub optimism: OptimismFields,
 }
 
@@ -614,8 +615,9 @@ impl TxEnv {
     pub fn get_base_transfer_value(&self) -> U256 {
         match &self.asset_values {
             Some(vector) => {
-                if let Some(tuple) = vector.iter().find(|&&(id, _)| id == BASE_ASSET_ID) {
-                    tuple.1
+                if let Some((_, asset_value)) = vector.iter().find(|&&(id, _)| id == BASE_ASSET_ID)
+                {
+                    *asset_value
                 } else {
                     Default::default()
                 }
@@ -646,7 +648,7 @@ impl Default for TxEnv {
     }
 }
 
-/// Structure holding block blob excess gas and it calculates blob fee.
+/// Structure holding block blob excess gas and calculating blob fee.
 ///
 /// Incorporated as part of the Cancun upgrade via [EIP-4844].
 ///

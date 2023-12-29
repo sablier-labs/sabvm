@@ -54,7 +54,7 @@ impl Gas {
 
     /// Returns all the gas used in the execution.
     #[inline]
-    pub const fn spend(&self) -> u64 {
+    pub const fn spent(&self) -> u64 {
         self.all_used_gas
     }
 
@@ -69,6 +69,8 @@ impl Gas {
     pub fn erase_cost(&mut self, returned: u64) {
         self.used -= returned;
         self.all_used_gas -= returned;
+        // TODO: what if erase_cost() is called to erase the gas cost of a memory expansion?
+        // TODO: what if the operations above underflow?
     }
 
     /// Records a refund value.
@@ -78,11 +80,13 @@ impl Gas {
     #[inline]
     pub fn record_refund(&mut self, refund: i64) {
         self.refunded += refund;
+        // TODO: what if the operations above underflow?
     }
 
     /// Set a refund value
     pub fn set_refund(&mut self, refund: i64) {
         self.refunded = refund;
+        // TODO: how is it made sure that by the end of the tx, self.refunded is positive?
     }
 
     /// Records an explicit cost.
@@ -95,7 +99,7 @@ impl Gas {
             return false;
         }
 
-        self.used += cost;
+        self.used += cost; // TODO: what if this overflows?
         self.all_used_gas = all_used_gas;
         true
     }
@@ -108,7 +112,7 @@ impl Gas {
             if self.limit < all_used_gas {
                 return false;
             }
-            self.memory = gas_memory;
+            self.memory = gas_memory; // TODO: why isn't gas_memory added to self.memory, but, instead, overwrites it?
             self.all_used_gas = all_used_gas;
         }
         true

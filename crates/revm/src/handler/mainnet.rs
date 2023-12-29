@@ -86,7 +86,7 @@ pub fn reward_beneficiary<SPEC: Spec, DB: Database>(
     let base_amount_to_reimburse = coinbase_account
         .info
         .get_base_balance()
-        .saturating_add(coinbase_gas_price * U256::from(gas.spend() - gas.refunded() as u64));
+        .saturating_add(coinbase_gas_price * U256::from(gas.spent() - gas.refunded() as u64));
 
     coinbase_account
         .info
@@ -108,7 +108,7 @@ pub fn calculate_gas_refund<SPEC: Spec>(env: &Env, gas: &Gas) -> u64 {
     } else {
         // EIP-3529: Reduction in refunds
         let max_refund_quotient = if SPEC::enabled(LONDON) { 5 } else { 2 };
-        (gas.refunded() as u64).min(gas.spend() / max_refund_quotient)
+        (gas.refunded() as u64).min(gas.spent() / max_refund_quotient)
     }
 }
 
@@ -124,7 +124,7 @@ pub fn main_return<DB: Database>(
 ) -> Result<ResultAndState, EVMError<DB::Error>> {
     // used gas with refund calculated.
     let gas_refunded = gas.refunded() as u64;
-    let final_gas_used = gas.spend() - gas_refunded;
+    let final_gas_used = gas.spent() - gas_refunded;
 
     // reset journal and return present state.
     let (state, logs) = context.journaled_state.finalize();
@@ -182,7 +182,7 @@ mod tests {
 
         let gas = handle_call_return::<CancunSpec>(&env, InstructionResult::Stop, Gas::new(90));
         assert_eq!(gas.remaining(), 90);
-        assert_eq!(gas.spend(), 10);
+        assert_eq!(gas.spent(), 10);
         assert_eq!(gas.refunded(), 0);
     }
 
@@ -196,12 +196,12 @@ mod tests {
 
         let gas = handle_call_return::<CancunSpec>(&env, InstructionResult::Stop, return_gas);
         assert_eq!(gas.remaining(), 90);
-        assert_eq!(gas.spend(), 10);
+        assert_eq!(gas.spent(), 10);
         assert_eq!(gas.refunded(), 30);
 
         let gas = handle_call_return::<CancunSpec>(&env, InstructionResult::Revert, return_gas);
         assert_eq!(gas.remaining(), 90);
-        assert_eq!(gas.spend(), 10);
+        assert_eq!(gas.spent(), 10);
         assert_eq!(gas.refunded(), 0);
     }
 
@@ -212,7 +212,7 @@ mod tests {
 
         let gas = handle_call_return::<CancunSpec>(&env, InstructionResult::Revert, Gas::new(90));
         assert_eq!(gas.remaining(), 90);
-        assert_eq!(gas.spend(), 10);
+        assert_eq!(gas.spent(), 10);
         assert_eq!(gas.refunded(), 0);
     }
 }

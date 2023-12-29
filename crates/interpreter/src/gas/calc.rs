@@ -112,9 +112,6 @@ pub fn verylowcopy_cost(len: u64) -> Option<u64> {
 
 #[inline]
 pub fn extcodecopy_cost<SPEC: Spec>(len: u64, is_cold: bool) -> Option<u64> {
-    let wordd = len / 32;
-    let wordr = len % 32;
-
     let base_gas: u64 = if SPEC::enabled(BERLIN) {
         if is_cold {
             COLD_ACCOUNT_ACCESS_COST
@@ -126,6 +123,9 @@ pub fn extcodecopy_cost<SPEC: Spec>(len: u64, is_cold: bool) -> Option<u64> {
     } else {
         20
     };
+
+    let wordd = len / 32;
+    let wordr = len % 32;
     base_gas.checked_add(COPY.checked_mul(if wordr == 0 { wordd } else { wordd + 1 })?)
 }
 
