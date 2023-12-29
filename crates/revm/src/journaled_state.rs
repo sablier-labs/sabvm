@@ -1,4 +1,4 @@
-use crate::interpreter::{InstructionResult, SelfDestructResult};
+use crate::interpreter::InstructionResult;
 use crate::primitives::{
     db::Database, hash_map::Entry, Account, Address, Bytecode, HashMap, Log, Spec, SpecId::*,
     State, StorageSlot, TransientStorage, B160, B256, KECCAK_EMPTY, PRECOMPILE3, U256,
@@ -300,29 +300,6 @@ impl JournaledState {
                     // remove touched status
                     state.get_mut(&address).unwrap().unmark_touch();
                 }
-                JournalEntry::AccountDestroyed {
-                    address,
-                    target,
-                    was_destroyed,
-                    had_balance,
-                } => {
-                    let account = state.get_mut(&address).unwrap();
-                    // set previous state of selfdestructed flag, as there could be multiple
-                    // selfdestructs in one transaction.
-                    if was_destroyed {
-                        // flag is still selfdestructed
-                        account.mark_selfdestruct();
-                    } else {
-                        // flag that is not selfdestructed
-                        account.unmark_selfdestruct();
-                    }
-                    account.info.increase_base_balance(had_balance);
-
-                    if address != target {
-                        let target = state.get_mut(&target).unwrap();
-                        target.info.decrease_base_balance(had_balance);
-                    }
-                }
                 JournalEntry::BalanceTransfer { from, to, balance } => {
                     // we don't need to check overflow and underflow when adding and subtracting the balance.
                     let from = state.get_mut(&from).unwrap();
@@ -415,82 +392,6 @@ impl JournaledState {
 
         self.logs.truncate(checkpoint.log_i);
         self.journal.truncate(checkpoint.journal_i);
-    }
-
-    /// DEPRECATED: this opcode is not available in the SabVM
-    ///
-    /// Performans selfdestruct action.
-    /// Transfers balance from address to target. Check if target exist/is_cold
-    ///
-    /// Note: balance will be lost if address and target are the same BUT when
-    /// current spec enables Cancun, this happens only when the account associated to address
-    /// is created in the same tx
-    ///
-    /// references:
-    ///  * <https://github.com/ethereum/go-ethereum/blob/141cd425310b503c5678e674a8c3872cf46b7086/core/vm/instructions.go#L832-L833>
-    ///  * <https://github.com/ethereum/go-ethereum/blob/141cd425310b503c5678e674a8c3872cf46b7086/core/state/statedb.go#L449>
-    ///  * <https://eips.ethereum.org/EIPS/eip-6780>
-    #[inline]
-    pub fn selfdestruct<DB: Database>(
-        &mut self,
-        address: Address,
-        target: Address,
-        db: &mut DB,
-    ) -> Result<SelfDestructResult, DB::Error> {
-        let (is_cold, target_exists) = self.load_account_exist(target, db)?;
-
-        let acc = if address != target {
-            // Both accounts are loaded before this point, `address` as we execute its contract.
-            // and `target` at the beginning of the function.
-            let [acc, target_account] = self.state.get_many_mut([&address, &target]).unwrap();
-            Self::touch_account(self.journal.last_mut().unwrap(), &target, target_account);
-            target_account
-                .info
-                .increase_base_balance(acc.info.get_base_balance());
-            acc
-        } else {
-            self.state.get_mut(&address).unwrap()
-        };
-
-        let balance = acc.info.get_base_balance();
-        let previously_destroyed = acc.is_selfdestructed();
-        let is_cancun_enabled = SpecId::enabled(self.spec, CANCUN);
-
-        // EIP-6780 (Cancun hard-fork): selfdestruct only if contract is created in the same tx
-        let journal_entry = if acc.is_created() || !is_cancun_enabled {
-            acc.mark_selfdestruct();
-            acc.info.set_base_balance(U256::ZERO);
-            Some(JournalEntry::AccountDestroyed {
-                address,
-                target,
-                was_destroyed: previously_destroyed,
-                had_balance: balance,
-            })
-        } else if address != target {
-            acc.info.set_base_balance(U256::ZERO);
-            Some(JournalEntry::BalanceTransfer {
-                from: address,
-                to: target,
-                balance,
-            })
-        } else {
-            // State is not changed:
-            // * if we are after Cancun upgrade and
-            // * Selfdestruct account that is created in the same transaction and
-            // * Specify the target is same as selfdestructed account. The balance stays unchanged.
-            None
-        };
-
-        if let Some(entry) = journal_entry {
-            self.journal.last_mut().unwrap().push(entry);
-        };
-
-        Ok(SelfDestructResult {
-            had_value: balance != U256::ZERO,
-            is_cold,
-            target_exists,
-            previously_destroyed,
-        })
     }
 
     /// Initial load of account. This load will not be tracked inside journal
@@ -751,15 +652,6 @@ pub enum JournalEntry {
     /// Action: We will add Account to state.
     /// Revert: we will remove account from state.
     AccountLoaded { address: Address },
-    /// Mark account to be destroyed and journal balance to be reverted
-    /// Action: Mark account and transfer the balance
-    /// Revert: Unmark the account and transfer balance back
-    AccountDestroyed {
-        address: Address,
-        target: Address,
-        was_destroyed: bool, // if account had already been destroyed before this journal entry
-        had_balance: U256,
-    },
     /// Loading account does not mean that account will need to be added to MerkleTree (touched).
     /// Only when account is called (to execute contract or transfer balance) only then account is made touched.
     /// Action: Mark account touched

@@ -110,13 +110,3 @@ pub struct Transfer {
     /// The transfer value.
     pub value: U256,
 }
-
-/// Result of a call that resulted in a self destruct.
-#[derive(Default, Clone, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct SelfDestructResult {
-    pub had_value: bool,
-    pub target_exists: bool,
-    pub is_cold: bool,
-    pub previously_destroyed: bool,
-}

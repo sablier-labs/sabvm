@@ -6,7 +6,7 @@ use crate::{
         gas::initial_tx_gas,
         opcode::{make_boxed_instruction_table, make_instruction_table, InstructionTables},
         CallContext, CallInputs, CallScheme, CreateInputs, Host, Interpreter, InterpreterAction,
-        InterpreterResult, SelfDestructResult, SharedMemory, Transfer,
+        InterpreterResult, SharedMemory, Transfer,
     },
     journaled_state::JournaledState,
     precompile::Precompiles,
@@ -645,18 +645,6 @@ impl<'a, SPEC: Spec + 'static, DB: Database> Host for EVMImpl<'a, SPEC, DB> {
             data,
         };
         self.context.journaled_state.log(log);
-    }
-
-    fn selfdestruct(&mut self, address: Address, target: Address) -> Option<SelfDestructResult> {
-        if let Some(inspector) = self.inspector.as_mut() {
-            let acc = self.context.journaled_state.state.get(&address).unwrap();
-            inspector.selfdestruct(address, target, acc.info.get_base_balance());
-        }
-        self.context
-            .journaled_state
-            .selfdestruct(address, target, self.context.db)
-            .map_err(|e| self.context.error = Some(e))
-            .ok()
     }
 
     fn balanceof(&mut self, _asset_id: B256, _address: Address) -> Option<(U256, bool)> {

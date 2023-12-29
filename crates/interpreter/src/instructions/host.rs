@@ -214,11 +214,6 @@ pub fn log<const N: usize, H: Host>(interpreter: &mut Interpreter, host: &mut H)
     host.log(interpreter.contract.address, topics, data);
 }
 
-/// DEPRECATED: the SELFDESTRUCT opcode is not available in the SabVM
-pub fn selfdestruct<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, _host: &mut H) {
-    interpreter.instruction_result = InstructionResult::NotActivated;
-}
-
 pub fn create<const IS_CREATE2: bool, H: Host, SPEC: Spec>(
     interpreter: &mut Interpreter,
     host: &mut H,

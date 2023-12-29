@@ -2,7 +2,7 @@ use core::ops::Range;
 
 use crate::{
     interpreter::{CallInputs, CreateInputs, Interpreter},
-    primitives::{db::Database, Address, Bytes, B256, U256},
+    primitives::{db::Database, Address, Bytes, B256},
     EvmContext,
 };
 use auto_impl::auto_impl;
@@ -134,13 +134,5 @@ pub trait Inspector<DB: Database> {
     ) -> (InterpreterResult, Option<Address>) {
         let _ = context;
         (result, address)
-    }
-
-    /// Called when a contract has been self-destructed with funds transferred to target.
-    #[inline]
-    fn selfdestruct(&mut self, contract: Address, target: Address, value: U256) {
-        let _ = contract;
-        let _ = target;
-        let _ = value;
     }
 }

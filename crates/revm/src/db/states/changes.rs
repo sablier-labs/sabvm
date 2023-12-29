@@ -25,7 +25,7 @@ pub struct PlainStorageChangeset {
     /// Address of account
     pub address: Address,
     /// Wipe storage,
-    pub wipe_storage: bool,
+    pub wipe_storage: bool, //TODO: remove this field, given that selfdestruct isn't supported?
     /// Storage key value pairs.
     pub storage: Vec<(U256, U256)>,
 }
@@ -38,7 +38,7 @@ pub struct PlainStorageRevert {
     /// Is storage wiped in this revert. Wiped flag is set on
     /// first known selfdestruct and would require clearing the
     /// state of this storage from database (And moving it to revert).
-    pub wiped: bool,
+    pub wiped: bool, //TODO: remove this field, given that selfdestruct isn't supported?
     /// Contains the storage key and old values of that storage.
     /// Reverts are **not** sorted.
     pub storage_revert: Vec<(U256, RevertToSlot)>,

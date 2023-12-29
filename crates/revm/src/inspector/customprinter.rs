@@ -6,7 +6,7 @@ use core::ops::Range;
 use crate::{
     inspectors::GasInspector,
     interpreter::{opcode, CallInputs, CreateInputs, Interpreter, InterpreterResult},
-    primitives::{Address, U256},
+    primitives::Address,
     Database, EvmContext, Inspector,
 };
 
@@ -97,13 +97,6 @@ impl<DB: Database> Inspector<DB> for CustomPrintTracer {
             inputs.caller, inputs.scheme, inputs.value, inputs.init_code, inputs.gas_limit
         );
         None
-    }
-
-    fn selfdestruct(&mut self, contract: Address, target: Address, value: U256) {
-        println!(
-            "SELFDESTRUCT: contract: {:?}, refund target: {:?}, value {:?}",
-            contract, target, value
-        );
     }
 }
 

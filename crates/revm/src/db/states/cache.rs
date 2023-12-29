@@ -115,12 +115,6 @@ impl CacheState {
             .get_mut(&address)
             .expect("All accounts should be present inside cache");
 
-        // If it is marked as selfdestructed inside revm
-        // we need to changed state to destroyed.
-        if account.is_selfdestructed() {
-            return this_account.selfdestruct();
-        }
-
         // Note: it can happen that created contract get selfdestructed in same block
         // that is why is_created is checked after selfdestructed
         //
@@ -130,10 +124,11 @@ impl CacheState {
         // by just setting storage inside CRATE constructor. Overlap of those contracts
         // is not possible because CREATE2 is introduced later.
         if account.is_created() {
+            //TODO: does it make sense to still have this w/o the selfdestruct being implemented?
             return Some(this_account.newly_created(account.info, account.storage));
         }
 
-        // Account is touched, but not selfdestructed or newly created.
+        // Account is touched, but not newly created.
         // Account can be touched and not changed.
         // And when empty account is touched it needs to be removed from database.
         // EIP-161 state clear

@@ -1,5 +1,5 @@
-/// After account get loaded from database it can be in a lot of different states
-/// while we execute multiple transaction and even blocks over account that is in memory.
+/// After account gets loaded from database it can be in a lot of different states
+/// while we execute multiple transactions and even blocks over account that is in memory.
 /// This structure models all possible states that account can be in.
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq, Hash)]
 pub enum AccountStatus {
@@ -9,9 +9,6 @@ pub enum AccountStatus {
     LoadedEmptyEIP161,
     InMemoryChange,
     Changed,
-    Destroyed,
-    DestroyedChanged,
-    DestroyedAgain,
 }
 
 impl AccountStatus {
@@ -25,26 +22,11 @@ impl AccountStatus {
         )
     }
 
-    /// Account was destroyed by calling SELFDESTRUCT.
-    /// This means that full account and storage are inside memory.
-    pub fn was_destroyed(&self) -> bool {
-        matches!(
-            self,
-            AccountStatus::Destroyed
-                | AccountStatus::DestroyedChanged
-                | AccountStatus::DestroyedAgain
-        )
-    }
-
     /// This means storage is known, it can be newly created or storage got destroyed.
     pub fn is_storage_known(&self) -> bool {
         matches!(
             self,
-            AccountStatus::LoadedNotExisting
-                | AccountStatus::InMemoryChange
-                | AccountStatus::Destroyed
-                | AccountStatus::DestroyedChanged
-                | AccountStatus::DestroyedAgain
+            AccountStatus::LoadedNotExisting | AccountStatus::InMemoryChange
         )
     }
 
@@ -58,10 +40,6 @@ impl AccountStatus {
     /// Returns the next account status on creation.
     pub fn on_created(&self) -> AccountStatus {
         match self {
-            // if account was destroyed previously just copy new info to it.
-            AccountStatus::DestroyedAgain
-            | AccountStatus::Destroyed
-            | AccountStatus::DestroyedChanged => AccountStatus::DestroyedChanged,
             // if account is loaded from db.
             AccountStatus::LoadedNotExisting
             // Loaded empty eip161 to creates is not possible as CREATE2 was added after EIP-161
@@ -86,14 +64,13 @@ impl AccountStatus {
         match self {
             // Account can be touched but not existing. The status should remain the same.
             AccountStatus::LoadedNotExisting => AccountStatus::LoadedNotExisting,
-            // Account can be created empty and only then touched.
-            AccountStatus::InMemoryChange
-            | AccountStatus::Destroyed
-            | AccountStatus::LoadedEmptyEIP161 => AccountStatus::Destroyed,
-            // Transition to destroy the account.
-            AccountStatus::DestroyedAgain | AccountStatus::DestroyedChanged => {
-                AccountStatus::DestroyedAgain
+
+            //TODO: see how the below should be adapted to the no-selfdestruct workflow
+            // // Account can be created empty and only then touched.
+            AccountStatus::InMemoryChange | AccountStatus::LoadedEmptyEIP161 => {
+                AccountStatus::LoadedNotExisting
             }
+
             // Account statuses considered unreachable.
             AccountStatus::Loaded | AccountStatus::Changed => {
                 unreachable!("Wrong state transition, touch empty is not possible from {self:?}");
@@ -107,19 +84,9 @@ impl AccountStatus {
     /// # Panics
     ///
     /// If current status is [AccountStatus::Loaded] or [AccountStatus::Changed].
-    pub fn on_touched_created_pre_eip161(&self, had_no_info: bool) -> Option<AccountStatus> {
+    pub fn on_touched_created_pre_eip161(&self) -> Option<AccountStatus> {
         match self {
             AccountStatus::LoadedEmptyEIP161 => None,
-            AccountStatus::DestroyedChanged => {
-                if had_no_info {
-                    None
-                } else {
-                    Some(AccountStatus::DestroyedChanged)
-                }
-            }
-            AccountStatus::Destroyed | AccountStatus::DestroyedAgain => {
-                Some(AccountStatus::DestroyedChanged)
-            }
             AccountStatus::InMemoryChange | AccountStatus::LoadedNotExisting => {
                 Some(AccountStatus::InMemoryChange)
             }
@@ -154,30 +121,6 @@ impl AccountStatus {
             // Any checks for empty accounts are done outside of this fn.
             AccountStatus::Changed => AccountStatus::Changed,
             AccountStatus::InMemoryChange => AccountStatus::InMemoryChange,
-            AccountStatus::DestroyedChanged => AccountStatus::DestroyedChanged,
-
-            // If account is destroyed and then changed this means this is
-            // balance transfer.
-            AccountStatus::Destroyed | AccountStatus::DestroyedAgain => {
-                AccountStatus::DestroyedChanged
-            }
-        }
-    }
-
-    /// Returns the next account status on selfdestruct.
-    pub fn on_selfdestructed(&self) -> AccountStatus {
-        match self {
-            // Non existing account can't be destroyed.
-            AccountStatus::LoadedNotExisting => AccountStatus::LoadedNotExisting,
-            // If account is created and selfdestructed in the same block, mark it as destroyed again.
-            // Note: there is no big difference between Destroyed and DestroyedAgain in this case,
-            // but was added for clarity.
-            AccountStatus::DestroyedChanged
-            | AccountStatus::DestroyedAgain
-            | AccountStatus::Destroyed => AccountStatus::DestroyedAgain,
-
-            // Transition to destroyed status.
-            _ => AccountStatus::Destroyed,
         }
     }
 
@@ -194,17 +137,12 @@ impl AccountStatus {
     /// Otherwise, if both are destroyed or other is destroyed:
     /// set other status to extended account.
     pub fn transition(&mut self, other: Self) {
-        *self = match (self.was_destroyed(), other.was_destroyed()) {
-            (true, false) => Self::DestroyedChanged,
-            (false, false) if *self == Self::InMemoryChange => Self::InMemoryChange,
-            _ => other,
-        };
+        *self = other;
     }
 }
 
 #[cfg(test)]
 mod test {
-
     use super::*;
 
     #[test]
@@ -215,29 +153,13 @@ mod test {
         assert!(AccountStatus::LoadedNotExisting.is_not_modified());
         assert!(!AccountStatus::Changed.is_not_modified());
         assert!(!AccountStatus::InMemoryChange.is_not_modified());
-        assert!(!AccountStatus::Destroyed.is_not_modified());
-        assert!(!AccountStatus::DestroyedChanged.is_not_modified());
-        assert!(!AccountStatus::DestroyedAgain.is_not_modified());
 
         // we know full storage
         assert!(!AccountStatus::LoadedEmptyEIP161.is_storage_known());
         assert!(AccountStatus::LoadedNotExisting.is_storage_known());
         assert!(AccountStatus::InMemoryChange.is_storage_known());
-        assert!(AccountStatus::Destroyed.is_storage_known());
-        assert!(AccountStatus::DestroyedChanged.is_storage_known());
-        assert!(AccountStatus::DestroyedAgain.is_storage_known());
         assert!(!AccountStatus::Loaded.is_storage_known());
         assert!(!AccountStatus::Changed.is_storage_known());
-
-        // account was destroyed
-        assert!(!AccountStatus::LoadedEmptyEIP161.was_destroyed());
-        assert!(!AccountStatus::LoadedNotExisting.was_destroyed());
-        assert!(!AccountStatus::InMemoryChange.was_destroyed());
-        assert!(AccountStatus::Destroyed.was_destroyed());
-        assert!(AccountStatus::DestroyedChanged.was_destroyed());
-        assert!(AccountStatus::DestroyedAgain.was_destroyed());
-        assert!(!AccountStatus::Loaded.was_destroyed());
-        assert!(!AccountStatus::Changed.was_destroyed());
 
         // account modified but not destroyed
         assert!(AccountStatus::Changed.is_modified_and_not_destroyed());
@@ -245,8 +167,5 @@ mod test {
         assert!(!AccountStatus::Loaded.is_modified_and_not_destroyed());
         assert!(!AccountStatus::LoadedEmptyEIP161.is_modified_and_not_destroyed());
         assert!(!AccountStatus::LoadedNotExisting.is_modified_and_not_destroyed());
-        assert!(!AccountStatus::Destroyed.is_modified_and_not_destroyed());
-        assert!(!AccountStatus::DestroyedChanged.is_modified_and_not_destroyed());
-        assert!(!AccountStatus::DestroyedAgain.is_modified_and_not_destroyed());
     }
 }

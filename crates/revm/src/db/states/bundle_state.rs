@@ -454,7 +454,6 @@ impl BundleState {
 
         for (address, account) in self.state {
             // append account info if it is changed.
-            let was_destroyed = account.was_destroyed();
             if is_value_known.is_not_known() || account.is_info_changed() {
                 let info = account.info.map(AccountInfo::without_code);
                 accounts.push((address, info));
@@ -467,27 +466,19 @@ impl BundleState {
             let mut account_storage_changed = Vec::with_capacity(account.storage.len());
 
             for (key, slot) in account.storage {
-                // If storage was destroyed that means that storage was wiped.
-                // In that case we need to check if present storage value is different then ZERO.
-                let destroyed_and_not_zero = was_destroyed && slot.present_value != U256::ZERO;
+                // Check if original values was changed, so we can update it.
+                let changed = slot.is_changed(); //TODO: check if this is correct
 
-                // If account is not destroyed check if original values was changed,
-                // so we can update it.
-                let not_destroyed_and_changed = !was_destroyed && slot.is_changed();
-
-                if is_value_known.is_not_known()
-                    || destroyed_and_not_zero
-                    || not_destroyed_and_changed
-                {
+                if is_value_known.is_not_known() || changed {
                     account_storage_changed.push((key, slot.present_value));
                 }
             }
 
-            if !account_storage_changed.is_empty() || was_destroyed {
+            if !account_storage_changed.is_empty() {
                 // append storage changes to account.
                 storage.push(PlainStorageChangeset {
                     address,
-                    wipe_storage: was_destroyed,
+                    wipe_storage: false,
                     storage: account_storage_changed,
                 });
             }
@@ -541,11 +532,6 @@ impl BundleState {
                             .entry(key)
                             .or_insert(RevertToSlot::Some(value.present_value));
                     }
-
-                    // nullify `other` wipe as primary database wipe is done in `this`.
-                    if this_account.was_destroyed() {
-                        revert.wipe_storage = false;
-                    }
                 }
             }
 
@@ -559,20 +545,15 @@ impl BundleState {
                     let this = entry.get_mut();
                     self.state_size -= this.size_hint();
 
-                    // if other was destroyed. replace `this` storage with
-                    // the `other one.
-                    if other_account.was_destroyed() {
-                        this.storage = other_account.storage;
-                    } else {
-                        // otherwise extend this storage with other
-                        for (key, storage_slot) in other_account.storage {
-                            // update present value or insert storage slot.
-                            this.storage
-                                .entry(key)
-                                .or_insert(storage_slot)
-                                .present_value = storage_slot.present_value;
-                        }
+                    // extend this storage with other
+                    for (key, storage_slot) in other_account.storage {
+                        // update present value or insert storage slot.
+                        this.storage
+                            .entry(key)
+                            .or_insert(storage_slot)
+                            .present_value = storage_slot.present_value;
                     }
+
                     this.info = other_account.info;
                     this.status.transition(other_account.status);
 
@@ -871,70 +852,6 @@ mod tests {
         // reverted by bigger number gives us empty bundle
         reverted.revert(10);
         assert_eq!(reverted, BundleState::default());
-    }
-
-    #[test]
-    fn extend_on_destroyed_values() {
-        let base_bundle1 = test_bundle1();
-        let base_bundle2 = test_bundle2();
-
-        // test1
-        // bundle1 has Destroyed
-        // bundle2 has Changed
-        // end should be DestroyedChanged.
-        let mut b1 = base_bundle1.clone();
-        let mut b2 = base_bundle2.clone();
-        b1.state.get_mut(&account1()).unwrap().status = AccountStatus::Destroyed;
-        b2.state.get_mut(&account1()).unwrap().status = AccountStatus::Changed;
-        b1.extend(b2);
-        assert_eq!(
-            b1.state.get_mut(&account1()).unwrap().status,
-            AccountStatus::DestroyedChanged
-        );
-
-        // test2
-        // bundle1 has Changed
-        // bundle2 has Destroyed
-        // end should be Destroyed
-        let mut b1 = base_bundle1.clone();
-        let mut b2 = base_bundle2.clone();
-        b1.state.get_mut(&account1()).unwrap().status = AccountStatus::Changed;
-        b2.state.get_mut(&account1()).unwrap().status = AccountStatus::Destroyed;
-        b2.reverts[0][0].1.wipe_storage = true;
-        b1.extend(b2);
-        assert_eq!(
-            b1.state.get_mut(&account1()).unwrap().status,
-            AccountStatus::Destroyed
-        );
-
-        // test2 extension
-        // revert of b2 should contains plain state of b1.
-        let mut revert1 = base_bundle2.reverts[0][0].clone();
-        revert1.1.wipe_storage = true;
-        revert1
-            .1
-            .storage
-            .insert(slot2(), RevertToSlot::Some(U256::from(15)));
-
-        assert_eq!(
-            b1.reverts.as_ref(),
-            vec![base_bundle1.reverts[0].clone(), vec![revert1]],
-        );
-
-        // test3
-        // bundle1 has InMemoryChange
-        // bundle2 has Change
-        // end should be InMemoryChange.
-
-        let mut b1 = base_bundle1.clone();
-        let mut b2 = base_bundle2.clone();
-        b1.state.get_mut(&account1()).unwrap().status = AccountStatus::InMemoryChange;
-        b2.state.get_mut(&account1()).unwrap().status = AccountStatus::Changed;
-        b1.extend(b2);
-        assert_eq!(
-            b1.state.get_mut(&account1()).unwrap().status,
-            AccountStatus::InMemoryChange
-        );
     }
 
     #[test]

@@ -131,13 +131,6 @@ impl<ExtDB: DatabaseRef> DatabaseCommit for CacheDB<ExtDB> {
             if !account.is_touched() {
                 continue;
             }
-            if account.is_selfdestructed() {
-                let db_account = self.accounts.entry(address).or_default();
-                db_account.storage.clear();
-                db_account.account_state = AccountState::NotExisting;
-                db_account.info = AccountInfo::default();
-                continue;
-            }
             let is_newly_created = account.is_created();
             self.insert_contract(&mut account.info);
 
@@ -291,7 +284,7 @@ impl<ExtDB: DatabaseRef> DatabaseRef for CacheDB<ExtDB> {
 #[derive(Debug, Clone, Default)]
 pub struct DbAccount {
     pub info: AccountInfo,
-    /// If account is selfdestructed or newly created, storage will be cleared.
+    /// If account is newly created, storage will be cleared.
     pub account_state: AccountState,
     /// storage slots
     pub storage: HashMap<U256, U256>,
@@ -337,7 +330,7 @@ pub enum AccountState {
     NotExisting,
     /// EVM touched this account. For newer hardfork this means it can be cleared/removed from state.
     Touched,
-    /// EVM cleared storage of this account, mostly by selfdestruct, we don't ask database for storage slots
+    /// EVM cleared storage of this account, we don't ask database for storage slots
     /// and assume they are U256::ZERO
     StorageCleared,
     /// EVM didn't interacted with this account

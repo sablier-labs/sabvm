@@ -1,7 +1,7 @@
 use crate::primitives::{hash_map::Entry, Bytecode, Bytes, HashMap, U256};
 use crate::{
     primitives::{Address, Env, Log, B256, KECCAK_EMPTY},
-    Host, SelfDestructResult,
+    Host,
 };
 use alloc::vec::Vec;
 
@@ -112,11 +112,6 @@ impl Host for DummyHost {
             topics,
             data,
         })
-    }
-
-    #[inline]
-    fn selfdestruct(&mut self, _address: Address, _target: Address) -> Option<SelfDestructResult> {
-        panic!("Selfdestruct is not supported for this host")
     }
 
     #[inline]

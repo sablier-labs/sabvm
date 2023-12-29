@@ -368,8 +368,7 @@ opcodes! {
     // 0xFB
     // 0xFC
     0xFD => REVERT       => control::revert::<H, SPEC>,
-    0xFE => INVALID      => control::invalid,
-    0xFF => SELFDESTRUCT => host::selfdestruct::<H, SPEC>,
+    0xFF => INVALID      => control::invalid,
 }
 
 /// An EVM opcode.
@@ -846,8 +845,8 @@ const fn opcode_gas_info(opcode: u8, spec: SpecId) -> OpInfo {
         0xFB => OpInfo::none(),
         0xFC => OpInfo::none(),
         REVERT => OpInfo::gas_block_end(0),
+        0xFE => OpInfo::none(),
         INVALID => OpInfo::gas_block_end(0),
-        SELFDESTRUCT => OpInfo::gas_block_end(0),
     }
 }
 

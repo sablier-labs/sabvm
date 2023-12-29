@@ -35,13 +35,11 @@ bitflags! {
         /// When account is newly created we will not access database
         /// to fetch storage values
         const Created = 0b00000001;
-        /// If account is marked for self destruction.
-        const SelfDestructed = 0b00000010;
         /// Only when account is marked as touched we will save it to database.
-        const Touched = 0b00000100;
+        const Touched = 0b00000010;
         /// used only for pre spurious dragon hardforks where existing and empty were two separate states.
         /// it became same state after EIP-161: State trie clearing
-        const LoadedAsNotExisting = 0b0001000;
+        const LoadedAsNotExisting = 0b00000100;
     }
 }
 
@@ -59,21 +57,6 @@ impl Account {
             storage: HashMap::new(),
             status: AccountStatus::LoadedAsNotExisting,
         }
-    }
-
-    /// Mark account as self destructed.
-    pub fn mark_selfdestruct(&mut self) {
-        self.status |= AccountStatus::SelfDestructed;
-    }
-
-    /// Unmark account as self destructed.
-    pub fn unmark_selfdestruct(&mut self) {
-        self.status -= AccountStatus::SelfDestructed;
-    }
-
-    /// Is account marked for self destruct.
-    pub fn is_selfdestructed(&self) -> bool {
-        self.status.contains(AccountStatus::SelfDestructed)
     }
 
     /// Mark account as touched

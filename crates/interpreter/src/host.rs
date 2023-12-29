@@ -1,7 +1,4 @@
-use crate::{
-    primitives::{Address, Bytecode, Bytes, Env, B256, U256},
-    SelfDestructResult,
-};
+use crate::primitives::{Address, Bytecode, Bytes, Env, B256, U256};
 use alloc::vec::Vec;
 
 mod dummy;
@@ -50,9 +47,6 @@ pub trait Host {
 
     /// Emit a log owned by `address` with given `topics` and `data`.
     fn log(&mut self, address: Address, topics: Vec<B256>, data: Bytes);
-
-    /// Mark `address` to be deleted, with funds transferred to `target`.
-    fn selfdestruct(&mut self, address: Address, target: Address) -> Option<SelfDestructResult>;
 
     /// Get asset balance of address and if account is cold loaded.
     fn balanceof(&mut self, asset_id: B256, address: Address) -> Option<(U256, bool)>;

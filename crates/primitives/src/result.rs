@@ -358,7 +358,6 @@ impl fmt::Display for InvalidHeaderReason {
 pub enum Eval {
     Stop,
     Return,
-    SelfDestruct,
 }
 
 /// Indicates that the EVM has experienced an exceptional halt. This causes execution to

@@ -64,14 +64,6 @@ impl CacheAccount {
         }
     }
 
-    /// Create account that is destroyed.
-    pub fn new_destroyed() -> Self {
-        Self {
-            account: None,
-            status: AccountStatus::Destroyed,
-        }
-    }
-
     /// Create changed account
     pub fn new_changed(info: AccountInfo, storage: PlainStorage) -> Self {
         Self {
@@ -86,7 +78,6 @@ impl CacheAccount {
             self.status,
             AccountStatus::Changed
                 | AccountStatus::InMemoryChange
-                | AccountStatus::DestroyedChanged
                 | AccountStatus::Loaded
                 | AccountStatus::LoadedEmptyEIP161
         )
@@ -116,12 +107,7 @@ impl CacheAccount {
     ) -> Option<TransitionAccount> {
         let previous_status = self.status;
 
-        let had_no_info = self
-            .account
-            .as_ref()
-            .map(|a| a.info.is_empty())
-            .unwrap_or_default();
-        self.status = self.status.on_touched_created_pre_eip161(had_no_info)?;
+        self.status = self.status.on_touched_created_pre_eip161()?;
 
         let plain_storage = storage.iter().map(|(k, v)| (*k, v.present_value)).collect();
         let previous_info = self.account.take().map(|a| a.info);
@@ -150,12 +136,7 @@ impl CacheAccount {
         // Set account state to Destroyed as we need to clear the storage if it exist.
         self.status = self.status.on_touched_empty_post_eip161();
 
-        if matches!(
-            previous_status,
-            AccountStatus::LoadedNotExisting
-                | AccountStatus::Destroyed
-                | AccountStatus::DestroyedAgain
-        ) {
+        if matches!(previous_status, AccountStatus::LoadedNotExisting) {
             None
         } else {
             Some(TransitionAccount {
@@ -164,30 +145,6 @@ impl CacheAccount {
                 previous_info,
                 previous_status,
                 storage: HashMap::default(),
-                storage_was_destroyed: true,
-            })
-        }
-    }
-
-    /// Consume self and make account as destroyed.
-    ///
-    /// Set account as None and set status to Destroyer or DestroyedAgain.
-    pub fn selfdestruct(&mut self) -> Option<TransitionAccount> {
-        // account should be None after selfdestruct so we can take it.
-        let previous_info = self.account.take().map(|a| a.info);
-        let previous_status = self.status;
-
-        self.status = self.status.on_selfdestructed();
-
-        if previous_status == AccountStatus::LoadedNotExisting {
-            None
-        } else {
-            Some(TransitionAccount {
-                info: None,
-                status: self.status,
-                previous_info,
-                previous_status,
-                storage: HashMap::new(),
                 storage_was_destroyed: true,
             })
         }
