@@ -608,7 +608,7 @@ pub struct TxEnv {
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TransferredAsset {
     pub id: B256,
     pub amount: U256,
