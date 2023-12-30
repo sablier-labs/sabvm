@@ -13,7 +13,7 @@ fn main() {
     evm.env.tx.caller = "0x0000000000000000000000000000000000000001"
         .parse()
         .unwrap();
-    evm.env.tx.asset_values = Some(vec![(B256::from(BASE_ASSET_ID), U256::from(10))]);
+    evm.env.tx.transferred_assets = Some(vec![(B256::from(BASE_ASSET_ID), U256::from(10))]);
     evm.env.tx.transact_to = TransactTo::Call(
         "0x0000000000000000000000000000000000000000"
             .parse()

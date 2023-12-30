@@ -178,12 +178,16 @@ impl Env {
             }
         }
 
-        match &self.tx.asset_values {
+        match &self.tx.transferred_assets {
             Some(vector) => {
                 //TODO: check that the submitted asset IDs are valid/exist
 
                 // Check that the submitted asset IDs are unique
-                let unique_ids: HashSet<&B256> = vector.iter().map(|(id, _)| id).collect();
+                let unique_ids: HashSet<&B256> = vector
+                    .iter()
+                    .map(|transferred_asset| &transferred_asset.id)
+                    .collect();
+
                 if unique_ids.len() != vector.len() {
                     return Err(InvalidTransactionReason::AssetIdsNotUnique);
                 }
@@ -267,16 +271,19 @@ impl Env {
 
         // If other native assets are being transferred in the tx, then, for each of the assets,
         // check that the account has a balance big enough to cover the transfer amount
-        match &self.tx.asset_values {
+        match &self.tx.transferred_assets {
             Some(vector) => {
-                for (asset_id, transfer_amount) in
-                    vector.iter().filter(|(id, _)| id.deref() != BASE_ASSET_ID)
+                for transferred_asset in vector
+                    .iter()
+                    .filter(|asset| asset.id.deref() != BASE_ASSET_ID)
                 {
-                    let asset_balance = account.info.get_balance(*asset_id);
-                    if asset_balance < *transfer_amount {
+                    let (asset_id, transfer_amount) =
+                        (transferred_asset.id, transferred_asset.amount);
+                    let asset_balance = account.info.get_balance(asset_id);
+                    if asset_balance < transfer_amount {
                         return Err(InvalidTransactionReason::NotEnoughAssetBalanceForTransfer {
-                            asset_id: (*asset_id),
-                            required_balance: (*transfer_amount),
+                            asset_id: (asset_id),
+                            required_balance: (transfer_amount),
                             actual_balance: (asset_balance),
                         });
                     }
@@ -595,12 +602,19 @@ pub struct TxEnv {
     /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
     pub max_fee_per_blob_gas: Option<U256>,
 
-    /// A list of asset IDs and values to transfer in the transaction.
-    pub asset_values: Option<Vec<(B256, U256)>>,
+    /// The list of assets transferred in the transaction.
+    pub transferred_assets: Option<Vec<TransferredAsset>>,
 
     #[cfg(feature = "optimism")]
     #[cfg_attr(feature = "serde", serde(flatten))]
     pub optimism: OptimismFields,
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
+pub struct TransferredAsset {
+    pub id: B256,
+    pub amount: U256,
 }
 
 impl TxEnv {
@@ -613,11 +627,12 @@ impl TxEnv {
     }
 
     pub fn get_base_transfer_value(&self) -> U256 {
-        match &self.asset_values {
-            Some(vector) => {
-                if let Some((_, asset_value)) = vector.iter().find(|&&(id, _)| id == BASE_ASSET_ID)
+        match &self.transferred_assets {
+            Some(assets) => {
+                if let Some(transferred_asset) =
+                    assets.iter().find(|asset| asset.id == BASE_ASSET_ID)
                 {
-                    *asset_value
+                    transferred_asset.amount
                 } else {
                     Default::default()
                 }
@@ -641,7 +656,7 @@ impl Default for TxEnv {
             access_list: Vec::new(),
             blob_hashes: Vec::new(),
             max_fee_per_blob_gas: None,
-            asset_values: None,
+            transferred_assets: None,
             #[cfg(feature = "optimism")]
             optimism: OptimismFields::default(),
         }

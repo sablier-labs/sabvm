@@ -69,7 +69,7 @@ fn transfer(c: &mut Criterion) {
 
     evm.env.tx.caller = address!("0000000000000000000000000000000000000001");
     evm.env.tx.transact_to = TransactTo::Call(address!("0000000000000000000000000000000000000000"));
-    evm.env.tx.asset_values = Some(vec![(B256::from(BASE_ASSET_ID), U256::from(10))]);
+    evm.env.tx.transferred_assets = Some(vec![(B256::from(BASE_ASSET_ID), U256::from(10))]);
 
     let mut g = c.benchmark_group("transfer");
     g.noise_threshold(0.03).warm_up_time(Duration::from_secs(1));
