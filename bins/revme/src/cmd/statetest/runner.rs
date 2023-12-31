@@ -8,7 +8,7 @@ use revm::{
     interpreter::CreateScheme,
     primitives::{
         address, b256, calc_excess_blob_gas, init_balances, keccak256, Bytecode, Env, HashMap,
-        SpecId, TransactTo, B256, BASE_ASSET_ID, U256,
+        SpecId, TransactTo, TransferredAsset, B256, BASE_ASSET_ID, U256,
     },
 };
 use std::{
@@ -216,11 +216,11 @@ pub fn execute_test_suite(
                     .get(test.indexes.data)
                     .unwrap()
                     .clone();
-                let base_transfer_value = unit.transaction.value[test.indexes.value];
-                env.tx.transferred_assets = Some(vec![(
-                    B256::from(BASE_ASSET_ID),
-                    U256::from(base_transfer_value),
-                )]);
+                let asset = TransferredAsset {
+                    id: B256::from(BASE_ASSET_ID),
+                    amount: U256::from(unit.transaction.value[test.indexes.value]),
+                };
+                env.tx.transferred_assets = Some(vec![asset]);
 
                 env.tx.access_list = unit
                     .transaction

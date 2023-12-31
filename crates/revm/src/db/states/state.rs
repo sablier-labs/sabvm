@@ -585,14 +585,6 @@ mod tests {
     fn bundle_scoped_reverts_collapse() {
         let mut state = State::builder().with_bundle_update().build();
 
-        // Non-existing account.
-        let new_account_address = Address::from_slice(&[0x1; 20]);
-        let new_account_created_info = AccountInfo {
-            nonce: 1,
-            balances: init_balances(U256::from(1)),
-            ..Default::default()
-        };
-
         // Existing account.
         let existing_account_address = Address::from_slice(&[0x2; 20]);
         let existing_account_initial_info = AccountInfo {

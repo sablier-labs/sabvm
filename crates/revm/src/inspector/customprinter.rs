@@ -102,7 +102,7 @@ impl<DB: Database> Inspector<DB> for CustomPrintTracer {
 
 #[cfg(test)]
 mod test {
-
+    use crate::primitives::TransferredAsset;
     #[test]
     #[cfg(not(feature = "optimism"))]
     fn gas_calculation_underflow() {
@@ -126,7 +126,10 @@ mod test {
         evm.env.tx.caller = address!("5fdcca53617f4d2b9134b29090c87d01058e27e0");
         evm.env.tx.transact_to = crate::primitives::TransactTo::Call(callee);
         evm.env.tx.data = crate::primitives::Bytes::new();
-        evm.env.tx.transferred_assets = Some(vec![(B256::from(BASE_ASSET_ID), U256::ZERO)]);
+        evm.env.tx.transferred_assets = Some(vec![TransferredAsset {
+            id: B256::from(BASE_ASSET_ID),
+            amount: U256::ZERO,
+        }]);
         let _ = evm.inspect_commit(super::CustomPrintTracer::default());
     }
 }

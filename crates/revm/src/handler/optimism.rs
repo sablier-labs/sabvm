@@ -139,7 +139,7 @@ pub fn reward_beneficiary<SPEC: Spec, DB: Database>(
                 .env
                 .block
                 .basefee
-                .mul(U256::from(gas.spend() - gas.refunded() as u64)),
+                .mul(U256::from(gas.spent() - gas.refunded() as u64)),
         );
     }
     Ok(())
