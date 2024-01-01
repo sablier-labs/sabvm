@@ -254,7 +254,7 @@ mod tests {
 
         let gas = handle_call_return::<BedrockSpec>(&env, InstructionResult::Revert, Gas::new(90));
         assert_eq!(gas.remaining(), 90);
-        assert_eq!(gas.spend(), 10);
+        assert_eq!(gas.spent(), 10);
         assert_eq!(gas.refunded(), 0);
     }
 
@@ -268,7 +268,7 @@ mod tests {
         let gas = handle_call_return::<BedrockSpec>(&env, InstructionResult::Revert, Gas::new(90));
         // else branch takes all gas.
         assert_eq!(gas.remaining(), 0);
-        assert_eq!(gas.spend(), 100);
+        assert_eq!(gas.spent(), 100);
         assert_eq!(gas.refunded(), 0);
     }
 
@@ -281,7 +281,7 @@ mod tests {
 
         let gas = handle_call_return::<RegolithSpec>(&env, InstructionResult::Stop, Gas::new(90));
         assert_eq!(gas.remaining(), 90);
-        assert_eq!(gas.spend(), 10);
+        assert_eq!(gas.spent(), 10);
         assert_eq!(gas.refunded(), 0);
     }
 
@@ -297,12 +297,12 @@ mod tests {
 
         let gas = handle_call_return::<RegolithSpec>(&env, InstructionResult::Stop, ret_gas);
         assert_eq!(gas.remaining(), 90);
-        assert_eq!(gas.spend(), 10);
+        assert_eq!(gas.spent(), 10);
         assert_eq!(gas.refunded(), 20);
 
         let gas = handle_call_return::<RegolithSpec>(&env, InstructionResult::Revert, ret_gas);
         assert_eq!(gas.remaining(), 90);
-        assert_eq!(gas.spend(), 10);
+        assert_eq!(gas.spent(), 10);
         assert_eq!(gas.refunded(), 0);
     }
 
@@ -315,7 +315,7 @@ mod tests {
 
         let gas = handle_call_return::<BedrockSpec>(&env, InstructionResult::Stop, Gas::new(90));
         assert_eq!(gas.remaining(), 0);
-        assert_eq!(gas.spend(), 100);
+        assert_eq!(gas.spent(), 100);
         assert_eq!(gas.refunded(), 0);
     }
 }

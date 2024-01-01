@@ -1,5 +1,5 @@
 use super::constants::*;
-use crate::primitives::{Address, Spec, SpecId::*, U256};
+use crate::primitives::{Address, Spec, SpecId::*, TransferredAsset, U256};
 use alloc::vec::Vec;
 
 #[allow(clippy::collapsible_else_if)]
@@ -312,11 +312,12 @@ pub fn mint_cost<SPEC: Spec>(_is_cold: bool) -> Option<u64> {
 }
 
 /// Initial gas that is deducted for transaction to be included.
-/// Initial gas contains initial stipend gas, gas for access list and input data.
+/// Initial gas contains initial stipend gas, gas for access list and input data, and gas for transferred MNAs.
 pub fn initial_tx_gas<SPEC: Spec>(
     input: &[u8],
     is_create: bool,
     access_list: &[(Address, Vec<U256>)],
+    transferred_assets: &Option<Vec<TransferredAsset>>,
 ) -> u64 {
     let mut initial_gas = 0;
     let zero_data_len = input.iter().filter(|v| **v == 0).count() as u64;
@@ -352,6 +353,10 @@ pub fn initial_tx_gas<SPEC: Spec>(
     // Initcode stipend for bytecode analysis
     if SPEC::enabled(SHANGHAI) && is_create {
         initial_gas += initcode_cost(input.len() as u64)
+    }
+
+    if let Some(assets) = transferred_assets {
+        initial_gas += assets.len() as u64 * TRANSFERRED_ASSET;
     }
 
     initial_gas

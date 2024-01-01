@@ -361,6 +361,7 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
             &env.tx.data,
             env.tx.transact_to.is_create(),
             &env.tx.access_list,
+            &env.tx.transferred_assets,
         );
 
         // Additional check to see if limit is big enough to cover initial gas.
@@ -415,6 +416,7 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
             &tx_data,
             env.tx.transact_to.is_create(),
             &env.tx.access_list,
+            &env.tx.transferred_assets,
         );
 
         // load coinbase

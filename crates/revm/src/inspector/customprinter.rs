@@ -102,11 +102,12 @@ impl<DB: Database> Inspector<DB> for CustomPrintTracer {
 
 #[cfg(test)]
 mod test {
-    use crate::primitives::TransferredAsset;
     #[test]
     #[cfg(not(feature = "optimism"))]
     fn gas_calculation_underflow() {
-        use crate::primitives::{address, bytes, init_balances, B256, BASE_ASSET_ID, U256};
+        use crate::primitives::{
+            address, bytes, init_balances, TransferredAsset, B256, BASE_ASSET_ID, U256,
+        };
 
         // https://github.com/bluealloy/revm/issues/277
         // checks this use case
