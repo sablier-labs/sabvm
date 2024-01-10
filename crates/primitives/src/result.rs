@@ -23,7 +23,7 @@ pub struct ResultAndState {
 pub enum ExecutionResult {
     /// Returned successfully
     Success {
-        reason: Eval,
+        reason: SuccessReason,
         gas_used: u64,
         gas_refunded: u64,
         logs: Vec<Log>,
@@ -224,12 +224,38 @@ pub enum InvalidTransactionReason {
     BlobVersionNotSupported,
     /// Asset IDs in transaction are not unique
     AssetIdsNotUnique,
-    /// System transactions are not supported
-    /// post-regolith hardfork.
-    #[cfg(feature = "optimism")]
-    DepositSystemTxPostRegolith,
     /// Deposit transaction haults bubble up to the global main return handler,
     /// wiping state and only increasing the nonce + persisting the mint value.
+    /// System transactions are not supported post-regolith hardfork.
+    ///
+    /// Before the Regolith hardfork, there was a special field in the `Deposit` transaction
+    /// type that differentiated between `system` and `user` deposit transactions. This field
+    /// was deprecated in the Regolith hardfork, and this error is thrown if a `Deposit` transaction
+    /// is found with this field set to `true` after the hardfork activation.
+    ///
+    /// In addition, this error is internal, and bubbles up into a [HaltReason::FailedDeposit] error
+    /// in the `revm` handler for the consumer to easily handle. This is due to a state transition
+    /// rule on OP Stack chains where, if for any reason a deposit transaction fails, the transaction
+    /// must still be included in the block, the sender nonce is bumped, the `mint` value persists, and
+    /// special gas accounting rules are applied. Normally on L1, [EVMError::Transaction] errors
+    /// are cause for non-inclusion, so a special [HaltReason] variant was introduced to handle this
+    /// case for failed deposit transactions.
+    #[cfg(feature = "optimism")]
+    DepositSystemTxPostRegolith,
+    /// Deposit transaction haults bubble up to the global main return handler, wiping state and
+    /// only increasing the nonce + persisting the mint value.
+    ///
+    /// This is a catch-all error for any deposit transaction that is results in a [HaltReason] error
+    /// post-regolith hardfork. This allows for a consumer to easily handle special cases where
+    /// a deposit transaction fails during validation, but must still be included in the block.
+    ///
+    /// In addition, this error is internal, and bubbles up into a [HaltReason::FailedDeposit] error
+    /// in the `revm` handler for the consumer to easily handle. This is due to a state transition
+    /// rule on OP Stack chains where, if for any reason a deposit transaction fails, the transaction
+    /// must still be included in the block, the sender nonce is bumped, the `mint` value persists, and
+    /// special gas accounting rules are applied. Normally on L1, [EVMError::Transaction] errors
+    /// are cause for non-inclusion, so a special [HaltReason] variant was introduced to handle this
+    /// case for failed deposit transactions.
     #[cfg(feature = "optimism")]
     HaltedDepositPostRegolith,
 }
@@ -355,7 +381,7 @@ impl fmt::Display for InvalidHeaderReason {
 /// Reason a transaction successfully completed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum Eval {
+pub enum SuccessReason {
     Stop,
     Return,
 }

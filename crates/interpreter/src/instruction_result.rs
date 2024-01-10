@@ -1,4 +1,4 @@
-use crate::primitives::{Eval, HaltReason, OutOfGasError};
+use crate::primitives::{HaltReason, OutOfGasError, SuccessReason};
 
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
@@ -48,11 +48,11 @@ pub enum InstructionResult {
     FatalExternalError,
 }
 
-impl From<Eval> for InstructionResult {
-    fn from(value: Eval) -> Self {
+impl From<SuccessReason> for InstructionResult {
+    fn from(value: SuccessReason) -> Self {
         match value {
-            Eval::Return => InstructionResult::Return,
-            Eval::Stop => InstructionResult::Stop,
+            SuccessReason::Return => InstructionResult::Return,
+            SuccessReason::Stop => InstructionResult::Stop,
         }
     }
 }
@@ -177,7 +177,7 @@ impl InstructionResult {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum SuccessOrHalt {
-    Success(Eval),
+    Success(SuccessReason),
     Revert,
     Halt(HaltReason),
     FatalExternalError,
@@ -194,11 +194,11 @@ impl SuccessOrHalt {
         matches!(self, SuccessOrHalt::Success(_))
     }
 
-    /// Returns the [Eval] value if this a successful result
+    /// Returns the [SuccessReason] value if this a successful result
     #[inline]
-    pub fn to_success(self) -> Option<Eval> {
+    pub fn to_success(self) -> Option<SuccessReason> {
         match self {
-            SuccessOrHalt::Success(eval) => Some(eval),
+            SuccessOrHalt::Success(reason) => Some(reason),
             _ => None,
         }
     }
@@ -215,11 +215,11 @@ impl SuccessOrHalt {
         matches!(self, SuccessOrHalt::Halt(_))
     }
 
-    /// Returns the [Halt] value the EVM has experienced an exceptional halt
+    /// Returns the [HaltReason] value the EVM has experienced an exceptional halt
     #[inline]
     pub fn to_halt(self) -> Option<HaltReason> {
         match self {
-            SuccessOrHalt::Halt(halt) => Some(halt),
+            SuccessOrHalt::Halt(reason) => Some(reason),
             _ => None,
         }
     }
@@ -229,8 +229,8 @@ impl From<InstructionResult> for SuccessOrHalt {
     fn from(result: InstructionResult) -> Self {
         match result {
             InstructionResult::Continue => Self::InternalContinue, // used only in interpreter loop
-            InstructionResult::Stop => Self::Success(Eval::Stop),
-            InstructionResult::Return => Self::Success(Eval::Return),
+            InstructionResult::Stop => Self::Success(SuccessReason::Stop),
+            InstructionResult::Return => Self::Success(SuccessReason::Return),
             InstructionResult::Revert => Self::Revert,
             InstructionResult::CallOrCreate => Self::InternalCallOrCreate, // used only in interpreter loop
             InstructionResult::CallTooDeep => Self::Halt(HaltReason::CallTooDeep), // not gonna happen for first call
