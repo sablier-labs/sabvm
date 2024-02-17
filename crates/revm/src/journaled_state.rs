@@ -152,7 +152,7 @@ impl JournaledState {
         &mut self,
         from: &Address,
         to: &Address,
-        assets: Vec<Asset>,
+        assets: &Vec<Asset>,
         db: &mut DB,
     ) -> Result<(), InstructionResult> {
         // load accounts
@@ -167,7 +167,7 @@ impl JournaledState {
             let asset_amount = asset.amount;
 
             // sub amount from
-            let from_account = &mut self.state.get_mut(from).unwrap();
+            let from_account = self.state.get_mut(from).unwrap();
             Self::touch_account(self.journal.last_mut().unwrap(), from, from_account);
             let from_balance = &mut from_account.info.get_balance(asset_id);
             *from_balance = from_balance
@@ -175,7 +175,7 @@ impl JournaledState {
                 .ok_or(InstructionResult::OutOfFunds)?;
 
             // add amount to
-            let to_account = &mut self.state.get_mut(to).unwrap();
+            let to_account = self.state.get_mut(to).unwrap();
             Self::touch_account(self.journal.last_mut().unwrap(), to, to_account);
             let to_balance = &mut to_account.info.get_balance(asset_id);
             *to_balance = to_balance
@@ -204,9 +204,9 @@ impl JournaledState {
     ///     be done before subroutine checkpoint is created.
     /// 2. Check if there is collision of newly created account with existing one.
     /// 3. Mark created account as created.
-    /// 4. Add fund to created account
-    /// 5. Increment nonce of created account if SpuriousDragon is active
-    /// 6. Decrease balance of caller account.
+    /// 4. Increment nonce of created account if SpuriousDragon is active
+    /// 5. Add funds to the created account
+    /// 6. Decrease balances of the caller account.
     ///
     /// # Panics
     ///
@@ -217,7 +217,7 @@ impl JournaledState {
         &mut self,
         caller: Address,
         address: Address,
-        transferred_assets: Vec<Asset>,
+        transferred_assets: &Vec<Asset>,
     ) -> Result<JournalCheckpoint, InstructionResult> {
         // Enter subroutine
         let checkpoint = self.checkpoint();
@@ -258,9 +258,17 @@ impl JournaledState {
         // saved even empty.
         Self::touch_account(last_journal, &address, account);
 
+        // EIP-161: State trie clearing (invariant-preserving alternative)
+        if SPEC::enabled(SPURIOUS_DRAGON) {
+            // nonce is going to be reset to zero in AccountCreated journal entry.
+            account.info.nonce = 1;
+        }
+
         for asset in transferred_assets {
             let asset_id = asset.id;
             let asset_amount = asset.amount;
+            let account = self.state.get_mut(&address).unwrap();
+
             // Add asset amount to created account, as we already have target here.
             let Some(new_balance) = account.info.get_balance(asset_id).checked_add(asset_amount)
             else {
@@ -281,12 +289,6 @@ impl JournaledState {
                 asset_id,
                 asset_amount,
             });
-        }
-
-        // EIP-161: State trie clearing (invariant-preserving alternative)
-        if SPEC::enabled(SPURIOUS_DRAGON) {
-            // nonce is going to be reset to zero in AccountCreated journal entry.
-            account.info.nonce = 1;
         }
 
         Ok(checkpoint)

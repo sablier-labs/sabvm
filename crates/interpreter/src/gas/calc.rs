@@ -317,7 +317,7 @@ pub fn initial_tx_gas<SPEC: Spec>(
     input: &[u8],
     is_create: bool,
     access_list: &[(Address, Vec<U256>)],
-    transferred_assets: &Option<Vec<Asset>>,
+    transferred_assets: &Option<&Vec<Asset>>,
 ) -> u64 {
     let mut initial_gas = 0;
     let zero_data_len = input.iter().filter(|v| **v == 0).count() as u64;

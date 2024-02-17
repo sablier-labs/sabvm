@@ -119,7 +119,7 @@ impl SharedMemory {
     /// Returns the length of the current memory range.
     #[inline]
     pub fn len(&self) -> usize {
-        self.buffer.len() - self.last_checkpoint
+        self.buffer.len() - self.last_checkpoint // TODO: why is this not just `self.buffer.len()`?
     }
 
     /// Returns `true` if the current memory range is empty.

@@ -74,7 +74,7 @@ impl Contract {
             hash,
             call_context.address,
             call_context.caller,
-            call_context.apparent_assets,
+            call_context.apparent_assets.clone(),
         )
     }
 

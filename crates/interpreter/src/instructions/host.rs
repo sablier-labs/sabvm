@@ -7,7 +7,7 @@ use crate::{
 };
 use alloc::{boxed::Box, vec::Vec};
 use core::cmp::min;
-use revm_primitives::BLOCK_HASH_HISTORY;
+use revm_primitives::{Asset, BLOCK_HASH_HISTORY};
 
 /// EIP-1884: Repricing for trie-size-dependent opcodes
 pub fn selfbalance<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
@@ -194,6 +194,19 @@ pub fn log<const N: usize, H: Host>(interpreter: &mut Interpreter, host: &mut H)
     host.log(interpreter.contract.address, topics, data);
 }
 
+fn pop_transferred_assets(interpreter: &mut Interpreter, transferred_assets: &mut Vec<Asset>) {
+    pop!(interpreter, nr_of_transferred_assets);
+    let nr_of_transferred_assets = as_usize_or_fail!(interpreter, nr_of_transferred_assets);
+
+    for _ in 0..nr_of_transferred_assets {
+        pop!(interpreter, asset_id, value);
+        transferred_assets.push(Asset {
+            id: B256::from(asset_id),
+            amount: value,
+        });
+    }
+}
+
 pub fn create<const IS_CREATE2: bool, H: Host, SPEC: Spec>(
     interpreter: &mut Interpreter,
     host: &mut H,
@@ -205,9 +218,10 @@ pub fn create<const IS_CREATE2: bool, H: Host, SPEC: Spec>(
         check!(interpreter, PETERSBURG);
     }
 
-    // TODO: pop multiple transferred assets instead of just one value
+    let mut transferred_assets = Vec::<Asset>::new();
+    pop_transferred_assets(interpreter, transferred_assets.as_mut());
 
-    pop!(interpreter, value, code_offset, len);
+    pop!(interpreter, code_offset, len);
     let len = as_usize_or_fail!(interpreter, len);
 
     let mut code = Bytes::new();
@@ -257,7 +271,7 @@ pub fn create<const IS_CREATE2: bool, H: Host, SPEC: Spec>(
         inputs: Box::new(CreateInputs {
             caller: interpreter.contract.address,
             scheme,
-            transferred_assets: Vec::new(), // TODO: pass the actual transferred assets here
+            transferred_assets,
             init_code: code,
             gas_limit,
         }),

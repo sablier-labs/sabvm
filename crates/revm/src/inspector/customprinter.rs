@@ -94,7 +94,11 @@ impl<DB: Database> Inspector<DB> for CustomPrintTracer {
     ) -> Option<(InterpreterResult, Option<Address>)> {
         println!(
             "CREATE CALL: caller:{:?}, scheme:{:?}, value:{:?}, init_code:{:?}, gas:{:?}",
-            inputs.caller, inputs.scheme, inputs.value, inputs.init_code, inputs.gas_limit
+            inputs.caller,
+            inputs.scheme,
+            inputs.transferred_assets,
+            inputs.init_code,
+            inputs.gas_limit
         );
         None
     }
@@ -125,10 +129,10 @@ mod test {
         evm.env.tx.caller = address!("5fdcca53617f4d2b9134b29090c87d01058e27e0");
         evm.env.tx.transact_to = crate::primitives::TransactTo::Call(callee);
         evm.env.tx.data = crate::primitives::Bytes::new();
-        evm.env.tx.transferred_assets = Some(vec![Asset {
+        evm.env.tx.transferred_assets = vec![Asset {
             id: B256::from(BASE_ASSET_ID),
             amount: U256::ZERO,
-        }]);
+        }];
         let _ = evm.inspect_commit(super::CustomPrintTracer::default());
     }
 }

@@ -1,3 +1,4 @@
+use crate::primitives::BASE_ASSET_ID;
 use crate::{
     db::Database,
     interpreter::{
@@ -69,14 +70,17 @@ impl<'a, DB: Database> EvmContext<'a, DB> {
             .ok()
     }
 
-    // TODO: implement a getter for the other Native Asset Balances
-    /// Return the base asset balance and the is_cold flag of the account.
-    pub fn base_balance(&mut self, address: Address) -> Option<(U256, bool)> {
+    pub fn balance(&mut self, address: Address, asset_id: B256) -> Option<(U256, bool)> {
         self.journaled_state
-            .load_account(address, &mut self.db)
+            .load_account(address, self.db)
             .map_err(|e| self.error = Some(e))
             .ok()
-            .map(|(acc, is_cold)| (acc.info.get_base_balance(), is_cold))
+            .map(|(acc, is_cold)| (acc.info.get_balance(asset_id), is_cold))
+    }
+
+    /// Return the base asset balance and the is_cold flag of the account.
+    pub fn base_balance(&mut self, address: Address) -> Option<(U256, bool)> {
+        self.balance(address, BASE_ASSET_ID)
     }
 
     /// Return account code and if address is cold loaded.
@@ -157,7 +161,7 @@ impl<'a, DB: Database> EvmContext<'a, DB> {
         }
 
         // Check the solvency of the caller, wrt the transferred assets
-        for asset in inputs.transferred_assets {
+        for asset in &inputs.transferred_assets {
             // Fetch the asset balance of the caller.
             let Some((caller_balance, _)) = self.balance(inputs.caller, asset.id) else {
                 return return_error(InstructionResult::FatalExternalError);
@@ -195,7 +199,7 @@ impl<'a, DB: Database> EvmContext<'a, DB> {
         let checkpoint = match self.journaled_state.create_account_checkpoint::<SPEC>(
             inputs.caller,
             created_address,
-            inputs.transferred_assets,
+            &inputs.transferred_assets,
         ) {
             Ok(checkpoint) => checkpoint,
             Err(e) => {
@@ -211,7 +215,7 @@ impl<'a, DB: Database> EvmContext<'a, DB> {
             code_hash,
             created_address,
             inputs.caller,
-            inputs.transferred_assets,
+            inputs.transferred_assets.clone(),
         ));
 
         Ok(Box::new(CallStackFrame {
@@ -258,7 +262,7 @@ impl<'a, DB: Database> EvmContext<'a, DB> {
         let checkpoint = self.journaled_state.checkpoint();
 
         // Touch address. For "EIP-158 State Clear", this will erase empty accounts.
-        if inputs.transfer.assets == U256::ZERO {
+        if inputs.transfer.assets.is_empty() {
             self.load_account(inputs.context.address);
             self.journaled_state.touch(&inputs.context.address);
         }
@@ -267,7 +271,7 @@ impl<'a, DB: Database> EvmContext<'a, DB> {
         if let Err(e) = self.journaled_state.transfer(
             &inputs.transfer.source,
             &inputs.transfer.target,
-            inputs.transfer.assets,
+            &inputs.transfer.assets,
             self.db,
         ) {
             //println!("transfer error");

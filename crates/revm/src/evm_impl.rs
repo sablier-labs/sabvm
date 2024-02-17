@@ -1,3 +1,4 @@
+use crate::primitives::{Asset, BASE_ASSET_ID};
 use crate::{
     db::Database,
     handler::Handler,
@@ -361,7 +362,7 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
             &env.tx.data,
             env.tx.transact_to.is_create(),
             &env.tx.access_list,
-            &env.tx.transferred_assets,
+            &Some(&env.tx.transferred_assets),
         );
 
         // Additional check to see if limit is big enough to cover initial gas.
@@ -416,7 +417,7 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
             &tx_data,
             env.tx.transact_to.is_create(),
             &env.tx.access_list,
-            &env.tx.transferred_assets,
+            &Some(&env.tx.transferred_assets),
         );
 
         // load coinbase
@@ -488,7 +489,10 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
                         transfer: Transfer {
                             source: tx_caller,
                             target: address,
-                            assets: tx_value,
+                            assets: vec![Asset {
+                                id: BASE_ASSET_ID,
+                                amount: tx_value,
+                            }],
                         },
                         input: tx_data,
                         gas_limit: transact_gas_limit,
@@ -496,7 +500,10 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
                             caller: tx_caller,
                             address,
                             code_address: address,
-                            apparent_assets: tx_value,
+                            apparent_assets: vec![Asset {
+                                id: BASE_ASSET_ID,
+                                amount: tx_value,
+                            }],
                             scheme: CallScheme::Call,
                         },
                         is_static: false,
@@ -507,7 +514,10 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
             TransactTo::Create(scheme) => self.context.make_create_frame::<SPEC>(&CreateInputs {
                 caller: tx_caller,
                 scheme,
-                transferred_assets: tx_value,
+                transferred_assets: vec![Asset {
+                    id: BASE_ASSET_ID,
+                    amount: tx_value,
+                }],
                 init_code: tx_data,
                 gas_limit: transact_gas_limit,
             }),
