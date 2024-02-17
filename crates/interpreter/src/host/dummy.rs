@@ -49,11 +49,6 @@ impl Host for DummyHost {
     }
 
     #[inline]
-    fn balance(&mut self, _address: Address) -> Option<(U256, bool)> {
-        Some((U256::ZERO, false))
-    }
-
-    #[inline]
     fn code(&mut self, _address: Address) -> Option<(Bytecode, bool)> {
         Some((Bytecode::default(), false))
     }
@@ -115,7 +110,7 @@ impl Host for DummyHost {
     }
 
     #[inline]
-    fn balanceof(&mut self, _asset_id: B256, _address: Address) -> Option<(U256, bool)> {
+    fn balance(&mut self, _asset_id: B256, _address: Address) -> Option<(U256, bool)> {
         Some((U256::ZERO, false))
     }
 

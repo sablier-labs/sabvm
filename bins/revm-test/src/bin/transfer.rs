@@ -1,6 +1,6 @@
 use revm::{
     db::BenchmarkDB,
-    primitives::{Bytecode, TransactTo, TransferredAsset, B256, BASE_ASSET_ID, U256},
+    primitives::{Asset, Bytecode, TransactTo, B256, BASE_ASSET_ID, U256},
 };
 use std::time::{Duration, Instant};
 extern crate alloc;
@@ -13,7 +13,7 @@ fn main() {
     evm.env.tx.caller = "0x0000000000000000000000000000000000000001"
         .parse()
         .unwrap();
-    let asset = TransferredAsset {
+    let asset = Asset {
         id: B256::from(BASE_ASSET_ID),
         amount: U256::from(10),
     };

@@ -13,7 +13,7 @@ pub enum InstructionResult {
     // revert codes
     Revert = 0x10, // revert opcode
     CallTooDeep,
-    OutOfFund,
+    OutOfFunds,
 
     // Actions
     CallOrCreate = 0x20,
@@ -81,7 +81,7 @@ impl From<HaltReason> for InstructionResult {
             HaltReason::OverflowPayment => Self::OverflowPayment,
             HaltReason::StateChangeDuringStaticCall => Self::StateChangeDuringStaticCall,
             HaltReason::CallNotAllowedInsideStatic => Self::CallNotAllowedInsideStatic,
-            HaltReason::OutOfFund => Self::OutOfFund,
+            HaltReason::OutOfFund => Self::OutOfFunds,
             HaltReason::CallTooDeep => Self::CallTooDeep,
             #[cfg(feature = "optimism")]
             HaltReason::FailedDeposit => Self::FatalExternalError,
@@ -99,7 +99,7 @@ macro_rules! return_ok {
 #[macro_export]
 macro_rules! return_revert {
     () => {
-        InstructionResult::Revert | InstructionResult::CallTooDeep | InstructionResult::OutOfFund
+        InstructionResult::Revert | InstructionResult::CallTooDeep | InstructionResult::OutOfFunds
     };
 }
 
@@ -234,7 +234,7 @@ impl From<InstructionResult> for SuccessOrHalt {
             InstructionResult::Revert => Self::Revert,
             InstructionResult::CallOrCreate => Self::InternalCallOrCreate, // used only in interpreter loop
             InstructionResult::CallTooDeep => Self::Halt(HaltReason::CallTooDeep), // not gonna happen for first call
-            InstructionResult::OutOfFund => Self::Halt(HaltReason::OutOfFund), // Check for first call is done separately.
+            InstructionResult::OutOfFunds => Self::Halt(HaltReason::OutOfFund), // Check for first call is done separately.
             InstructionResult::OutOfGas => Self::Halt(HaltReason::OutOfGas(
                 revm_primitives::OutOfGasError::BasicOutOfGas,
             )),
@@ -310,7 +310,7 @@ mod tests {
         let revert_results = vec![
             InstructionResult::Revert,
             InstructionResult::CallTooDeep,
-            InstructionResult::OutOfFund,
+            InstructionResult::OutOfFunds,
         ];
 
         for result in revert_results {

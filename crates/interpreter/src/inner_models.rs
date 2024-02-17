@@ -1,5 +1,5 @@
 pub use crate::primitives::CreateScheme;
-use crate::primitives::{Address, Bytes, B256, U256};
+use crate::primitives::{Address, Asset, Bytes, B256};
 
 /// Inputs for a call.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -27,8 +27,8 @@ pub struct CreateInputs {
     pub caller: Address,
     /// The create scheme.
     pub scheme: CreateScheme,
-    /// The value to transfer.
-    pub value: U256,
+    /// The assets to transfer to the contract.
+    pub transferred_assets: Vec<Asset>,
     /// The init code of the contract.
     pub init_code: Bytes,
     /// The gas limit of the call.
@@ -81,8 +81,8 @@ pub struct CallContext {
     pub caller: Address,
     /// The address the contract code was loaded from, if any.
     pub code_address: Address,
-    /// Apparent value of the EVM.
-    pub apparent_value: U256,
+    /// Apparent assets of the EVM.
+    pub apparent_assets: Vec<Asset>,
     /// The scheme used for the call.
     pub scheme: CallScheme,
 }
@@ -93,13 +93,13 @@ impl Default for CallContext {
             address: Address::default(),
             caller: Address::default(),
             code_address: Address::default(),
-            apparent_value: U256::default(),
+            apparent_assets: Vec::new(),
             scheme: CallScheme::Call,
         }
     }
 }
 
-/// Transfer from source to target, with given value.
+/// Transfer assets from source to target.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Transfer {
@@ -107,6 +107,6 @@ pub struct Transfer {
     pub source: Address,
     /// The target address.
     pub target: Address,
-    /// The transfer value.
-    pub value: U256,
+    /// The transferred assets.
+    pub assets: Vec<Asset>,
 }

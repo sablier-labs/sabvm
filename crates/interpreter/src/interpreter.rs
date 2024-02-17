@@ -112,6 +112,7 @@ impl Interpreter {
             return_revert!() => {
                 push!(interpreter, U256::ZERO);
                 interpreter.gas.erase_cost(result.gas.remaining());
+                // TODO: shouldn't we refund gas here?
             }
             InstructionResult::FatalExternalError => {
                 interpreter.instruction_result = InstructionResult::FatalExternalError;

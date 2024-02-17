@@ -9,31 +9,11 @@ use alloc::{boxed::Box, vec::Vec};
 use core::cmp::min;
 use revm_primitives::BLOCK_HASH_HISTORY;
 
-pub fn balance<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
-    pop_address!(interpreter, address);
-    let Some((balance, is_cold)) = host.balance(address) else {
-        interpreter.instruction_result = InstructionResult::FatalExternalError;
-        return;
-    };
-    gas!(
-        interpreter,
-        if SPEC::enabled(ISTANBUL) {
-            // EIP-1884: Repricing for trie-size-dependent opcodes
-            gas::account_access_gas::<SPEC>(is_cold)
-        } else if SPEC::enabled(TANGERINE) {
-            400
-        } else {
-            20
-        }
-    );
-    push!(interpreter, balance);
-}
-
 /// EIP-1884: Repricing for trie-size-dependent opcodes
 pub fn selfbalance<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     check!(interpreter, ISTANBUL);
     gas!(interpreter, gas::LOW);
-    let Some((balance, _)) = host.balance(interpreter.contract.address) else {
+    let Some((balance, _)) = host.base_balance(interpreter.contract.address) else {
         interpreter.instruction_result = InstructionResult::FatalExternalError;
         return;
     };
@@ -225,6 +205,8 @@ pub fn create<const IS_CREATE2: bool, H: Host, SPEC: Spec>(
         check!(interpreter, PETERSBURG);
     }
 
+    // TODO: pop multiple transferred assets instead of just one value
+
     pop!(interpreter, value, code_offset, len);
     let len = as_usize_or_fail!(interpreter, len);
 
@@ -275,7 +257,7 @@ pub fn create<const IS_CREATE2: bool, H: Host, SPEC: Spec>(
         inputs: Box::new(CreateInputs {
             caller: interpreter.contract.address,
             scheme,
-            value,
+            transferred_assets: Vec::new(), // TODO: pass the actual transferred assets here
             init_code: code,
             gas_limit,
         }),
@@ -361,21 +343,21 @@ pub fn call_inner<SPEC: Spec, H: Host>(
             address: to,
             caller: interpreter.contract.address,
             code_address: to,
-            apparent_value: value,
+            apparent_assets: Vec::new(), // TODO: pass the actual transferred assets here
             scheme,
         },
         CallScheme::CallCode => CallContext {
             address: interpreter.contract.address,
             caller: interpreter.contract.address,
             code_address: to,
-            apparent_value: value,
+            apparent_assets: Vec::new(), // TODO: pass the actual transferred assets here
             scheme,
         },
         CallScheme::DelegateCall => CallContext {
             address: interpreter.contract.address,
             caller: interpreter.contract.caller,
             code_address: to,
-            apparent_value: interpreter.contract.value,
+            apparent_assets: Vec::new(), // TODO: pass the actual transferred assets here
             scheme,
         },
     };
@@ -384,19 +366,19 @@ pub fn call_inner<SPEC: Spec, H: Host>(
         CallScheme::Call => Transfer {
             source: interpreter.contract.address,
             target: to,
-            value,
+            assets: Vec::new(), // TODO: pass the actual transferred assets here
         },
         CallScheme::CallCode => Transfer {
             source: interpreter.contract.address,
             target: interpreter.contract.address,
-            value,
+            assets: Vec::new(), // TODO: pass the actual transferred assets here
         },
         _ => {
             //this is dummy send for StaticCall and DelegateCall, it should do nothing and dont touch anything.
             Transfer {
                 source: interpreter.contract.address,
                 target: interpreter.contract.address,
-                value: U256::ZERO,
+                assets: Vec::new(),
             }
         }
     };
@@ -431,7 +413,7 @@ pub fn call_inner<SPEC: Spec, H: Host>(
     gas!(interpreter, gas_limit);
 
     // add call stipend if there is value to be transferred.
-    if matches!(scheme, CallScheme::Call | CallScheme::CallCode) && transfer.value != U256::ZERO {
+    if matches!(scheme, CallScheme::Call | CallScheme::CallCode) && transfer.assets.len() > 0 {
         gas_limit = gas_limit.saturating_add(gas::CALL_STIPEND);
     }
     let is_static = matches!(scheme, CallScheme::StaticCall) || interpreter.is_static;
@@ -451,20 +433,26 @@ pub fn call_inner<SPEC: Spec, H: Host>(
     interpreter.instruction_result = InstructionResult::CallOrCreate;
 }
 
-pub fn balanceof<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+pub fn balance<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     pop_address!(interpreter, address);
     pop!(interpreter, asset_id);
 
     let asset_id = B256::from(asset_id);
 
-    let Some((balance, is_cold)) = host.balanceof(asset_id, address) else {
+    let Some((balance, is_cold)) = host.balance(asset_id, address) else {
         interpreter.instruction_result = InstructionResult::FatalExternalError;
         return;
     };
     gas!(
         interpreter,
-        // EIP-1884: Repricing for trie-size-dependent opcodes
-        gas::account_access_gas::<SPEC>(is_cold)
+        if SPEC::enabled(ISTANBUL) {
+            // EIP-1884: Repricing for trie-size-dependent opcodes
+            gas::account_access_gas::<SPEC>(is_cold)
+        } else if SPEC::enabled(TANGERINE) {
+            400
+        } else {
+            20
+        }
     );
     push!(interpreter, balance);
 }

@@ -69,9 +69,9 @@ impl<'a, DB: Database> EvmContext<'a, DB> {
             .ok()
     }
 
-    //TODO: also take into account the other Native Asset Balances
-    /// Return account balance and is_cold flag.
-    pub fn balance(&mut self, address: Address) -> Option<(U256, bool)> {
+    // TODO: implement a getter for the other Native Asset Balances
+    /// Return the base asset balance and the is_cold flag of the account.
+    pub fn base_balance(&mut self, address: Address) -> Option<(U256, bool)> {
         self.journaled_state
             .load_account(address, &mut self.db)
             .map_err(|e| self.error = Some(e))
@@ -156,14 +156,17 @@ impl<'a, DB: Database> EvmContext<'a, DB> {
             return return_error(InstructionResult::CallTooDeep);
         }
 
-        // Fetch balance of caller.
-        let Some((caller_balance, _)) = self.balance(inputs.caller) else {
-            return return_error(InstructionResult::FatalExternalError);
-        };
+        // Check the solvency of the caller, wrt the transferred assets
+        for asset in inputs.transferred_assets {
+            // Fetch the asset balance of the caller.
+            let Some((caller_balance, _)) = self.balance(inputs.caller, asset.id) else {
+                return return_error(InstructionResult::FatalExternalError);
+            };
 
-        // Check if caller has enough balance to send to the created contract.
-        if caller_balance < inputs.value {
-            return return_error(InstructionResult::OutOfFund);
+            // Check if the caller has a big-enough balance to send to the created contract.
+            if caller_balance < asset.amount {
+                return return_error(InstructionResult::OutOfFunds);
+            }
         }
 
         // Increase nonce of caller and check if it overflows
@@ -192,7 +195,7 @@ impl<'a, DB: Database> EvmContext<'a, DB> {
         let checkpoint = match self.journaled_state.create_account_checkpoint::<SPEC>(
             inputs.caller,
             created_address,
-            inputs.value,
+            inputs.transferred_assets,
         ) {
             Ok(checkpoint) => checkpoint,
             Err(e) => {
@@ -208,7 +211,7 @@ impl<'a, DB: Database> EvmContext<'a, DB> {
             code_hash,
             created_address,
             inputs.caller,
-            inputs.value,
+            inputs.transferred_assets,
         ));
 
         Ok(Box::new(CallStackFrame {
@@ -255,7 +258,7 @@ impl<'a, DB: Database> EvmContext<'a, DB> {
         let checkpoint = self.journaled_state.checkpoint();
 
         // Touch address. For "EIP-158 State Clear", this will erase empty accounts.
-        if inputs.transfer.value == U256::ZERO {
+        if inputs.transfer.assets == U256::ZERO {
             self.load_account(inputs.context.address);
             self.journaled_state.touch(&inputs.context.address);
         }
@@ -264,7 +267,7 @@ impl<'a, DB: Database> EvmContext<'a, DB> {
         if let Err(e) = self.journaled_state.transfer(
             &inputs.transfer.source,
             &inputs.transfer.target,
-            inputs.transfer.value,
+            inputs.transfer.assets,
             self.db,
         ) {
             //println!("transfer error");

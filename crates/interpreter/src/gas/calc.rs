@@ -1,5 +1,5 @@
 use super::constants::*;
-use crate::primitives::{Address, Spec, SpecId::*, TransferredAsset, U256};
+use crate::primitives::{Address, Asset, Spec, SpecId::*, U256};
 use alloc::vec::Vec;
 
 #[allow(clippy::collapsible_else_if)]
@@ -317,7 +317,7 @@ pub fn initial_tx_gas<SPEC: Spec>(
     input: &[u8],
     is_create: bool,
     access_list: &[(Address, Vec<U256>)],
-    transferred_assets: &Option<Vec<TransferredAsset>>,
+    transferred_assets: &Option<Vec<Asset>>,
 ) -> u64 {
     let mut initial_gas = 0;
     let zero_data_len = input.iter().filter(|v| **v == 0).count() as u64;
@@ -355,6 +355,7 @@ pub fn initial_tx_gas<SPEC: Spec>(
         initial_gas += initcode_cost(input.len() as u64)
     }
 
+    // gas cost of transferring the Native Assets
     if let Some(assets) = transferred_assets {
         initial_gas += assets.len() as u64 * TRANSFERRED_ASSET;
     }

@@ -105,9 +105,7 @@ mod test {
     #[test]
     #[cfg(not(feature = "optimism"))]
     fn gas_calculation_underflow() {
-        use crate::primitives::{
-            address, bytes, init_balances, TransferredAsset, B256, BASE_ASSET_ID, U256,
-        };
+        use crate::primitives::{address, bytes, init_balances, Asset, B256, BASE_ASSET_ID, U256};
 
         // https://github.com/bluealloy/revm/issues/277
         // checks this use case
@@ -127,7 +125,7 @@ mod test {
         evm.env.tx.caller = address!("5fdcca53617f4d2b9134b29090c87d01058e27e0");
         evm.env.tx.transact_to = crate::primitives::TransactTo::Call(callee);
         evm.env.tx.data = crate::primitives::Bytes::new();
-        evm.env.tx.transferred_assets = Some(vec![TransferredAsset {
+        evm.env.tx.transferred_assets = Some(vec![Asset {
             id: B256::from(BASE_ASSET_ID),
             amount: U256::ZERO,
         }]);

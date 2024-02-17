@@ -175,22 +175,17 @@ impl Env {
             }
         }
 
-        match &self.tx.transferred_assets {
-            Some(vector) => {
-                //TODO: check that the submitted asset IDs are valid/exist
+        if !self.tx.transferred_assets.is_empty() {
+            let slice: &[Asset] = &self.tx.transferred_assets;
 
-                // Check that the submitted asset IDs are unique
-                let unique_ids: HashSet<&B256> = vector
-                    .iter()
-                    .map(|transferred_asset| &transferred_asset.id)
-                    .collect();
+            //TODO: check that the submitted asset IDs are valid/exist
 
-                if unique_ids.len() != vector.len() {
-                    return Err(InvalidTransactionReason::AssetIdsNotUnique);
-                }
+            // Check that the submitted asset IDs are unique
+            let unique_ids: HashSet<&B256> = slice.iter().map(|asset| &asset.id).collect();
+
+            if unique_ids.len() != slice.len() {
+                return Err(InvalidTransactionReason::AssetIdsNotUnique);
             }
-
-            None => {}
         }
 
         Ok(())
@@ -268,26 +263,25 @@ impl Env {
 
         // If other native assets are being transferred in the tx, then, for each of the assets,
         // check that the account has a balance big enough to cover the transfer amount
-        match &self.tx.transferred_assets {
-            Some(vector) => {
-                for transferred_asset in vector
-                    .iter()
-                    .filter(|asset| asset.id.deref() != BASE_ASSET_ID)
-                {
-                    let (asset_id, transfer_amount) =
-                        (transferred_asset.id, transferred_asset.amount);
-                    let asset_balance = account.info.get_balance(asset_id);
-                    if asset_balance < transfer_amount {
-                        return Err(InvalidTransactionReason::NotEnoughAssetBalanceForTransfer {
-                            asset_id: (asset_id),
-                            required_balance: (transfer_amount),
-                            actual_balance: (asset_balance),
-                        });
-                    }
+        if !self.tx.transferred_assets.is_empty() {
+            for transferred_asset in self
+                .tx
+                .transferred_assets
+                .iter()
+                .filter(|asset| asset.id.deref() != BASE_ASSET_ID)
+            {
+                let (asset_id, transfer_amount) = (transferred_asset.id, transferred_asset.amount);
+                let asset_balance = account.info.get_balance(asset_id);
+                if asset_balance >= transfer_amount {
+                    continue;
                 }
-            }
 
-            None => {}
+                return Err(InvalidTransactionReason::NotEnoughAssetBalanceForTransfer {
+                    asset_id: (asset_id),
+                    required_balance: (transfer_amount),
+                    actual_balance: (asset_balance),
+                });
+            }
         }
 
         Ok(())
@@ -600,7 +594,7 @@ pub struct TxEnv {
     pub max_fee_per_blob_gas: Option<U256>,
 
     /// The list of assets transferred in the transaction.
-    pub transferred_assets: Option<Vec<TransferredAsset>>,
+    pub transferred_assets: Vec<Asset>,
 
     #[cfg(feature = "optimism")]
     #[cfg_attr(feature = "serde", serde(flatten))]
@@ -609,7 +603,7 @@ pub struct TxEnv {
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct TransferredAsset {
+pub struct Asset {
     pub id: B256,
     pub amount: U256,
 }
@@ -624,18 +618,23 @@ impl TxEnv {
     }
 
     pub fn get_base_transfer_value(&self) -> U256 {
-        match &self.transferred_assets {
-            Some(assets) => {
-                if let Some(transferred_asset) =
-                    assets.iter().find(|asset| asset.id == BASE_ASSET_ID)
-                {
-                    transferred_asset.amount
-                } else {
-                    Default::default()
-                }
-            }
-            None => Default::default(),
+        if self.transferred_assets.is_empty() {
+            return Default::default();
         }
+
+        if let Some(asset) = self
+            .transferred_assets
+            .iter()
+            .find(|asset| asset.id == BASE_ASSET_ID)
+        {
+            return asset.amount;
+        }
+
+        Default::default()
+    }
+
+    pub fn get_transferred_assets(&self) -> &[Asset] {
+        &self.transferred_assets
     }
 }
 
@@ -653,7 +652,7 @@ impl Default for TxEnv {
             access_list: Vec::new(),
             blob_hashes: Vec::new(),
             max_fee_per_blob_gas: None,
-            transferred_assets: None,
+            transferred_assets: Vec::new(),
             #[cfg(feature = "optimism")]
             optimism: OptimismFields::default(),
         }

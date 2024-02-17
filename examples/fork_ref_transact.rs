@@ -3,9 +3,7 @@ use ethers_core::abi::parse_abi;
 use ethers_providers::{Http, Provider};
 use revm::{
     db::{CacheDB, EmptyDB, EthersDB},
-    primitives::{
-        address, ExecutionResult, Output, TransactTo, TransferredAsset, B256, BASE_ASSET_ID, U256,
-    },
+    primitives::{address, Asset, ExecutionResult, Output, TransactTo, B256, BASE_ASSET_ID, U256},
     Database, EVM,
 };
 use std::sync::Arc;
@@ -80,7 +78,7 @@ async fn main() -> anyhow::Result<()> {
     // calldata formed via abigen
     evm.env.tx.data = encoded.0.into();
     // transaction value in wei
-    evm.env.tx.transferred_assets = Some(vec![TransferredAsset {
+    evm.env.tx.transferred_assets = Some(vec![Asset {
         id: B256::from(BASE_ASSET_ID),
         amount: U256::from(0),
     }]);

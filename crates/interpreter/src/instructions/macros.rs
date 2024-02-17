@@ -88,6 +88,10 @@ macro_rules! pop_address {
     };
 }
 
+// macro_rules! pop_assets {
+//     ($(),*)
+// }
+
 macro_rules! pop {
     ($interp:expr, $x1:ident) => {
         if $interp.stack.len() < 1 {

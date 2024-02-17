@@ -77,7 +77,7 @@ pub fn calldatasize<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
 
 pub fn callvalue<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
     gas!(interpreter, gas::BASE);
-    push!(interpreter, interpreter.contract.value);
+    push!(interpreter, interpreter.contract.assets);
 }
 
 pub fn calldatacopy<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {

@@ -3,6 +3,7 @@ use alloc::vec::Vec;
 
 mod dummy;
 pub use dummy::DummyHost;
+use revm_primitives::BASE_ASSET_ID;
 
 /// EVM context host.
 pub trait Host {
@@ -17,8 +18,10 @@ pub trait Host {
     /// Get the block hash of the given block `number`.
     fn block_hash(&mut self, number: U256) -> Option<B256>;
 
-    /// Get base asset balance of `address` and if the account is cold.
-    fn balance(&mut self, address: Address) -> Option<(U256, bool)>;
+    /// Get the base asset balance of `address` and if the account is cold.
+    fn base_balance(&mut self, address: Address) -> Option<(U256, bool)> {
+        self.balance(BASE_ASSET_ID, address)
+    }
 
     /// Get code of `address` and if the account is cold.
     fn code(&mut self, address: Address) -> Option<(Bytecode, bool)>;
@@ -49,7 +52,7 @@ pub trait Host {
     fn log(&mut self, address: Address, topics: Vec<B256>, data: Bytes);
 
     /// Get asset balance of address and if account is cold loaded.
-    fn balanceof(&mut self, asset_id: B256, address: Address) -> Option<(U256, bool)>;
+    fn balance(&mut self, asset_id: B256, address: Address) -> Option<(U256, bool)>;
 
     /// Mint a native asset.
     fn mint(&mut self, address: Address, sub_id: B256, value: U256) -> Option<bool>;

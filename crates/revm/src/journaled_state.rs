@@ -1,7 +1,7 @@
 use crate::interpreter::InstructionResult;
 use crate::primitives::{
-    db::Database, hash_map::Entry, Account, Address, Bytecode, HashMap, Log, Spec, SpecId::*,
-    State, StorageSlot, TransientStorage, B160, B256, KECCAK_EMPTY, PRECOMPILE3, U256,
+    db::Database, hash_map::Entry, Account, Address, Asset, Bytecode, HashMap, Log, Spec,
+    SpecId::*, State, StorageSlot, TransientStorage, B160, B256, KECCAK_EMPTY, PRECOMPILE3, U256,
 };
 use alloc::vec::Vec;
 use core::mem;
@@ -146,13 +146,13 @@ impl JournaledState {
         Some(account.info.nonce)
     }
 
-    /// Transfers balance from two accounts. Returns error if sender balance is not enough.
+    /// Transfers assets between 2 accounts. Returns error if sender balance is not enough.
     #[inline]
     pub fn transfer<DB: Database>(
         &mut self,
         from: &Address,
         to: &Address,
-        balance: U256,
+        assets: Vec<Asset>,
         db: &mut DB,
     ) -> Result<(), InstructionResult> {
         // load accounts
@@ -162,31 +162,37 @@ impl JournaledState {
         self.load_account(*to, db)
             .map_err(|_| InstructionResult::FatalExternalError)?;
 
-        // sub balance from
-        let from_account = &mut self.state.get_mut(from).unwrap();
-        Self::touch_account(self.journal.last_mut().unwrap(), from, from_account);
-        let from_balance = &mut from_account.info.get_base_balance();
-        *from_balance = from_balance
-            .checked_sub(balance)
-            .ok_or(InstructionResult::OutOfFund)?;
+        for asset in assets {
+            let asset_id = asset.id;
+            let asset_amount = asset.amount;
 
-        // add balance to
-        let to_account = &mut self.state.get_mut(to).unwrap();
-        Self::touch_account(self.journal.last_mut().unwrap(), to, to_account);
-        let to_balance = &mut to_account.info.get_base_balance();
-        *to_balance = to_balance
-            .checked_add(balance)
-            .ok_or(InstructionResult::OverflowPayment)?;
-        // Overflow of U256 balance is not possible to happen on mainnet. We don't bother to return funds from from_acc.
+            // sub amount from
+            let from_account = &mut self.state.get_mut(from).unwrap();
+            Self::touch_account(self.journal.last_mut().unwrap(), from, from_account);
+            let from_balance = &mut from_account.info.get_balance(asset_id);
+            *from_balance = from_balance
+                .checked_sub(asset_amount)
+                .ok_or(InstructionResult::OutOfFunds)?;
 
-        self.journal
-            .last_mut()
-            .unwrap()
-            .push(JournalEntry::BalanceTransfer {
-                from: *from,
-                to: *to,
-                balance,
-            });
+            // add amount to
+            let to_account = &mut self.state.get_mut(to).unwrap();
+            Self::touch_account(self.journal.last_mut().unwrap(), to, to_account);
+            let to_balance = &mut to_account.info.get_balance(asset_id);
+            *to_balance = to_balance
+                .checked_add(asset_amount)
+                .ok_or(InstructionResult::OverflowPayment)?;
+            // Overflow of U256 balance is not possible to happen on mainnet. We don't bother to return funds from from_acc.
+
+            self.journal
+                .last_mut()
+                .unwrap()
+                .push(JournalEntry::BalanceTransfer {
+                    from: *from,
+                    to: *to,
+                    asset_id,
+                    asset_amount,
+                });
+        }
 
         Ok(())
     }
@@ -211,7 +217,7 @@ impl JournaledState {
         &mut self,
         caller: Address,
         address: Address,
-        balance: U256,
+        transferred_assets: Vec<Asset>,
     ) -> Result<JournalCheckpoint, InstructionResult> {
         // Enter subroutine
         let checkpoint = self.checkpoint();
@@ -252,30 +258,36 @@ impl JournaledState {
         // saved even empty.
         Self::touch_account(last_journal, &address, account);
 
-        // Add balance to created account, as we already have target here.
-        let Some(new_balance) = account.info.get_base_balance().checked_add(balance) else {
-            self.checkpoint_revert(checkpoint);
-            return Err(InstructionResult::OverflowPayment);
-        };
-        account.info.set_base_balance(new_balance);
+        for asset in transferred_assets {
+            let asset_id = asset.id;
+            let asset_amount = asset.amount;
+            // Add asset amount to created account, as we already have target here.
+            let Some(new_balance) = account.info.get_balance(asset_id).checked_add(asset_amount)
+            else {
+                self.checkpoint_revert(checkpoint);
+                return Err(InstructionResult::OverflowPayment);
+            };
+            account.info.set_balance(asset_id, new_balance);
+
+            // Sub asset amount from caller
+            let caller_account = self.state.get_mut(&caller).unwrap();
+            // Balance is already checked in `create_inner`, so it is safe to just subtract.
+            caller_account.info.decrease_balance(asset_id, asset_amount);
+
+            // add journal entry of the transferred asset
+            last_journal.push(JournalEntry::BalanceTransfer {
+                from: caller,
+                to: address,
+                asset_id,
+                asset_amount,
+            });
+        }
 
         // EIP-161: State trie clearing (invariant-preserving alternative)
         if SPEC::enabled(SPURIOUS_DRAGON) {
             // nonce is going to be reset to zero in AccountCreated journal entry.
             account.info.nonce = 1;
         }
-
-        // Sub balance from caller
-        let caller_account = self.state.get_mut(&caller).unwrap();
-        // Balance is already checked in `create_inner`, so it is safe to just subtract.
-        caller_account.info.decrease_base_balance(balance);
-
-        // add journal entry of transferred balance
-        last_journal.push(JournalEntry::BalanceTransfer {
-            from: caller,
-            to: address,
-            balance,
-        });
 
         Ok(checkpoint)
     }
@@ -300,12 +312,17 @@ impl JournaledState {
                     // remove touched status
                     state.get_mut(&address).unwrap().unmark_touch();
                 }
-                JournalEntry::BalanceTransfer { from, to, balance } => {
+                JournalEntry::BalanceTransfer {
+                    from,
+                    to,
+                    asset_id,
+                    asset_amount,
+                } => {
                     // we don't need to check overflow and underflow when adding and subtracting the balance.
                     let from = state.get_mut(&from).unwrap();
-                    from.info.increase_base_balance(balance);
+                    from.info.increase_balance(asset_id, asset_amount);
                     let to = state.get_mut(&to).unwrap();
-                    to.info.decrease_base_balance(balance);
+                    to.info.decrease_balance(asset_id, asset_amount);
                 }
                 JournalEntry::NonceChange { address } => {
                     state.get_mut(&address).unwrap().info.nonce -= 1;
@@ -663,7 +680,8 @@ pub enum JournalEntry {
     BalanceTransfer {
         from: Address,
         to: Address,
-        balance: U256,
+        asset_id: B256,
+        asset_amount: U256,
     },
     /// Increment nonce
     /// Action: Increment nonce by one

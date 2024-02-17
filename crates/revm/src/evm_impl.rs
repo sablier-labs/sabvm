@@ -488,7 +488,7 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
                         transfer: Transfer {
                             source: tx_caller,
                             target: address,
-                            value: tx_value,
+                            assets: tx_value,
                         },
                         input: tx_data,
                         gas_limit: transact_gas_limit,
@@ -496,7 +496,7 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
                             caller: tx_caller,
                             address,
                             code_address: address,
-                            apparent_value: tx_value,
+                            apparent_assets: tx_value,
                             scheme: CallScheme::Call,
                         },
                         is_static: false,
@@ -507,7 +507,7 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
             TransactTo::Create(scheme) => self.context.make_create_frame::<SPEC>(&CreateInputs {
                 caller: tx_caller,
                 scheme,
-                value: tx_value,
+                transferred_assets: tx_value,
                 init_code: tx_data,
                 gas_limit: transact_gas_limit,
             }),
@@ -602,11 +602,6 @@ impl<'a, SPEC: Spec + 'static, DB: Database> Host for EVMImpl<'a, SPEC, DB> {
         self.context.load_account(address)
     }
 
-    /// Original BALANCE opcode. Here for backwards compatibility.
-    fn balance(&mut self, address: Address) -> Option<(U256, bool)> {
-        self.context.balance(address) //TODO: return the base balance here
-    }
-
     fn code(&mut self, address: Address) -> Option<(Bytecode, bool)> {
         self.context.code(address)
     }
@@ -649,7 +644,7 @@ impl<'a, SPEC: Spec + 'static, DB: Database> Host for EVMImpl<'a, SPEC, DB> {
         self.context.journaled_state.log(log);
     }
 
-    fn balanceof(&mut self, _asset_id: B256, _address: Address) -> Option<(U256, bool)> {
+    fn balance(&mut self, _asset_id: B256, _address: Address) -> Option<(U256, bool)> {
         // let journal = &mut self.data.journaled_state;
         // let error = &mut self.data.error;
         // journal

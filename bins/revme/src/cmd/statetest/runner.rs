@@ -7,8 +7,8 @@ use revm::{
     inspectors::TracerEip3155,
     interpreter::CreateScheme,
     primitives::{
-        address, b256, calc_excess_blob_gas, init_balances, keccak256, Bytecode, Env, HashMap,
-        SpecId, TransactTo, TransferredAsset, B256, BASE_ASSET_ID, U256,
+        address, b256, calc_excess_blob_gas, init_balances, keccak256, Asset, Bytecode, Env,
+        HashMap, SpecId, TransactTo, B256, BASE_ASSET_ID, U256,
     },
 };
 use std::{
@@ -216,7 +216,7 @@ pub fn execute_test_suite(
                     .get(test.indexes.data)
                     .unwrap()
                     .clone();
-                let asset = TransferredAsset {
+                let asset = Asset {
                     id: B256::from(BASE_ASSET_ID),
                     amount: U256::from(unit.transaction.value[test.indexes.value]),
                 };

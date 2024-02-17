@@ -5,8 +5,8 @@ use revm::{
     db::BenchmarkDB,
     interpreter::{analysis::to_analysed, BytecodeLocked, Contract, DummyHost, Interpreter},
     primitives::{
-        address, bytes, hex, BerlinSpec, Bytecode, BytecodeState, Bytes, TransactTo,
-        TransferredAsset, B256, BASE_ASSET_ID, U256,
+        address, bytes, hex, Asset, BerlinSpec, Bytecode, BytecodeState, Bytes, TransactTo, B256,
+        BASE_ASSET_ID, U256,
     },
 };
 use revm_interpreter::{opcode::make_instruction_table, SharedMemory, EMPTY_SHARED_MEMORY};
@@ -69,7 +69,7 @@ fn transfer(c: &mut Criterion) {
 
     evm.env.tx.caller = address!("0000000000000000000000000000000000000001");
     evm.env.tx.transact_to = TransactTo::Call(address!("0000000000000000000000000000000000000000"));
-    evm.env.tx.transferred_assets = Some(vec![TransferredAsset {
+    evm.env.tx.transferred_assets = Some(vec![Asset {
         id: B256::from(BASE_ASSET_ID),
         amount: U256::from(10),
     }]);
