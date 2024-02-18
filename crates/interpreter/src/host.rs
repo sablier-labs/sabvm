@@ -29,6 +29,9 @@ pub trait Host {
     /// Get code hash of `address` and if the account is cold.
     fn code_hash(&mut self, address: Address) -> Option<(B256, bool)>;
 
+    /// Check whether the sender of the current tx is an EOA.
+    fn is_tx_sender_eoa(&mut self) -> bool;
+
     /// Get storage value of `address` at `index` and if the account is cold.
     fn sload(&mut self, address: Address, index: U256) -> Option<(U256, bool)>;
 

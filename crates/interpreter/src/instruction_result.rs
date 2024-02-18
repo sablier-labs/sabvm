@@ -37,6 +37,7 @@ pub enum InstructionResult {
     OverflowPayment,
     PrecompileError,
     NonceOverflow,
+    UnauthorizedCaller,
     /// Create init code size exceeds limit (runtime).
     CreateContractSizeLimit,
     /// Error on created contract that begins with EF
@@ -83,6 +84,7 @@ impl From<HaltReason> for InstructionResult {
             HaltReason::CallNotAllowedInsideStatic => Self::CallNotAllowedInsideStatic,
             HaltReason::OutOfFund => Self::OutOfFunds,
             HaltReason::CallTooDeep => Self::CallTooDeep,
+            HaltReason::UnauthorizedCaller => Self::UnauthorizedCaller,
             #[cfg(feature = "optimism")]
             HaltReason::FailedDeposit => Self::FatalExternalError,
         }
@@ -275,6 +277,7 @@ impl From<InstructionResult> for SuccessOrHalt {
                 Self::Halt(HaltReason::CreateInitCodeSizeLimit)
             }
             InstructionResult::FatalExternalError => Self::FatalExternalError,
+            InstructionResult::UnauthorizedCaller => Self::Halt(HaltReason::UnauthorizedCaller),
         }
     }
 }

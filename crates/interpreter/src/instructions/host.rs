@@ -476,14 +476,20 @@ pub fn balance<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H)
 }
 
 pub fn mint<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    // Only allow minting for contracts (not EOAs)
+    if host.is_tx_sender_eoa() {
+        interpreter.instruction_result = InstructionResult::UnauthorizedCaller;
+        return;
+    }
+
     pop!(interpreter, sub_id, value);
 
     let sub_id = B256::from(sub_id);
-
     let Some(is_cold) = host.mint(interpreter.contract.address, sub_id, value) else {
         interpreter.instruction_result = InstructionResult::FatalExternalError;
         return;
     };
+
     gas_or_fail!(interpreter, { gas::mint_cost::<SPEC>(is_cold) });
 }
 

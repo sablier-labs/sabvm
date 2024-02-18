@@ -402,6 +402,7 @@ pub enum HaltReason {
     CreateCollision,
     PrecompileError,
     NonceOverflow,
+    UnauthorizedCaller,
     /// Create init code size exceeds limit (runtime).
     CreateContractSizeLimit,
     /// Error on created contract that begins with EF

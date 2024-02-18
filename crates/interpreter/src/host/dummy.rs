@@ -59,6 +59,11 @@ impl Host for DummyHost {
     }
 
     #[inline]
+    fn is_tx_sender_eoa(&mut self) -> bool {
+        true
+    }
+
+    #[inline]
     fn sload(&mut self, __address: Address, index: U256) -> Option<(U256, bool)> {
         match self.storage.entry(index) {
             Entry::Occupied(entry) => Some((*entry.get(), false)),
