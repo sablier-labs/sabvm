@@ -220,7 +220,7 @@ pub fn execute_test_suite(
                     id: B256::from(BASE_ASSET_ID),
                     amount: U256::from(unit.transaction.value[test.indexes.value]),
                 };
-                env.tx.transferred_assets = Some(vec![asset]);
+                env.tx.transferred_assets = vec![asset];
 
                 env.tx.access_list = unit
                     .transaction

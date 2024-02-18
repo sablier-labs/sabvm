@@ -17,7 +17,7 @@ fn main() {
         id: B256::from(BASE_ASSET_ID),
         amount: U256::from(10),
     };
-    evm.env.tx.transferred_assets = Some(vec![asset]);
+    evm.env.tx.transferred_assets = vec![asset];
     evm.env.tx.transact_to = TransactTo::Call(
         "0x0000000000000000000000000000000000000000"
             .parse()
