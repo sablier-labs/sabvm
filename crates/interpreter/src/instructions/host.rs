@@ -211,6 +211,10 @@ pub fn create<const IS_CREATE2: bool, H: Host, SPEC: Spec>(
     interpreter: &mut Interpreter,
     host: &mut H,
 ) {
+    // Dev: deploying smart contracts is not allowed for general public
+    // TODO: implement a way to allow deploying smart contracts by Sablier
+    interpreter.instruction_result = InstructionResult::NotActivated;
+
     check_staticcall!(interpreter);
 
     // EIP-1014: Skinny CREATE2
