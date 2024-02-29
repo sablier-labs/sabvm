@@ -654,7 +654,7 @@ impl JournaledState {
 
     pub fn mint<DB: Database>(
         &mut self,
-        _address: B160,
+        _address: Address,
         _asset_id: B256,
         _value: U256,
         _db: &mut DB,

@@ -120,12 +120,12 @@ impl Host for DummyHost {
     }
 
     #[inline]
-    fn mint(&mut self, _address: Address, _sub_id: B256, _value: U256) -> Option<bool> {
+    fn mint(&mut self, _address: Address, _sub_id: B256, _amount: U256) -> Option<bool> {
         panic!("Mint is not supported for this host")
     }
 
     #[inline]
-    fn burn(&mut self, _address: Address, _sub_id: B256, _value: U256) -> Option<bool> {
+    fn burn(&mut self, _address: Address, _sub_id: B256, _amount: U256) -> Option<bool> {
         panic!("Burn is not supported for this host")
     }
 }

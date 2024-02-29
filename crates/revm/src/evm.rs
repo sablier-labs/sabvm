@@ -97,7 +97,7 @@ impl<DB: Database> EVM<DB> {
         }
     }
 
-    /// Execute transaction with given inspector, without wring to DB. Return change state.
+    /// Execute transaction with given inspector, without writing to DB. Return change state.
     pub fn inspect<INSP: Inspector<DB>>(&mut self, mut inspector: INSP) -> EVMResult<DB::Error> {
         if let Some(db) = self.db.as_mut() {
             new_evm::<DB>(&mut self.env, db, Some(&mut inspector)).transact()

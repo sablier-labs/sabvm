@@ -1,4 +1,4 @@
-use crate::primitives::{Asset, BASE_ASSET_ID};
+use crate::primitives::{asset_id_address, Asset, BASE_ASSET_ID};
 use crate::{
     db::Database,
     handler::Handler,
@@ -670,18 +670,18 @@ impl<'a, SPEC: Spec + 'static, DB: Database> Host for EVMImpl<'a, SPEC, DB> {
         Default::default()
     }
 
-    fn mint(&mut self, _address: Address, _sub_id: B256, _value: U256) -> Option<bool> {
-        // let asset_id = asset_id_address(address, sub_id);
+    fn mint(&mut self, address: Address, sub_id: B256, amount: U256) -> Option<bool> {
+        let asset_id = asset_id_address(address, sub_id);
 
-        // let db = &mut self.data.db;
-        // let journal = &mut self.data.journaled_state;
-        // let error = &mut self.data.error;
+        // let db = &mut self.context.db;
+        // let journal = &mut self.context.journaled_state;
+        // let error = &mut self.context.error;
 
-        // self.data
-        //     .journaled_state
-        //     .mint(address, asset_id, value, self.data.db)
-        //     .map_err(|e| self.data.error = Some(e))
-        //     .ok()
+        self.context
+            .journaled_state
+            .mint(address, asset_id, amount, self.context.db)
+            .map_err(|e| self.context.error = Some(e))
+            .ok();
 
         Default::default()
     }
