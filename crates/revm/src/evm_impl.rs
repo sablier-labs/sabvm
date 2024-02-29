@@ -528,29 +528,32 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
         };
 
         let handler = &self.handler;
-        let data = &mut self.context;
+        let context = &mut self.context;
 
         // handle output of call/create calls.
-        let mut gas =
-            handler.call_return(data.env, interpreter_result.result, interpreter_result.gas);
+        let mut gas = handler.call_return(
+            context.env,
+            interpreter_result.result,
+            interpreter_result.gas,
+        );
 
         // set refund. Refund amount depends on hardfork.
-        gas.set_refund(handler.calculate_gas_refund(data.env, &gas) as i64);
+        gas.set_refund(handler.calculate_gas_refund(context.env, &gas) as i64);
 
         // Reimburse the caller
-        handler.reimburse_caller(data, &gas)?;
+        handler.reimburse_caller(context, &gas)?;
 
         // Reward beneficiary
-        handler.reward_beneficiary(data, &gas)?;
+        handler.reward_beneficiary(context, &gas)?;
 
         // output of execution
-        let output = match data.env.tx.transact_to {
+        let output = match context.env.tx.transact_to {
             TransactTo::Call(_) => Output::Call(interpreter_result.output),
             TransactTo::Create(_) => Output::Create(interpreter_result.output, created_address),
         };
 
         // main return
-        handler.main_return(data, interpreter_result.result, output, &gas)
+        handler.main_return(context, interpreter_result.result, output, &gas)
     }
 }
 
@@ -647,16 +650,8 @@ impl<'a, SPEC: Spec + 'static, DB: Database> Host for EVMImpl<'a, SPEC, DB> {
         self.context.journaled_state.log(log);
     }
 
-    fn balance(&mut self, _asset_id: B256, _address: Address) -> Option<(U256, bool)> {
-        // let journal = &mut self.data.journaled_state;
-        // let error = &mut self.data.error;
-        // journal
-        //     .load_account(address)
-        //     .map_err(|e| *error = Some(e))
-        //     .ok()
-        //     .map(|(acc, is_cold)| (acc.info.get_balance(asset_id), is_cold))
-
-        Default::default()
+    fn balance(&mut self, asset_id: B256, address: Address) -> Option<(U256, bool)> {
+        self.context.balance(address, asset_id)
     }
 
     fn mint(&mut self, address: Address, sub_id: B256, amount: U256) -> Option<bool> {

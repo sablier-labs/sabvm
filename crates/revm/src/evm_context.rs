@@ -16,7 +16,7 @@ use crate::{
 use alloc::boxed::Box;
 use core::ops::Range;
 
-/// EVM Data contains all the data that EVM needs to execute.
+/// EVM Context contains all the data that EVM needs to execute.
 #[derive(Debug)]
 pub struct EvmContext<'a, DB: Database> {
     /// EVM Environment contains all the information about config, block and transaction that
