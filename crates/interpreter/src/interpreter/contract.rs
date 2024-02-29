@@ -56,7 +56,7 @@ impl Contract {
             hash,
             contract_address,
             env.tx.caller,
-            env.tx.get_transferred_assets().to_vec(),
+            env.tx.transferred_assets.clone(),
         )
     }
 

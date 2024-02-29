@@ -1,4 +1,3 @@
-use crate::primitives::{asset_id_address, Asset, BASE_ASSET_ID};
 use crate::{
     db::Database,
     handler::Handler,
@@ -12,7 +11,7 @@ use crate::{
     journaled_state::JournaledState,
     precompile::Precompiles,
     primitives::{
-        specification, Address, Bytecode, Bytes, EVMError, EVMResult, Env,
+        asset_id_address, specification, Address, Bytecode, Bytes, EVMError, EVMResult, Env,
         InvalidTransactionReason, Log, Output, Spec, SpecId::*, TransactTo, B256, U256,
     },
     CallStackFrame, EvmContext, Inspector,
@@ -362,7 +361,7 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
             &env.tx.data,
             env.tx.transact_to.is_create(),
             &env.tx.access_list,
-            &Some(&env.tx.transferred_assets),
+            &env.tx.transferred_assets,
         );
 
         // Additional check to see if limit is big enough to cover initial gas.
@@ -389,8 +388,7 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
         let env = &self.context.env;
         let tx_caller = env.tx.caller;
 
-        //TODO: also take into account the other Native Assets
-        let tx_value = env.tx.get_base_transfer_value();
+        let tx_transferred_assets = env.tx.transferred_assets.clone();
         let tx_data = env.tx.data.clone();
         let tx_gas_limit = env.tx.gas_limit;
 
@@ -417,7 +415,7 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
             &tx_data,
             env.tx.transact_to.is_create(),
             &env.tx.access_list,
-            &Some(&env.tx.transferred_assets),
+            &tx_transferred_assets,
         );
 
         // load coinbase
@@ -489,10 +487,7 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
                         transfer: Transfer {
                             source: tx_caller,
                             target: address,
-                            assets: vec![Asset {
-                                id: BASE_ASSET_ID,
-                                amount: tx_value,
-                            }],
+                            assets: tx_transferred_assets.clone(),
                         },
                         input: tx_data,
                         gas_limit: transact_gas_limit,
@@ -500,10 +495,7 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
                             caller: tx_caller,
                             address,
                             code_address: address,
-                            apparent_assets: vec![Asset {
-                                id: BASE_ASSET_ID,
-                                amount: tx_value,
-                            }],
+                            apparent_assets: tx_transferred_assets,
                             scheme: CallScheme::Call,
                         },
                         is_static: false,
@@ -514,10 +506,7 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
             TransactTo::Create(scheme) => self.context.make_create_frame::<SPEC>(&CreateInputs {
                 caller: tx_caller,
                 scheme,
-                transferred_assets: vec![Asset {
-                    id: BASE_ASSET_ID,
-                    amount: tx_value,
-                }],
+                transferred_assets: tx_transferred_assets,
                 init_code: tx_data,
                 gas_limit: transact_gas_limit,
             }),

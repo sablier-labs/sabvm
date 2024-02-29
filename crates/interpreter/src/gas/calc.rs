@@ -317,7 +317,7 @@ pub fn initial_tx_gas<SPEC: Spec>(
     input: &[u8],
     is_create: bool,
     access_list: &[(Address, Vec<U256>)],
-    transferred_assets: &Option<&Vec<Asset>>,
+    transferred_assets: &Vec<Asset>,
 ) -> u64 {
     let mut initial_gas = 0;
     let zero_data_len = input.iter().filter(|v| **v == 0).count() as u64;
@@ -356,8 +356,8 @@ pub fn initial_tx_gas<SPEC: Spec>(
     }
 
     // gas cost of transferring the Native Assets
-    if let Some(assets) = transferred_assets {
-        initial_gas += assets.len() as u64 * TRANSFERRED_ASSET;
+    if !transferred_assets.is_empty() {
+        initial_gas += transferred_assets.len() as u64 * TRANSFERRED_ASSET;
     }
 
     initial_gas

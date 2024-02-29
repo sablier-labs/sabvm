@@ -632,10 +632,6 @@ impl TxEnv {
 
         Default::default()
     }
-
-    pub fn get_transferred_assets(&self) -> &[Asset] {
-        &self.transferred_assets
-    }
 }
 
 impl Default for TxEnv {
