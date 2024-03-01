@@ -431,7 +431,7 @@ pub fn call_inner<SPEC: Spec, H: Host>(
     gas!(interpreter, gas_limit);
 
     // add call stipend if there is value to be transferred.
-    if matches!(scheme, CallScheme::Call | CallScheme::CallCode) && transfer.assets.len() > 0 {
+    if matches!(scheme, CallScheme::Call | CallScheme::CallCode) && !transfer.assets.is_empty() {
         gas_limit = gas_limit.saturating_add(gas::CALL_STIPEND);
     }
     let is_static = matches!(scheme, CallScheme::StaticCall) || interpreter.is_static;

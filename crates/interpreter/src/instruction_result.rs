@@ -293,6 +293,7 @@ mod tests {
             return_revert!() => {}
             return_ok!() => {}
             InstructionResult::CallOrCreate => {}
+            InstructionResult::UnauthorizedCaller => {}
         }
     }
 
