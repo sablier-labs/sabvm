@@ -1,5 +1,4 @@
 use crate::Env;
-use alloc::vec::Vec;
 use core::fmt;
 
 /// A precompile operation result.

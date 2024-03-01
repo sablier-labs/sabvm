@@ -1,5 +1,4 @@
 use crate::{Address, Bytes, B256};
-use alloc::vec::Vec;
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, RlpDecodable, RlpEncodable)]

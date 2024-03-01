@@ -5,7 +5,6 @@ use crate::{
     CallContext, CallInputs, CallScheme, CreateInputs, CreateScheme, Host, InstructionResult,
     Transfer, MAX_INITCODE_SIZE,
 };
-use alloc::{boxed::Box, vec::Vec};
 use core::cmp::min;
 use revm_primitives::{Asset, BLOCK_HASH_HISTORY};
 

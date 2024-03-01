@@ -1,5 +1,4 @@
 use crate::{Error, Precompile, PrecompileResult, PrecompileWithAddress, StandardPrecompileFn};
-use core::convert::TryInto;
 
 const F_ROUND: u64 = 1;
 const INPUT_LENGTH: usize = 213;

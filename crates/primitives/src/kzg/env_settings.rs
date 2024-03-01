@@ -2,7 +2,7 @@ use super::{
     trusted_setup_points::{G1_POINTS, G2_POINTS},
     KzgSettings,
 };
-use alloc::{boxed::Box, sync::Arc};
+use alloc::sync::Arc;
 use core::hash::{Hash, Hasher};
 use once_cell::race::OnceBox;
 

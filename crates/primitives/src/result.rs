@@ -1,5 +1,4 @@
 use crate::{Address, Bytes, Log, State, B256, U256};
-use alloc::{boxed::Box, vec::Vec};
 use core::fmt;
 
 /// Result of EVM execution.

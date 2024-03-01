@@ -19,7 +19,7 @@ mod modexp;
 mod secp256k1;
 pub mod utilities;
 
-use alloc::{boxed::Box, collections::BTreeMap, vec::Vec};
+use alloc::collections::BTreeMap;
 use core::{fmt, hash::Hash};
 use once_cell::race::OnceBox;
 #[doc(hidden)]

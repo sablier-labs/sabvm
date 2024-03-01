@@ -3,11 +3,7 @@ use super::{
     CacheAccount, StateBuilder, TransitionAccount, TransitionState,
 };
 use crate::db::EmptyDB;
-use alloc::{
-    boxed::Box,
-    collections::{btree_map, BTreeMap},
-    vec::Vec,
-};
+use alloc::collections::{btree_map, BTreeMap};
 use revm_interpreter::primitives::{
     db::{Database, DatabaseCommit},
     hash_map, Account, AccountInfo, Address, Bytecode, HashMap, B256, BLOCK_HASH_HISTORY, U256,

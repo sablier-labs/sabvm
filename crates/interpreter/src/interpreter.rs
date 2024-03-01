@@ -12,7 +12,6 @@ use crate::{
     primitives::Bytes, push, push_b256, return_ok, return_revert, CallInputs, CreateInputs, Gas,
     Host, InstructionResult,
 };
-use alloc::boxed::Box;
 use core::cmp::min;
 use core::ops::Range;
 use revm_primitives::{Address, U256};

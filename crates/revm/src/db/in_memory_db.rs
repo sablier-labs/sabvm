@@ -4,7 +4,6 @@ use crate::primitives::{
     U256,
 };
 use crate::Database;
-use alloc::vec::Vec;
 use core::convert::Infallible;
 use revm_interpreter::primitives::init_balances;
 

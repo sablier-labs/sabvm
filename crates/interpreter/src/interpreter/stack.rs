@@ -2,7 +2,6 @@ use crate::{
     primitives::{B256, U256},
     InstructionResult,
 };
-use alloc::vec::Vec;
 use core::fmt;
 
 /// EVM interpreter stack limit.

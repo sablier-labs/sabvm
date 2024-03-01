@@ -1,7 +1,5 @@
 use core::cmp::min;
 
-use alloc::vec::Vec;
-
 /// Get an array from the data, if data does not contain `start` to `len` bytes, add right padding with
 /// zeroes
 #[inline(always)]

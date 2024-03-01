@@ -1,6 +1,5 @@
 use revm_primitives::{B256, U256};
 
-use crate::alloc::vec::Vec;
 use core::{
     cmp::min,
     fmt,

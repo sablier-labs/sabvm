@@ -1,5 +1,4 @@
 use crate::primitives::{Address, Bytecode, Bytes, Env, B256, U256};
-use alloc::vec::Vec;
 
 mod dummy;
 pub use dummy::DummyHost;

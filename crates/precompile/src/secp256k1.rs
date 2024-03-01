@@ -1,5 +1,4 @@
 use crate::{Error, Precompile, PrecompileResult, PrecompileWithAddress, StandardPrecompileFn};
-use alloc::vec::Vec;
 use core::cmp::min;
 use revm_primitives::B256;
 

@@ -1,6 +1,5 @@
 use super::constants::*;
 use crate::primitives::{Address, Asset, Spec, SpecId::*, U256};
-use alloc::vec::Vec;
 
 #[allow(clippy::collapsible_else_if)]
 pub fn sstore_refund<SPEC: Spec>(original: U256, current: U256, new: U256) -> i64 {
@@ -316,7 +315,7 @@ pub fn initial_tx_gas<SPEC: Spec>(
     input: &[u8],
     is_create: bool,
     access_list: &[(Address, Vec<U256>)],
-    transferred_assets: &Vec<Asset>,
+    transferred_assets: &[Asset],
 ) -> u64 {
     let mut initial_gas = 0;
     let zero_data_len = input.iter().filter(|v| **v == 0).count() as u64;

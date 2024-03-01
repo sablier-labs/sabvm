@@ -6,7 +6,6 @@ use crate::{
     primitives::{Spec, SpecId},
     Host, Interpreter,
 };
-use alloc::boxed::Box;
 use alloc::sync::Arc;
 use core::fmt;
 

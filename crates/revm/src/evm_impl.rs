@@ -16,7 +16,7 @@ use crate::{
     },
     CallStackFrame, EvmContext, Inspector,
 };
-use alloc::{boxed::Box, sync::Arc, vec::Vec};
+use alloc::sync::Arc;
 use auto_impl::auto_impl;
 use core::{fmt, marker::PhantomData, ops::Range};
 //use revm_interpreter::primitives::asset_id_address;

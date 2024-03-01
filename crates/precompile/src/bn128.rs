@@ -1,7 +1,6 @@
 use crate::{
     primitives::U256, Address, Error, Precompile, PrecompileResult, PrecompileWithAddress,
 };
-use alloc::vec::Vec;
 
 pub mod add {
     use super::*;

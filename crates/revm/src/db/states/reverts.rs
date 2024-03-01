@@ -1,5 +1,4 @@
 use super::{changes::PlainStorageRevert, AccountStatus, PlainStateReverts};
-use alloc::vec::Vec;
 use core::ops::{Deref, DerefMut};
 use revm_interpreter::primitives::{AccountInfo, Address, HashMap, U256};
 

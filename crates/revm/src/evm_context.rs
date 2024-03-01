@@ -13,7 +13,6 @@ use crate::{
     },
     CallStackFrame, CALL_STACK_LIMIT,
 };
-use alloc::boxed::Box;
 use core::ops::Range;
 
 /// EVM Context contains all the data that EVM needs to execute.

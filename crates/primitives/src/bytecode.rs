@@ -1,5 +1,5 @@
 use crate::{hex, keccak256, Bytes, B256, KECCAK_EMPTY};
-use alloc::{sync::Arc, vec::Vec};
+use alloc::sync::Arc;
 use bitvec::{
     prelude::{bitvec, Lsb0},
     vec::BitVec,

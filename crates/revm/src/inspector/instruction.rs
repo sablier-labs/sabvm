@@ -1,5 +1,4 @@
 use crate::EVMImpl;
-use alloc::boxed::Box;
 use revm_interpreter::{
     opcode::{BoxedInstruction, Instruction},
     primitives::{db::Database, Spec},
