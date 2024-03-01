@@ -117,14 +117,14 @@ impl JournaledState {
     /// Assume account is warm
     #[inline]
     pub fn set_code(&mut self, address: Address, code: Bytecode) {
-        let account = self.state.get_mut(&address).unwrap();
-        Self::touch_account(self.journal.last_mut().unwrap(), &address, account);
+        self.touch(&address);
 
         self.journal
             .last_mut()
             .unwrap()
             .push(JournalEntry::CodeChange { address });
 
+        let account = self.state.get_mut(&address).unwrap();
         account.info.code_hash = code.hash_slow();
         account.info.code = Some(code);
     }
@@ -135,6 +135,7 @@ impl JournaledState {
         if account.info.nonce == u64::MAX {
             return None;
         }
+
         Self::touch_account(self.journal.last_mut().unwrap(), &address, account);
         self.journal
             .last_mut()
@@ -364,6 +365,14 @@ impl JournaledState {
                     let acc = state.get_mut(&address).unwrap();
                     acc.info.code_hash = KECCAK_EMPTY;
                     acc.info.code = None;
+                }
+                JournalEntry::AssetsMinted {
+                    minter: receiver,
+                    asset_id,
+                    new_minters_balance: amount,
+                } => {
+                    let receiver = state.get_mut(&receiver).unwrap();
+                    receiver.info.decrease_balance(asset_id, amount);
                 }
             }
         }
@@ -654,12 +663,36 @@ impl JournaledState {
 
     pub fn mint<DB: Database>(
         &mut self,
-        _address: Address,
-        _asset_id: B256,
-        _value: U256,
-        _db: &mut DB,
-    ) -> Result<bool, DB::Error> {
-        Ok(true)
+        minter: Address,
+        asset_id: B256,
+        amount: U256,
+        db: &mut DB,
+    ) -> bool {
+        // TODO: is loading the account really necessary?
+        if self.load_account(minter, db).is_err() {
+            return false;
+        }
+
+        let account = self.state.get_mut(&minter).unwrap();
+        let balance = account.info.get_balance(asset_id);
+        let new_balance = balance.checked_add(amount);
+        if new_balance.is_none() {
+            return false;
+        }
+
+        account.info.set_balance(asset_id, new_balance.unwrap());
+
+        // add journal entry of the minted assets
+        self.journal
+            .last_mut()
+            .unwrap()
+            .push(JournalEntry::AssetsMinted {
+                minter,
+                asset_id,
+                new_minters_balance: new_balance.unwrap(),
+            });
+
+        true
     }
 }
 
@@ -684,6 +717,14 @@ pub enum JournalEntry {
         to: Address,
         asset_id: B256,
         asset_amount: U256,
+    },
+    /// Assets minted
+    /// Action: Mint assets
+    /// Revert: Remove minted assets
+    AssetsMinted {
+        minter: Address,
+        asset_id: B256,
+        new_minters_balance: U256,
     },
     /// Increment nonce
     /// Action: Increment nonce by one

@@ -40,3 +40,4 @@ pub const INITCODE_WORD_COST: u64 = 2;
 pub const CALL_STIPEND: u64 = 2300;
 
 pub const TRANSFERRED_ASSET: u64 = 50;
+pub const MINT_ASSETS: u64 = 10000;

@@ -654,24 +654,16 @@ impl<'a, SPEC: Spec + 'static, DB: Database> Host for EVMImpl<'a, SPEC, DB> {
         self.context.balance(address, asset_id)
     }
 
-    fn mint(&mut self, address: Address, sub_id: B256, amount: U256) -> Option<bool> {
-        let asset_id = asset_id_address(address, sub_id);
-
-        // let db = &mut self.context.db;
-        // let journal = &mut self.context.journaled_state;
-        // let error = &mut self.context.error;
+    fn mint(&mut self, minter: Address, sub_id: B256, amount: U256) -> bool {
+        let asset_id = asset_id_address(minter, sub_id);
 
         self.context
             .journaled_state
-            .mint(address, asset_id, amount, self.context.db)
-            .map_err(|e| self.context.error = Some(e))
-            .ok();
-
-        Default::default()
+            .mint(minter, asset_id, amount, self.context.db)
     }
 
     /// TODO: implement
-    fn burn(&mut self, _address: Address, _sub_id: B256, _value: U256) -> Option<bool> {
+    fn burn(&mut self, _burner: Address, _sub_id: B256, _value: U256) -> bool {
         panic!("Burn is not supported for this host")
     }
 }

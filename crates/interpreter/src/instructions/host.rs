@@ -461,6 +461,7 @@ pub fn balance<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H)
         interpreter.instruction_result = InstructionResult::FatalExternalError;
         return;
     };
+
     gas!(
         interpreter,
         if SPEC::enabled(ISTANBUL) {
@@ -472,10 +473,12 @@ pub fn balance<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H)
             20
         }
     );
+
     push!(interpreter, balance);
 }
 
 pub fn mint<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    // TODO: implement minting allowed just for Sablier
     // Only allow minting for contracts (not EOAs)
     if host.is_tx_sender_eoa() {
         interpreter.instruction_result = InstructionResult::UnauthorizedCaller;
@@ -485,12 +488,12 @@ pub fn mint<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     pop!(interpreter, sub_id, value);
 
     let sub_id = B256::from(sub_id);
-    let Some(is_cold) = host.mint(interpreter.contract.address, sub_id, value) else {
+    if !host.mint(interpreter.contract.address, sub_id, value) {
         interpreter.instruction_result = InstructionResult::FatalExternalError;
         return;
     };
 
-    gas_or_fail!(interpreter, { gas::mint_cost::<SPEC>(is_cold) });
+    gas_or_fail!(interpreter, { gas::mint_cost::<SPEC>() });
 }
 
 pub fn burn<H: Host, SPEC: Spec>(_interpreter: &mut Interpreter, _host: &mut H) {}

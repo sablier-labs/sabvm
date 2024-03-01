@@ -305,10 +305,9 @@ pub fn memory_gas(a: usize) -> u64 {
         .saturating_add(a.saturating_mul(a) / 512)
 }
 
-/// TODO: implement
 #[inline]
-pub fn mint_cost<SPEC: Spec>(_is_cold: bool) -> Option<u64> {
-    Some(1)
+pub fn mint_cost<SPEC: Spec>() -> Option<u64> {
+    Some(MINT_ASSETS)
 }
 
 /// Initial gas that is deducted for transaction to be included.
