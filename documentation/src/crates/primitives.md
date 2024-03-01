@@ -1,6 +1,6 @@
 # Primitives
 
-This crate is a core component of the Revm system. It is designed to provide definitions for a range of types and structures commonly used throughout the application. It is set up to be compatible with environments that do not include Rust's standard library, as indicated by the `no_std` attribute.
+This crate is a core component of the Revm system. It is designed to provide definitions for a range of types and structures commonly used throughout the application.
 
 Modules:
 
