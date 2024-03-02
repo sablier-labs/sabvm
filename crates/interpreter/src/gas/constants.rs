@@ -41,3 +41,4 @@ pub const CALL_STIPEND: u64 = 2300;
 
 pub const TRANSFERRED_ASSET: u64 = 50;
 pub const MINT_ASSETS: u64 = 10000;
+pub const BURN_ASSETS: u64 = 10000;

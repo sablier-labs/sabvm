@@ -309,6 +309,11 @@ pub fn mint_cost<SPEC: Spec>() -> Option<u64> {
     Some(MINT_ASSETS)
 }
 
+#[inline]
+pub fn burn_cost<SPEC: Spec>() -> Option<u64> {
+    Some(BURN_ASSETS)
+}
+
 /// Initial gas that is deducted for transaction to be included.
 /// Initial gas contains initial stipend gas, gas for access list and input data, and gas for transferred MNAs.
 pub fn initial_tx_gas<SPEC: Spec>(

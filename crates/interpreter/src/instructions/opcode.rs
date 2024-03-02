@@ -306,7 +306,7 @@ opcodes! {
     // 0xBE
     // 0xBF
     0xC0 => MINT => host::mint::<H,SPEC>,
-    // 0xC1 => BURN => (),
+    0xC1 => BURN => host::burn::<H,SPEC>,
     // 0xC2
     // 0xC3
     // 0xC4

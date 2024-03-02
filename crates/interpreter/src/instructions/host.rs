@@ -477,17 +477,17 @@ pub fn balance<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H)
 }
 
 pub fn mint<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
-    // TODO: implement minting allowed just for Sablier
+    // TODO: implement minting allowance just for Sablier
     // Only allow minting for contracts (not EOAs)
     if host.is_tx_sender_eoa() {
         interpreter.instruction_result = InstructionResult::UnauthorizedCaller;
         return;
     }
 
-    pop!(interpreter, sub_id, value);
+    pop!(interpreter, sub_id, amount);
 
     let sub_id = B256::from(sub_id);
-    if !host.mint(interpreter.contract.address, sub_id, value) {
+    if !host.mint(interpreter.contract.address, sub_id, amount) {
         interpreter.instruction_result = InstructionResult::FatalExternalError;
         return;
     };
@@ -495,4 +495,21 @@ pub fn mint<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     gas_or_fail!(interpreter, { gas::mint_cost::<SPEC>() });
 }
 
-pub fn burn<H: Host, SPEC: Spec>(_interpreter: &mut Interpreter, _host: &mut H) {}
+pub fn burn<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    // TODO: implement burning allowance just for Sablier
+    // Only allow burning for contracts (not EOAs)
+    if host.is_tx_sender_eoa() {
+        interpreter.instruction_result = InstructionResult::UnauthorizedCaller;
+        return;
+    }
+
+    pop!(interpreter, sub_id, amount);
+
+    let sub_id = B256::from(sub_id);
+    if !host.burn(interpreter.contract.address, sub_id, amount) {
+        interpreter.instruction_result = InstructionResult::FatalExternalError;
+        return;
+    };
+
+    gas_or_fail!(interpreter, { gas::burn_cost::<SPEC>() });
+}

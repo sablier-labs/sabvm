@@ -662,9 +662,12 @@ impl<'a, SPEC: Spec + 'static, DB: Database> Host for EVMImpl<'a, SPEC, DB> {
             .mint(minter, asset_id, amount, self.context.db)
     }
 
-    /// TODO: implement
-    fn burn(&mut self, _burner: Address, _sub_id: B256, _value: U256) -> bool {
-        panic!("Burn is not supported for this host")
+    fn burn(&mut self, burner: Address, sub_id: B256, amount: U256) -> bool {
+        let asset_id = asset_id_address(burner, sub_id);
+
+        self.context
+            .journaled_state
+            .burn(burner, asset_id, amount, self.context.db)
     }
 }
 

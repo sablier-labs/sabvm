@@ -366,12 +366,21 @@ impl JournaledState {
                     acc.info.code = None;
                 }
                 JournalEntry::AssetsMinted {
-                    minter: receiver,
+                    minter,
                     asset_id,
-                    new_minters_balance: amount,
+                    minted_amount,
                 } => {
-                    let receiver = state.get_mut(&receiver).unwrap();
-                    receiver.info.decrease_balance(asset_id, amount);
+                    let minter_acc = state.get_mut(&minter).unwrap();
+                    // TODO: is there a guarantee that the assets have, actually, been minted before the tx reverted?
+                    minter_acc.info.decrease_balance(asset_id, minted_amount);
+                }
+                JournalEntry::AssetsBurned {
+                    burner,
+                    asset_id,
+                    burned_amount,
+                } => {
+                    let receiver = state.get_mut(&burner).unwrap();
+                    receiver.info.increase_balance(asset_id, burned_amount);
                 }
             }
         }
@@ -674,12 +683,11 @@ impl JournaledState {
 
         let account = self.state.get_mut(&minter).unwrap();
         let balance = account.info.get_balance(asset_id);
-        let new_balance = balance.checked_add(amount);
-        if new_balance.is_none() {
+        if let Some(new_balance) = balance.checked_add(amount) {
+            account.info.set_balance(asset_id, new_balance);
+        } else {
             return false;
         }
-
-        account.info.set_balance(asset_id, new_balance.unwrap());
 
         // add journal entry of the minted assets
         self.journal
@@ -688,7 +696,40 @@ impl JournaledState {
             .push(JournalEntry::AssetsMinted {
                 minter,
                 asset_id,
-                new_minters_balance: new_balance.unwrap(),
+                minted_amount: amount,
+            });
+
+        true
+    }
+
+    pub fn burn<DB: Database>(
+        &mut self,
+        burner: Address,
+        asset_id: B256,
+        amount: U256,
+        db: &mut DB,
+    ) -> bool {
+        // TODO: is loading the account really necessary?
+        if self.load_account(burner, db).is_err() {
+            return false;
+        }
+
+        let account = self.state.get_mut(&burner).unwrap();
+        let balance = account.info.get_balance(asset_id);
+        if let Some(new_balance) = balance.checked_sub(amount) {
+            account.info.set_balance(asset_id, new_balance);
+        } else {
+            return false;
+        }
+
+        // add journal entry of the minted assets
+        self.journal
+            .last_mut()
+            .unwrap()
+            .push(JournalEntry::AssetsBurned {
+                burner,
+                asset_id,
+                burned_amount: amount,
             });
 
         true
@@ -723,7 +764,15 @@ pub enum JournalEntry {
     AssetsMinted {
         minter: Address,
         asset_id: B256,
-        new_minters_balance: U256,
+        minted_amount: U256,
+    },
+    /// Assets burned
+    /// Action: Burn assets
+    /// Revert: Refund the burned assets
+    AssetsBurned {
+        burner: Address,
+        asset_id: B256,
+        burned_amount: U256,
     },
     /// Increment nonce
     /// Action: Increment nonce by one
