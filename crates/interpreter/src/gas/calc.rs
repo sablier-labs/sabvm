@@ -276,7 +276,7 @@ pub fn warm_cold_cost<SPEC: Spec>(is_cold: bool, regular_value: u64) -> u64 {
 #[inline]
 fn xfer_cost(is_call_or_callcode: bool, transfers_value: bool) -> u64 {
     if is_call_or_callcode && transfers_value {
-        CALLVALUE
+        CALLVALUES
     } else {
         0
     }
