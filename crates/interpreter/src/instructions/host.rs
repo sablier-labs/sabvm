@@ -206,6 +206,12 @@ fn pop_transferred_assets(interpreter: &mut Interpreter, transferred_assets: &mu
     }
 }
 
+fn get_transferred_assets(interpreter: &mut Interpreter) -> Vec<Asset> {
+    let mut transferred_assets = Vec::new();
+    pop_transferred_assets(interpreter, &mut transferred_assets);
+    transferred_assets
+}
+
 pub fn create<const IS_CREATE2: bool, H: Host, SPEC: Spec>(
     interpreter: &mut Interpreter,
     host: &mut H,
@@ -319,20 +325,18 @@ pub fn call_inner<SPEC: Spec, H: Host>(
     // Gas limit for subcall is taken as min of this value and current gas limit.
     let local_gas_limit = u64::try_from(local_gas_limit).unwrap_or(u64::MAX);
 
+    let mut transferred_assets = Vec::<Asset>::new();
     let value = match scheme {
-        CallScheme::CallCode => {
-            pop!(interpreter, value);
-            value
-        }
+        CallScheme::CallCode => get_transferred_assets(interpreter),
         CallScheme::Call => {
             pop!(interpreter, value);
             if interpreter.is_static && value != U256::ZERO {
                 interpreter.instruction_result = InstructionResult::CallNotAllowedInsideStatic;
                 return;
             }
-            value
+            get_transferred_assets(interpreter)
         }
-        CallScheme::DelegateCall | CallScheme::StaticCall => U256::ZERO,
+        CallScheme::DelegateCall | CallScheme::StaticCall => Vec::<Asset>::new(),
     };
 
     pop!(interpreter, in_offset, in_len, out_offset, out_len);
@@ -360,21 +364,21 @@ pub fn call_inner<SPEC: Spec, H: Host>(
             address: to,
             caller: interpreter.contract.address,
             code_address: to,
-            apparent_assets: Vec::new(), // TODO: pass the actual transferred assets here
+            apparent_assets: transferred_assets.clone(),
             scheme,
         },
         CallScheme::CallCode => CallContext {
             address: interpreter.contract.address,
             caller: interpreter.contract.address,
             code_address: to,
-            apparent_assets: Vec::new(), // TODO: pass the actual transferred assets here
+            apparent_assets: transferred_assets.clone(),
             scheme,
         },
         CallScheme::DelegateCall => CallContext {
             address: interpreter.contract.address,
             caller: interpreter.contract.caller,
             code_address: to,
-            apparent_assets: Vec::new(), // TODO: pass the actual transferred assets here
+            apparent_assets: transferred_assets.clone(),
             scheme,
         },
     };
@@ -383,12 +387,12 @@ pub fn call_inner<SPEC: Spec, H: Host>(
         CallScheme::Call => Transfer {
             source: interpreter.contract.address,
             target: to,
-            assets: Vec::new(), // TODO: pass the actual transferred assets here
+            assets: transferred_assets.clone(),
         },
         CallScheme::CallCode => Transfer {
             source: interpreter.contract.address,
             target: interpreter.contract.address,
-            assets: Vec::new(), // TODO: pass the actual transferred assets here
+            assets: transferred_assets.clone(),
         },
         _ => {
             //this is dummy send for StaticCall and DelegateCall, it should do nothing and dont touch anything.
@@ -410,7 +414,7 @@ pub fn call_inner<SPEC: Spec, H: Host>(
     gas!(
         interpreter,
         gas::call_cost::<SPEC>(
-            value != U256::ZERO,
+            !transferred_assets.is_empty(),
             is_new,
             is_cold,
             matches!(scheme, CallScheme::Call | CallScheme::CallCode),
