@@ -16,6 +16,8 @@ pub fn selfbalance<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mu
         interpreter.instruction_result = InstructionResult::FatalExternalError;
         return;
     };
+
+    // TODO: take MNAs into account here
     push!(interpreter, balance);
 }
 

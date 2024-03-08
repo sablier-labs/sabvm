@@ -76,13 +76,15 @@ pub fn calldatasize<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
 }
 
 pub fn callvalues<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
+    // TODO: make the gas cost proportional to the MNAs number
     gas!(interpreter, gas::BASE);
 
-    push!(interpreter, U256::from(interpreter.contract.assets.len()));
     for asset in &interpreter.contract.assets {
-        push!(interpreter, asset.id.into());
         push!(interpreter, asset.amount);
+        push!(interpreter, asset.id.into());
     }
+
+    push!(interpreter, U256::from(interpreter.contract.assets.len()));
 }
 
 pub fn calldatacopy<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
