@@ -204,6 +204,10 @@ pub enum InvalidTransactionReason {
     CreateInitCodeSizeLimit,
     /// Transaction chain id does not match the config chain id.
     InvalidChainId,
+    /// One of the asset ids in the transaction is invalid.
+    InvalidAssetId {
+        asset_id: B256,
+    },
     /// Access list is not supported for blocks before the Berlin hardfork.
     AccessListNotSupported,
     /// `max_fee_per_blob_gas` is not supported for blocks before the Cancun hardfork.
@@ -343,6 +347,12 @@ impl fmt::Display for InvalidTransactionReason {
                 write!(
                     f,
                     "Deposit transaction halted post-regolith. Error will be bubbled up to main return handler."
+                )
+            }
+            InvalidTransactionReason::InvalidAssetId { asset_id } => {
+                write!(
+                    f,
+                    "The asset_id {asset_id} used in the transaction is invalid."
                 )
             }
         }

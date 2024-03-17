@@ -183,8 +183,6 @@ impl Env {
             if unique_ids.len() != slice.len() {
                 return Err(InvalidTransactionReason::AssetIdsNotUnique);
             }
-
-            //TODO: check that the submitted asset IDs are valid/exist
         }
 
         Ok(())

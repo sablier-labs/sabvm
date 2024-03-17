@@ -369,8 +369,19 @@ impl<'a, SPEC: Spec + 'static, DB: Database> EVMImpl<'a, SPEC, DB> {
             return Err(InvalidTransactionReason::CallGasCostMoreThanGasLimit.into());
         }
 
-        // load acc
         let tx_caller = env.tx.caller;
+
+        // Check whether all of the transferred assets are valid
+        let transferred_assets = env.tx.transferred_assets.clone();
+        for asset in transferred_assets {
+            if !self.context.journaled_state.is_asset_id_valid(asset.id) {
+                return Err(EVMError::Transaction(
+                    InvalidTransactionReason::InvalidAssetId { asset_id: asset.id },
+                ));
+            }
+        }
+
+        // load acc
         let (caller_account, _) = self
             .context
             .journaled_state

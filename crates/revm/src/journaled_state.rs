@@ -460,6 +460,11 @@ impl JournaledState {
         Ok(account)
     }
 
+    #[inline]
+    pub fn is_asset_id_valid(&self, asset_id: B256) -> bool {
+        self.native_asset_ids.contains(&asset_id)
+    }
+
     /// load account into memory. return if it is cold or warm accessed
     #[inline]
     pub fn load_account<DB: Database>(
@@ -717,6 +722,10 @@ impl JournaledState {
     ) -> bool {
         // TODO: is loading the account really necessary?
         if self.load_account(burner, db).is_err() {
+            return false;
+        }
+
+        if !self.is_asset_id_valid(asset_id) {
             return false;
         }
 
