@@ -327,11 +327,12 @@ pub fn call_inner<SPEC: Spec, H: Host>(
     // Gas limit for subcall is taken as min of this value and current gas limit.
     let local_gas_limit = u64::try_from(local_gas_limit).unwrap_or(u64::MAX);
 
-    let mut transferred_assets = Vec::<Asset>::new();
-    let value = match scheme {
+    let transferred_assets = match scheme {
         CallScheme::CallCode => get_transferred_assets(interpreter),
         CallScheme::Call => {
             pop!(interpreter, value);
+
+            // TODO: why would interpreter ever be in static mode when CallScheme != StaticCall?
             if interpreter.is_static && value != U256::ZERO {
                 interpreter.instruction_result = InstructionResult::CallNotAllowedInsideStatic;
                 return;

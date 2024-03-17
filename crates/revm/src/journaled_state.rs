@@ -1,6 +1,6 @@
 use crate::interpreter::InstructionResult;
 use crate::primitives::{
-    db::Database, hash_map::Entry, Account, Address, Asset, Bytecode, HashMap, Log, Spec,
+    db::Database, hash_map::Entry, Account, Address, Asset, Bytecode, HashMap, HashSet, Log, Spec,
     SpecId::*, State, StorageSlot, TransientStorage, B256, KECCAK_EMPTY, PRECOMPILE3, U256,
 };
 use core::mem;
@@ -21,6 +21,8 @@ pub struct JournaledState {
     pub depth: usize,
     /// journal with changes that happened between calls.
     pub journal: Vec<Vec<JournalEntry>>,
+    // the ids of the assets recognized by the VM
+    pub native_asset_ids: HashSet<B256>,
     /// Ethereum before EIP-161 differently defined empty and not-existing account
     /// Spec is needed for two things SpuriousDragon's `EIP-161 State clear`,
     /// and for Cancun's `EIP-6780: SELFDESTRUCT in same transaction`
@@ -51,6 +53,7 @@ impl JournaledState {
             logs: Vec::new(),
             journal: vec![vec![]],
             depth: 0,
+            native_asset_ids: HashSet::new(),
             spec,
             precompile_addresses,
         }
@@ -689,6 +692,9 @@ impl JournaledState {
             return false;
         }
 
+        // add the id of the minted asset to the collection
+        self.native_asset_ids.insert(asset_id);
+
         // add journal entry of the minted assets
         self.journal
             .last_mut()
@@ -722,7 +728,7 @@ impl JournaledState {
             return false;
         }
 
-        // add journal entry of the minted assets
+        // add journal entry of the burned assets
         self.journal
             .last_mut()
             .unwrap()

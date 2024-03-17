@@ -177,14 +177,14 @@ impl Env {
         if !self.tx.transferred_assets.is_empty() {
             let slice: &[Asset] = &self.tx.transferred_assets;
 
-            //TODO: check that the submitted asset IDs are valid/exist
-
             // Check that the submitted asset IDs are unique
             let unique_ids: HashSet<&B256> = slice.iter().map(|asset| &asset.id).collect();
 
             if unique_ids.len() != slice.len() {
                 return Err(InvalidTransactionReason::AssetIdsNotUnique);
             }
+
+            //TODO: check that the submitted asset IDs are valid/exist
         }
 
         Ok(())
