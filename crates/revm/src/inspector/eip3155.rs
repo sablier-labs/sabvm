@@ -52,7 +52,7 @@ impl<DB: Database> Inspector<DB> for TracerEip3155 {
     // all other information can be obtained from interp.
     fn step(&mut self, interp: &mut Interpreter, context: &mut EvmContext<'_, DB>) {
         self.gas_inspector.step(interp, context);
-        self.stack = interp.stack.data().clone();
+        self.stack.clone_from(interp.stack.data());
         self.pc = interp.program_counter();
         self.opcode = interp.current_opcode();
         self.mem_size = interp.shared_memory.len();
