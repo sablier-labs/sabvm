@@ -520,3 +520,22 @@ pub fn burn<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
 
     gas_or_fail!(interpreter, { gas::burn_cost::<SPEC>() });
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::instructions::host::*;
+    use crate::{DummyHost, Interpreter};
+    use revm_primitives::{Env, LatestSpec};
+
+    #[test]
+    fn test_mint() {
+        let mut host = DummyHost::new(Env::default());
+        let mut interpreter = Interpreter::new(Box::default(), u64::MAX, false);
+        let sub_id = U256::from(1);
+        let amount = U256::from(1000);
+        let _ = interpreter.stack.push(amount);
+        let _ = interpreter.stack.push(sub_id);
+        mint::<_, LatestSpec>(&mut interpreter, &mut host);
+        assert_eq!(interpreter.instruction_result, InstructionResult::Continue);
+    }
+}

@@ -59,7 +59,7 @@ impl Host for DummyHost {
 
     #[inline]
     fn is_tx_sender_eoa(&mut self) -> bool {
-        true
+        false
     }
 
     #[inline]
