@@ -1,10 +1,10 @@
 use crate::{hex, keccak256, Bytes, B256, KECCAK_EMPTY};
-use alloc::sync::Arc;
 use bitvec::{
     prelude::{bitvec, Lsb0},
     vec::BitVec,
 };
 use core::fmt::Debug;
+use std::{sync::Arc, vec::Vec};
 
 /// A map of valid `jump` destinations.
 #[derive(Clone, Default, PartialEq, Eq, Hash)]
@@ -105,12 +105,12 @@ impl Bytecode {
         }
     }
 
-    /// Create new checked bytecode
+    /// Create new checked bytecode.
     ///
     /// # Safety
     ///
-    /// Bytecode need to end with STOP (0x00) opcode as checked bytecode assumes
-    /// that it is safe to iterate over bytecode without checking lengths
+    /// Bytecode needs to end with STOP (0x00) opcode as checked bytecode assumes
+    /// that it is safe to iterate over bytecode without checking lengths.
     pub unsafe fn new_checked(bytecode: Bytes, len: usize) -> Self {
         Self {
             bytecode,

@@ -1,46 +1,39 @@
-use revm_primitives::Bytes;
-
 use crate::{
     gas,
-    primitives::{Spec, U256},
+    primitives::{Bytes, Spec, U256},
     Host, InstructionResult, Interpreter, InterpreterResult,
 };
 
-pub fn jump<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn jump<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     gas!(interpreter, gas::MID);
-    pop!(interpreter, dest);
-    let dest = as_usize_or_fail!(interpreter, dest, InstructionResult::InvalidJump);
-    if interpreter.contract.is_valid_jump(dest) {
-        // SAFETY: In analysis we are checking create our jump table and we do check above to be
-        // sure that jump is safe to execute.
-        interpreter.instruction_pointer =
-            unsafe { interpreter.contract.bytecode.as_ptr().add(dest) };
-    } else {
-        interpreter.instruction_result = InstructionResult::InvalidJump;
-    }
+    pop!(interpreter, target);
+    jump_inner(interpreter, target);
 }
 
-pub fn jumpi<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn jumpi<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     gas!(interpreter, gas::HIGH);
-    pop!(interpreter, dest, value);
-    if value != U256::ZERO {
-        let dest = as_usize_or_fail!(interpreter, dest, InstructionResult::InvalidJump);
-        if interpreter.contract.is_valid_jump(dest) {
-            // SAFETY: In analysis we are checking if jump is valid destination and
-            // this `if` makes this unsafe block safe.
-            interpreter.instruction_pointer =
-                unsafe { interpreter.contract.bytecode.as_ptr().add(dest) };
-        } else {
-            interpreter.instruction_result = InstructionResult::InvalidJump
-        }
+    pop!(interpreter, target, cond);
+    if cond != U256::ZERO {
+        jump_inner(interpreter, target);
     }
 }
 
-pub fn jumpdest<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
+#[inline(always)]
+fn jump_inner(interpreter: &mut Interpreter, target: U256) {
+    let target = as_usize_or_fail!(interpreter, target, InstructionResult::InvalidJump);
+    if !interpreter.contract.is_valid_jump(target) {
+        interpreter.instruction_result = InstructionResult::InvalidJump;
+        return;
+    }
+    // SAFETY: `is_valid_jump` ensures that `dest` is in bounds.
+    interpreter.instruction_pointer = unsafe { interpreter.contract.bytecode.as_ptr().add(target) };
+}
+
+pub fn jumpdest<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     gas!(interpreter, gas::JUMPDEST);
 }
 
-pub fn pc<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn pc<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     gas!(interpreter, gas::BASE);
     // - 1 because we have already advanced the instruction pointer in `Interpreter::step`
     push!(interpreter, U256::from(interpreter.program_counter() - 1));
@@ -56,41 +49,41 @@ fn return_inner(interpreter: &mut Interpreter, instruction_result: InstructionRe
     let mut output = Bytes::default();
     if len != 0 {
         let offset = as_usize_or_fail!(interpreter, offset);
-        shared_memory_resize!(interpreter, offset, len);
+        resize_memory!(interpreter, offset, len);
 
         output = interpreter.shared_memory.slice(offset, len).to_vec().into()
     }
     interpreter.instruction_result = instruction_result;
-    interpreter.next_action = Some(crate::InterpreterAction::Return {
+    interpreter.next_action = crate::InterpreterAction::Return {
         result: InterpreterResult {
             output,
             gas: interpreter.gas,
             result: instruction_result,
         },
-    });
+    };
 }
 
-pub fn ret<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn ret<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     return_inner(interpreter, InstructionResult::Return);
 }
 
 /// EIP-140: REVERT instruction
-pub fn revert<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn revert<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, _host: &mut H) {
     check!(interpreter, BYZANTIUM);
     return_inner(interpreter, InstructionResult::Revert);
 }
 
 /// Stop opcode. This opcode halts the execution.
-pub fn stop<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn stop<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     interpreter.instruction_result = InstructionResult::Stop;
 }
 
 /// Invalid opcode. This opcode halts the execution.
-pub fn invalid<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn invalid<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     interpreter.instruction_result = InstructionResult::InvalidFEOpcode;
 }
 
 /// Unknown opcode. This opcode halts the execution.
-pub fn unknown<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn unknown<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     interpreter.instruction_result = InstructionResult::OpcodeNotFound;
 }

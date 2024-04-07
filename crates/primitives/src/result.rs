@@ -1,5 +1,6 @@
 use crate::{Address, Bytes, Log, State, B256, U256};
 use core::fmt;
+use std::{boxed::Box, string::String, vec::Vec};
 
 /// Result of EVM execution.
 pub type EVMResult<DBError> = EVMResultGeneric<ResultAndState, DBError>;
@@ -49,14 +50,6 @@ impl ExecutionResult {
 
     //TODO: why isn't there an "is_revert()", too?
 
-    /// Return logs, if execution is not successful, function will return empty vec.
-    pub fn logs(&self) -> Vec<Log> {
-        match self {
-            Self::Success { logs, .. } => logs.clone(),
-            _ => Vec::new(),
-        }
-    }
-
     /// Returns the output data of the execution.
     ///
     /// Returns `None` if the execution was halted.
@@ -79,7 +72,15 @@ impl ExecutionResult {
         }
     }
 
-    /// Consumes the type and returns logs, if execution is not successful, function will return empty vec.
+    /// Returns the logs if execution is successful, or an empty list otherwise.
+    pub fn logs(&self) -> &[Log] {
+        match self {
+            Self::Success { logs, .. } => logs,
+            _ => &[],
+        }
+    }
+
+    /// Consumes `self` and returns the logs if execution is successful, or an empty list otherwise.
     pub fn into_logs(self) -> Vec<Log> {
         match self {
             Self::Success { logs, .. } => logs,
@@ -87,12 +88,13 @@ impl ExecutionResult {
         }
     }
 
+    /// Returns the gas used.
     pub fn gas_used(&self) -> u64 {
-        let (Self::Success { gas_used, .. }
-        | Self::Revert { gas_used, .. }
-        | Self::Halt { gas_used, .. }) = self;
-
-        *gas_used
+        match *self {
+            Self::Success { gas_used, .. }
+            | Self::Revert { gas_used, .. }
+            | Self::Halt { gas_used, .. } => gas_used,
+        }
     }
 }
 
@@ -120,6 +122,14 @@ impl Output {
             Output::Create(data, _) => data,
         }
     }
+
+    /// Returns the created address, if any.
+    pub fn address(&self) -> Option<&Address> {
+        match self {
+            Output::Call(_) => None,
+            Output::Create(_, address) => address.as_ref(),
+        }
+    }
 }
 
 /// Main EVM error.
@@ -132,24 +142,44 @@ pub enum EVMError<DBError> {
     Header(InvalidHeaderReason),
     /// Database error.
     Database(DBError),
+    /// Custom error.
+    ///
+    /// Useful for handler registers where custom logic would want to return their own custom error.
+    Custom(String),
 }
 
 #[cfg(feature = "std")]
-impl<DBError: fmt::Debug + fmt::Display> std::error::Error for EVMError<DBError> {}
+impl<DBError: std::error::Error + 'static> std::error::Error for EVMError<DBError> {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Transaction(e) => Some(e),
+            Self::Header(e) => Some(e),
+            Self::Database(e) => Some(e),
+            Self::Custom(_) => None,
+        }
+    }
+}
 
 impl<DBError: fmt::Display> fmt::Display for EVMError<DBError> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            EVMError::Transaction(e) => write!(f, "Transaction error: {e:?}"),
-            EVMError::Header(e) => write!(f, "Header error: {e:?}"),
-            EVMError::Database(e) => write!(f, "Database error: {e}"),
+            Self::Transaction(e) => write!(f, "transaction validation error: {e}"),
+            Self::Header(e) => write!(f, "header validation error: {e}"),
+            Self::Database(e) => write!(f, "database error: {e}"),
+            Self::Custom(e) => f.write_str(e),
         }
     }
 }
 
 impl<DBError> From<InvalidTransactionReason> for EVMError<DBError> {
-    fn from(invalid: InvalidTransactionReason) -> Self {
-        EVMError::Transaction(invalid)
+    fn from(value: InvalidTransactionReason) -> Self {
+        Self::Transaction(value)
+    }
+}
+
+impl<DBError> From<InvalidHeaderReason> for EVMError<DBError> {
+    fn from(value: InvalidHeaderReason) -> Self {
+        Self::Header(value)
     }
 }
 
@@ -227,8 +257,6 @@ pub enum InvalidTransactionReason {
     BlobVersionNotSupported,
     /// Asset IDs in transaction are not unique
     AssetIdsNotUnique,
-    /// Deposit transaction haults bubble up to the global main return handler,
-    /// wiping state and only increasing the nonce + persisting the mint value.
     /// System transactions are not supported post-regolith hardfork.
     ///
     /// Before the Regolith hardfork, there was a special field in the `Deposit` transaction
@@ -269,61 +297,54 @@ impl std::error::Error for InvalidTransactionReason {}
 impl fmt::Display for InvalidTransactionReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            InvalidTransactionReason::PriorityFeeGreaterThanMaxFee => {
-                write!(f, "Priority fee is greater than max fee")
+            Self::PriorityFeeGreaterThanMaxFee => {
+                write!(f, "priority fee is greater than max fee")
             }
-            InvalidTransactionReason::GasPriceLessThanBasefee => {
-                write!(f, "Gas price is less than basefee")
+            Self::GasPriceLessThanBasefee => {
+                write!(f, "gas price is less than basefee")
             }
-            InvalidTransactionReason::CallerGasLimitMoreThanBlock => {
-                write!(f, "Caller gas limit exceeds the block gas limit")
+            Self::CallerGasLimitMoreThanBlock => {
+                write!(f, "caller gas limit exceeds the block gas limit")
             }
-            InvalidTransactionReason::CallGasCostMoreThanGasLimit => {
-                write!(f, "Call gas cost exceeds the gas limit")
+            Self::CallGasCostMoreThanGasLimit => {
+                write!(f, "call gas cost exceeds the gas limit")
             }
-            InvalidTransactionReason::RejectCallerWithCode => {
-                write!(f, "Reject transactions from senders with deployed code")
+            Self::RejectCallerWithCode => {
+                write!(f, "reject transactions from senders with deployed code")
             }
-            InvalidTransactionReason::NotEnoughBaseAssetBalanceForTransferAndMaxFee {
-                fee,
-                balance,
-            } => {
-                write!(f, "Lack of funds {} for max fee {}", balance, fee)
+            Self::NotEnoughBaseAssetBalanceForTransferAndMaxFee { fee, balance } => {
+                write!(f, "lack of funds ({balance}) for max fee ({fee})")
             }
-            InvalidTransactionReason::OverflowPaymentInTransaction => {
-                write!(f, "Overflow payment in transaction")
+            Self::OverflowPaymentInTransaction => {
+                write!(f, "overflow payment in transaction")
             }
-            InvalidTransactionReason::NonceOverflowInTransaction => {
-                write!(f, "Nonce overflow in transaction")
+            Self::NonceOverflowInTransaction => {
+                write!(f, "nonce overflow in transaction")
             }
-            InvalidTransactionReason::NonceTooHigh { tx, state } => {
-                write!(f, "Nonce {} too high: expected {}", tx, state)
+            Self::NonceTooHigh { tx, state } => {
+                write!(f, "nonce {tx} too high, expected {state}")
             }
-            InvalidTransactionReason::NonceTooLow { tx, state } => {
-                write!(f, "Nonce {} too low: expected {}", tx, state)
+            Self::NonceTooLow { tx, state } => {
+                write!(f, "nonce {tx} too low, expected {state}")
             }
-            InvalidTransactionReason::CreateInitCodeSizeLimit => {
-                write!(f, "Create initcode size limit")
+            Self::CreateInitCodeSizeLimit => {
+                write!(f, "create initcode size limit")
             }
-            InvalidTransactionReason::InvalidChainId => write!(f, "Invalid chain id"),
-            InvalidTransactionReason::AccessListNotSupported => {
-                write!(f, "Access list not supported")
+            Self::InvalidChainId => write!(f, "invalid chain ID"),
+            Self::AccessListNotSupported => write!(f, "access list not supported"),
+            Self::MaxFeePerBlobGasNotSupported => {
+                write!(f, "max fee per blob gas not supported")
             }
-            InvalidTransactionReason::MaxFeePerBlobGasNotSupported => {
-                write!(f, "Max fee per blob gas not supported")
+            Self::BlobVersionedHashesNotSupported => {
+                write!(f, "blob versioned hashes not supported")
             }
-            InvalidTransactionReason::BlobVersionedHashesNotSupported => {
-                write!(f, "Blob versioned hashes not supported")
+            Self::BlobGasPriceGreaterThanMax => {
+                write!(f, "blob gas price is greater than max fee per blob gas")
             }
-            InvalidTransactionReason::BlobGasPriceGreaterThanMax => {
-                write!(f, "Blob gas price is greater than max fee per blob gas")
-            }
-            InvalidTransactionReason::EmptyBlobs => write!(f, "Empty blobs"),
-            InvalidTransactionReason::BlobCreateTransaction => write!(f, "Blob create transaction"),
-            InvalidTransactionReason::TooManyBlobs => write!(f, "Too many blobs"),
-            InvalidTransactionReason::BlobVersionNotSupported => {
-                write!(f, "Blob version not supported")
-            }
+            Self::EmptyBlobs => write!(f, "empty blobs"),
+            Self::BlobCreateTransaction => write!(f, "blob create transaction"),
+            Self::TooManyBlobs => write!(f, "too many blobs"),
+            Self::BlobVersionNotSupported => write!(f, "blob version not supported"),
             InvalidTransactionReason::NotEnoughAssetBalanceForTransfer {
                 asset_id,
                 required_balance,
@@ -334,19 +355,18 @@ impl fmt::Display for InvalidTransactionReason {
             InvalidTransactionReason::AssetIdsNotUnique => {
                 write!(f, "The ids of the submitted native assets are not unique")
             }
-
             #[cfg(feature = "optimism")]
-            InvalidTransactionReason::DepositSystemTxPostRegolith => {
+            Self::DepositSystemTxPostRegolith => {
                 write!(
                     f,
-                    "Deposit system transactions post regolith hardfork are not supported"
+                    "deposit system transactions post regolith hardfork are not supported"
                 )
             }
             #[cfg(feature = "optimism")]
-            InvalidTransactionReason::HaltedDepositPostRegolith => {
+            Self::HaltedDepositPostRegolith => {
                 write!(
                     f,
-                    "Deposit transaction halted post-regolith. Error will be bubbled up to main return handler."
+                    "deposit transaction halted post-regolith; error will be bubbled up to main return handler"
                 )
             }
             InvalidTransactionReason::InvalidAssetId { asset_id } => {
@@ -356,12 +376,6 @@ impl fmt::Display for InvalidTransactionReason {
                 )
             }
         }
-    }
-}
-
-impl<DBError> From<InvalidHeaderReason> for EVMError<DBError> {
-    fn from(invalid: InvalidHeaderReason) -> Self {
-        EVMError::Header(invalid)
     }
 }
 
@@ -381,8 +395,8 @@ impl std::error::Error for InvalidHeaderReason {}
 impl fmt::Display for InvalidHeaderReason {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            InvalidHeaderReason::PrevrandaoNotSet => write!(f, "Prevrandao not set"),
-            InvalidHeaderReason::ExcessBlobGasNotSet => write!(f, "Excess blob gas not set"),
+            Self::PrevrandaoNotSet => write!(f, "`prevrandao` not set"),
+            Self::ExcessBlobGasNotSet => write!(f, "`excess_blob_gas` not set"),
         }
     }
 }
@@ -423,7 +437,7 @@ pub enum HaltReason {
     OverflowPayment,
     StateChangeDuringStaticCall,
     CallNotAllowedInsideStatic,
-    OutOfFund,
+    OutOfFunds,
     CallTooDeep,
 
     /* Optimism errors */
@@ -435,7 +449,7 @@ pub enum HaltReason {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum OutOfGasError {
     // Basic OOG error
-    BasicOutOfGas,
+    Basic,
     // Tried to expand past REVM limit
     MemoryLimit,
     // Basic OOG error from memory expansion

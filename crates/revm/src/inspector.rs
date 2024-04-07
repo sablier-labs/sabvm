@@ -1,27 +1,28 @@
-use core::ops::Range;
-
 use crate::{
     interpreter::{CallInputs, CreateInputs, Interpreter},
-    primitives::{db::Database, Address, Bytes, B256},
+    primitives::{db::Database, Address, Log, U256},
     EvmContext,
 };
 use auto_impl::auto_impl;
 
 #[cfg(feature = "std")]
 mod customprinter;
-#[cfg(all(feature = "std", feature = "serde"))]
+#[cfg(all(feature = "std", feature = "serde-json"))]
 mod eip3155;
 mod gas;
-mod instruction;
+mod handler_register;
 mod noop;
 
-pub use instruction::inspector_instruction;
-use revm_interpreter::InterpreterResult;
+// Exports.
+
+pub use handler_register::{inspector_handle_register, inspector_instruction, GetInspector};
+use revm_interpreter::{CallOutcome, CreateOutcome};
+
 /// [Inspector] implementations.
 pub mod inspectors {
     #[cfg(feature = "std")]
     pub use super::customprinter::CustomPrintTracer;
-    #[cfg(all(feature = "std", feature = "serde"))]
+    #[cfg(all(feature = "std", feature = "serde-json"))]
     pub use super::eip3155::TracerEip3155;
     pub use super::gas::GasInspector;
     pub use super::noop::NoOpInspector;
@@ -35,7 +36,7 @@ pub trait Inspector<DB: Database> {
     /// If `interp.instruction_result` is set to anything other than [crate::interpreter::InstructionResult::Continue] then the execution of the interpreter
     /// is skipped.
     #[inline]
-    fn initialize_interp(&mut self, interp: &mut Interpreter, context: &mut EvmContext<'_, DB>) {
+    fn initialize_interp(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
         let _ = interp;
         let _ = context;
     }
@@ -49,24 +50,9 @@ pub trait Inspector<DB: Database> {
     ///
     /// To get the current opcode, use `interp.current_opcode()`.
     #[inline]
-    fn step(&mut self, interp: &mut Interpreter, context: &mut EvmContext<'_, DB>) {
+    fn step(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
         let _ = interp;
         let _ = context;
-    }
-
-    /// Called when a log is emitted.
-    #[inline]
-    fn log(
-        &mut self,
-        context: &mut EvmContext<'_, DB>,
-        address: &Address,
-        topics: &[B256],
-        data: &Bytes,
-    ) {
-        let _ = context;
-        let _ = address;
-        let _ = topics;
-        let _ = data;
     }
 
     /// Called after `step` when the instruction has been executed.
@@ -74,9 +60,16 @@ pub trait Inspector<DB: Database> {
     /// Setting `interp.instruction_result` to anything other than [crate::interpreter::InstructionResult::Continue] alters the execution
     /// of the interpreter.
     #[inline]
-    fn step_end(&mut self, interp: &mut Interpreter, context: &mut EvmContext<'_, DB>) {
+    fn step_end(&mut self, interp: &mut Interpreter, context: &mut EvmContext<DB>) {
         let _ = interp;
         let _ = context;
+    }
+
+    /// Called when a log is emitted.
+    #[inline]
+    fn log(&mut self, context: &mut EvmContext<DB>, log: &Log) {
+        let _ = context;
+        let _ = log;
     }
 
     /// Called whenever a call to a contract is about to start.
@@ -85,9 +78,9 @@ pub trait Inspector<DB: Database> {
     #[inline]
     fn call(
         &mut self,
-        context: &mut EvmContext<'_, DB>,
+        context: &mut EvmContext<DB>,
         inputs: &mut CallInputs,
-    ) -> Option<(InterpreterResult, Range<usize>)> {
+    ) -> Option<CallOutcome> {
         let _ = context;
         let _ = inputs;
         None
@@ -95,27 +88,32 @@ pub trait Inspector<DB: Database> {
 
     /// Called when a call to a contract has concluded.
     ///
-    /// InstructionResulting anything other than the values passed to this function (`(ret, remaining_gas,
-    /// out)`) will alter the result of the call.
+    /// The returned [CallOutcome] is used as the result of the call.
+    ///
+    /// This allows the inspector to modify the given `result` before returning it.
     #[inline]
     fn call_end(
         &mut self,
-        context: &mut EvmContext<'_, DB>,
-        result: InterpreterResult,
-    ) -> InterpreterResult {
+        context: &mut EvmContext<DB>,
+        inputs: &CallInputs,
+        outcome: CallOutcome,
+    ) -> CallOutcome {
         let _ = context;
-        result
+        let _ = inputs;
+        outcome
     }
 
     /// Called when a contract is about to be created.
     ///
-    /// InstructionResulting anything other than [crate::interpreter::InstructionResult::Continue] overrides the result of the creation.
+    /// If this returns `Some` then the [CreateOutcome] is used to override the result of the creation.
+    ///
+    /// If this returns `None` then the creation proceeds as normal.
     #[inline]
     fn create(
         &mut self,
-        context: &mut EvmContext<'_, DB>,
+        context: &mut EvmContext<DB>,
         inputs: &mut CreateInputs,
-    ) -> Option<(InterpreterResult, Option<Address>)> {
+    ) -> Option<CreateOutcome> {
         let _ = context;
         let _ = inputs;
         None
@@ -128,11 +126,12 @@ pub trait Inspector<DB: Database> {
     #[inline]
     fn create_end(
         &mut self,
-        context: &mut EvmContext<'_, DB>,
-        result: InterpreterResult,
-        address: Option<Address>,
-    ) -> (InterpreterResult, Option<Address>) {
+        context: &mut EvmContext<DB>,
+        inputs: &CreateInputs,
+        outcome: CreateOutcome,
+    ) -> CreateOutcome {
         let _ = context;
-        (result, address)
+        let _ = inputs;
+        outcome
     }
 }

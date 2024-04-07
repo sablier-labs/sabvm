@@ -61,11 +61,13 @@ impl From<SuccessReason> for InstructionResult {
 impl From<HaltReason> for InstructionResult {
     fn from(value: HaltReason) -> Self {
         match value {
-            HaltReason::OutOfGas(OutOfGasError::BasicOutOfGas) => Self::OutOfGas,
-            HaltReason::OutOfGas(OutOfGasError::InvalidOperand) => Self::InvalidOperandOOG,
-            HaltReason::OutOfGas(OutOfGasError::Memory) => Self::MemoryOOG,
-            HaltReason::OutOfGas(OutOfGasError::MemoryLimit) => Self::MemoryLimitOOG,
-            HaltReason::OutOfGas(OutOfGasError::Precompile) => Self::PrecompileOOG,
+            HaltReason::OutOfGas(error) => match error {
+                OutOfGasError::Basic => Self::OutOfGas,
+                OutOfGasError::InvalidOperand => Self::InvalidOperandOOG,
+                OutOfGasError::Memory => Self::MemoryOOG,
+                OutOfGasError::MemoryLimit => Self::MemoryLimitOOG,
+                OutOfGasError::Precompile => Self::PrecompileOOG,
+            },
             HaltReason::OpcodeNotFound => Self::OpcodeNotFound,
             HaltReason::InvalidFEOpcode => Self::InvalidFEOpcode,
             HaltReason::InvalidJump => Self::InvalidJump,
@@ -82,7 +84,7 @@ impl From<HaltReason> for InstructionResult {
             HaltReason::OverflowPayment => Self::OverflowPayment,
             HaltReason::StateChangeDuringStaticCall => Self::StateChangeDuringStaticCall,
             HaltReason::CallNotAllowedInsideStatic => Self::CallNotAllowedInsideStatic,
-            HaltReason::OutOfFund => Self::OutOfFunds,
+            HaltReason::OutOfFunds => Self::OutOfFunds,
             HaltReason::CallTooDeep => Self::CallTooDeep,
             HaltReason::UnauthorizedCaller => Self::UnauthorizedCaller,
             #[cfg(feature = "optimism")]
@@ -136,44 +138,20 @@ macro_rules! return_error {
 impl InstructionResult {
     /// Returns whether the result is a success.
     #[inline]
-    pub fn is_ok(self) -> bool {
+    pub const fn is_ok(self) -> bool {
         matches!(self, crate::return_ok!())
     }
 
     /// Returns whether the result is a revert.
     #[inline]
-    pub fn is_revert(self) -> bool {
+    pub const fn is_revert(self) -> bool {
         matches!(self, crate::return_revert!())
     }
 
     /// Returns whether the result is an error.
     #[inline]
-    pub fn is_error(self) -> bool {
-        matches!(
-            self,
-            Self::OutOfGas
-                | Self::MemoryOOG
-                | Self::MemoryLimitOOG
-                | Self::PrecompileOOG
-                | Self::InvalidOperandOOG
-                | Self::OpcodeNotFound
-                | Self::CallNotAllowedInsideStatic
-                | Self::StateChangeDuringStaticCall
-                | Self::InvalidFEOpcode
-                | Self::InvalidJump
-                | Self::NotActivated
-                | Self::StackUnderflow
-                | Self::StackOverflow
-                | Self::OutOfOffset
-                | Self::CreateCollision
-                | Self::OverflowPayment
-                | Self::PrecompileError
-                | Self::NonceOverflow
-                | Self::CreateContractSizeLimit
-                | Self::CreateContractStartingWithEF
-                | Self::CreateInitCodeSizeLimit
-                | Self::FatalExternalError
-        )
+    pub const fn is_error(self) -> bool {
+        matches!(self, return_error!())
     }
 }
 
@@ -185,7 +163,7 @@ pub enum SuccessOrHalt {
     FatalExternalError,
     /// Internal instruction that signals Interpreter should continue running.
     InternalContinue,
-    /// Internal instruction that signals subcall.
+    /// Internal instruction that signals call or create.
     InternalCallOrCreate,
 }
 
@@ -236,22 +214,18 @@ impl From<InstructionResult> for SuccessOrHalt {
             InstructionResult::Revert => Self::Revert,
             InstructionResult::CallOrCreate => Self::InternalCallOrCreate, // used only in interpreter loop
             InstructionResult::CallTooDeep => Self::Halt(HaltReason::CallTooDeep), // not gonna happen for first call
-            InstructionResult::OutOfFunds => Self::Halt(HaltReason::OutOfFund), // Check for first call is done separately.
-            InstructionResult::OutOfGas => Self::Halt(HaltReason::OutOfGas(
-                revm_primitives::OutOfGasError::BasicOutOfGas,
-            )),
-            InstructionResult::MemoryLimitOOG => Self::Halt(HaltReason::OutOfGas(
-                revm_primitives::OutOfGasError::MemoryLimit,
-            )),
-            InstructionResult::MemoryOOG => {
-                Self::Halt(HaltReason::OutOfGas(revm_primitives::OutOfGasError::Memory))
+            InstructionResult::OutOfFunds => Self::Halt(HaltReason::OutOfFunds), // Check for first call is done separately.
+            InstructionResult::OutOfGas => Self::Halt(HaltReason::OutOfGas(OutOfGasError::Basic)),
+            InstructionResult::MemoryLimitOOG => {
+                Self::Halt(HaltReason::OutOfGas(OutOfGasError::MemoryLimit))
             }
-            InstructionResult::PrecompileOOG => Self::Halt(HaltReason::OutOfGas(
-                revm_primitives::OutOfGasError::Precompile,
-            )),
-            InstructionResult::InvalidOperandOOG => Self::Halt(HaltReason::OutOfGas(
-                revm_primitives::OutOfGasError::InvalidOperand,
-            )),
+            InstructionResult::MemoryOOG => Self::Halt(HaltReason::OutOfGas(OutOfGasError::Memory)),
+            InstructionResult::PrecompileOOG => {
+                Self::Halt(HaltReason::OutOfGas(OutOfGasError::Precompile))
+            }
+            InstructionResult::InvalidOperandOOG => {
+                Self::Halt(HaltReason::OutOfGas(OutOfGasError::InvalidOperand))
+            }
             InstructionResult::OpcodeNotFound => Self::Halt(HaltReason::OpcodeNotFound),
             InstructionResult::CallNotAllowedInsideStatic => {
                 Self::Halt(HaltReason::CallNotAllowedInsideStatic)

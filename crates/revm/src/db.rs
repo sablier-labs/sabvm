@@ -1,5 +1,7 @@
 //! [Database] implementations.
 
+#[cfg(feature = "alloydb")]
+pub mod alloydb;
 pub mod emptydb;
 #[cfg(feature = "ethersdb")]
 pub mod ethersdb;
@@ -7,6 +9,8 @@ pub mod in_memory_db;
 pub mod states;
 
 pub use crate::primitives::db::*;
+#[cfg(feature = "alloydb")]
+pub use alloydb::AlloyDB;
 pub use emptydb::{EmptyDB, EmptyDBTyped};
 #[cfg(feature = "ethersdb")]
 pub use ethersdb::EthersDB;
@@ -16,8 +20,3 @@ pub use states::{
     OriginalValuesKnown, PlainAccount, RevertToSlot, State, StateBuilder, StateDBBox,
     StorageWithOriginalValues, TransitionAccount, TransitionState,
 };
-
-#[cfg(all(not(feature = "ethersdb"), feature = "web3db"))]
-compile_error!(
-    "`web3db` feature is deprecated, drop-in replacement can be found with feature `ethersdb`"
-);

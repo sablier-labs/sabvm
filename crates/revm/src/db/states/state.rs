@@ -3,10 +3,14 @@ use super::{
     CacheAccount, StateBuilder, TransitionAccount, TransitionState,
 };
 use crate::db::EmptyDB;
-use alloc::collections::{btree_map, BTreeMap};
 use revm_interpreter::primitives::{
     db::{Database, DatabaseCommit},
     hash_map, Account, AccountInfo, Address, Bytecode, HashMap, B256, BLOCK_HASH_HISTORY, U256,
+};
+use std::{
+    boxed::Box,
+    collections::{btree_map, BTreeMap},
+    vec::Vec,
 };
 
 /// Database boxed with a lifetime and Send.
@@ -332,9 +336,9 @@ mod tests {
 
         let test_number = BLOCK_HASH_HISTORY as u64 + 2;
 
-        let block1_hash = keccak256(U256::from(1).to_be_bytes::<{ U256::BYTES }>());
-        let block2_hash = keccak256(U256::from(2).to_be_bytes::<{ U256::BYTES }>());
-        let block_test_hash = keccak256(U256::from(test_number).to_be_bytes::<{ U256::BYTES }>());
+        let block1_hash = keccak256(U256::from(1).to_string().as_bytes());
+        let block2_hash = keccak256(U256::from(2).to_string().as_bytes());
+        let block_test_hash = keccak256(U256::from(test_number).to_string().as_bytes());
 
         assert_eq!(
             state.block_hashes,
@@ -482,10 +486,11 @@ mod tests {
         ]));
 
         state.merge_transitions(BundleRetention::Reverts);
-        let bundle_state = state.take_bundle();
+        let mut bundle_state = state.take_bundle();
 
         // The new account revert should be `DeleteIt` since this was an account creation.
         // The existing account revert should be reverted to its previous state.
+        bundle_state.reverts.sort();
         assert_eq!(
             bundle_state.reverts.as_ref(),
             Vec::from([Vec::from([

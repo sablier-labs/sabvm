@@ -1,13 +1,19 @@
+pub mod handler_cfg;
+
+pub use handler_cfg::{CfgEnvWithHandlerCfg, EnvWithHandlerCfg, HandlerCfg};
+
 use crate::{
-    calc_blob_gasprice, Account, Address, Bytes, InvalidHeaderReason, InvalidTransactionReason,
-    Spec, SpecId, B256, BASE_ASSET_ID, GAS_PER_BLOB, KECCAK_EMPTY, MAX_BLOB_NUMBER_PER_BLOCK,
-    MAX_INITCODE_SIZE, U256, VERSIONED_HASH_VERSION_KZG,
+    calc_blob_gasprice, Account, Address, Bytes, InvalidHeaderReason, InvalidTransactionReason, Spec, SpecId,
+    B256, BASE_ASSET_ID, GAS_PER_BLOB, KECCAK_EMPTY, MAX_BLOB_NUMBER_PER_BLOCK, MAX_INITCODE_SIZE, U256,
+    VERSIONED_HASH_VERSION_KZG,
 };
 use core::{
     cmp::{min, Ordering},
     ops::Deref,
 };
+use std::boxed::Box;
 use std::collections::HashSet;
+use std::vec::Vec;
 
 /// EVM environment configuration.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
@@ -22,6 +28,18 @@ pub struct Env {
 }
 
 impl Env {
+    /// Resets environment to default values.
+    #[inline]
+    pub fn clear(&mut self) {
+        *self = Self::default();
+    }
+
+    /// Create boxed [Env].
+    #[inline]
+    pub fn boxed(cfg: CfgEnv, block: BlockEnv, tx: TxEnv) -> Box<Self> {
+        Box::new(Self { cfg, block, tx })
+    }
+
     /// Calculates the effective gas price of the transaction.
     #[inline]
     pub fn effective_gas_price(&self) -> U256 {
@@ -42,6 +60,19 @@ impl Env {
     pub fn calc_data_fee(&self) -> Option<U256> {
         self.block.get_blob_gasprice().map(|blob_gas_price| {
             U256::from(blob_gas_price).saturating_mul(U256::from(self.tx.get_total_blob_gas()))
+        })
+    }
+
+    /// Calculates the maximum [EIP-4844] `data_fee` of the transaction.
+    ///
+    /// This is used for ensuring that the user has at least enough funds to pay the
+    /// `max_fee_per_blob_gas * total_blob_gas`, on top of regular gas costs.
+    ///
+    /// See EIP-4844:
+    /// <https://github.com/ethereum/EIPs/blob/master/EIPS/eip-4844.md#execution-layer-validation>
+    pub fn calc_max_data_fee(&self) -> Option<U256> {
+        self.tx.max_fee_per_blob_gas.map(|max_fee_per_blob_gas| {
+            max_fee_per_blob_gas.saturating_mul(U256::from(self.tx.get_total_blob_gas()))
         })
     }
 
@@ -190,7 +221,7 @@ impl Env {
 
     /// Validate transaction against state.
     #[inline]
-    pub fn validate_tx_against_state(
+    pub fn validate_tx_against_state<SPEC: Spec>(
         &self,
         account: &mut Account,
     ) -> Result<(), InvalidTransactionReason> {
@@ -199,13 +230,6 @@ impl Env {
         // so we can leave it enabled always
         if !self.cfg.is_eip3607_disabled() && account.info.code_hash != KECCAK_EMPTY {
             return Err(InvalidTransactionReason::RejectCallerWithCode);
-        }
-
-        // On Optimism, deposit transactions do not have verification on the nonce
-        // nor the balance of the account.
-        #[cfg(feature = "optimism")]
-        if self.cfg.optimism && self.tx.optimism.source_hash.is_some() {
-            return Ok(());
         }
 
         // Check that the transaction's nonce is correct
@@ -233,9 +257,10 @@ impl Env {
             .and_then(|gas_cost| gas_cost.checked_add(self.tx.get_base_transfer_value()))
             .ok_or(InvalidTransactionReason::OverflowPaymentInTransaction)?;
 
-        if SpecId::enabled(self.cfg.spec_id, SpecId::CANCUN) {
-            let data_fee = self.calc_data_fee().expect("already checked");
-            required_base_balance = required_base_balance
+            if SPEC::enabled(SpecId::CANCUN) {
+                // if the tx is not a blob tx, this will be None, so we add zero
+                let data_fee = self.calc_max_data_fee().unwrap_or_default();
+                required_base_balance = required_base_balance
                 .checked_add(U256::from(data_fee))
                 .ok_or(InvalidTransactionReason::OverflowPaymentInTransaction)?;
         }
@@ -286,12 +311,13 @@ impl Env {
 }
 
 /// EVM configuration.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 #[non_exhaustive]
 pub struct CfgEnv {
+    /// Chain ID of the EVM, it will be compared to the transaction's Chain ID.
+    /// Chain ID is introduced EIP-155
     pub chain_id: u64,
-    pub spec_id: SpecId,
     /// KZG Settings for point evaluation precompile. By default, this is loaded from the ethereum mainnet trusted setup.
     #[cfg(feature = "c-kzg")]
     #[cfg_attr(feature = "serde", serde(skip))]
@@ -338,14 +364,6 @@ pub struct CfgEnv {
     /// By default, it is set to `false`.
     #[cfg(feature = "optional_beneficiary_reward")]
     pub disable_beneficiary_reward: bool,
-    /// Enables Optimism's execution changes for deposit transactions and fee
-    /// collection. Hot toggling the optimism field gives applications built
-    /// on revm the ability to switch optimism execution on and off at runtime,
-    /// allowing for features like multichain fork testing. Setting this field
-    /// to false will disable all optimism execution changes regardless of
-    /// compilation with the optimism feature flag.
-    #[cfg(feature = "optimism")]
-    pub optimism: bool,
 }
 
 impl CfgEnv {
@@ -408,23 +426,12 @@ impl CfgEnv {
     pub fn is_beneficiary_reward_disabled(&self) -> bool {
         false
     }
-
-    #[cfg(feature = "optimism")]
-    pub fn is_optimism(&self) -> bool {
-        self.optimism
-    }
-
-    #[cfg(not(feature = "optimism"))]
-    pub fn is_optimism(&self) -> bool {
-        false
-    }
 }
 
 impl Default for CfgEnv {
     fn default() -> Self {
         Self {
             chain_id: 706, // sum of the ASCII values for "Sablier"
-            spec_id: SpecId::LATEST,
             perf_analyse_created_bytecodes: AnalysisKind::default(),
             limit_contract_code_size: None,
             #[cfg(feature = "c-kzg")]
@@ -443,8 +450,6 @@ impl Default for CfgEnv {
             disable_base_fee: false,
             #[cfg(feature = "optional_beneficiary_reward")]
             disable_beneficiary_reward: false,
-            #[cfg(feature = "optimism")]
-            optimism: false,
         }
     }
 }
@@ -519,6 +524,12 @@ impl BlockEnv {
             .as_ref()
             .map(|a| a.excess_blob_gas)
     }
+
+    /// Clears environment and resets fields to default values.
+    #[inline]
+    pub fn clear(&mut self) {
+        *self = Self::default();
+    }
 }
 
 impl Default for BlockEnv {
@@ -551,7 +562,9 @@ pub struct TxEnv {
 
     /// The data of the transaction.
     pub data: Bytes,
-    /// The nonce of the transaction. If set to `None`, no checks are performed.
+    /// The nonce of the transaction.
+    ///
+    /// Caution: If set to `None`, then nonce validation against the account's nonce is skipped: [InvalidTransaction::NonceTooHigh] and [InvalidTransaction::NonceTooLow]
     pub nonce: Option<u64>,
 
     /// The chain ID of the transaction. If set to `None`, no checks are performed.
@@ -606,7 +619,7 @@ pub struct Asset {
 }
 
 impl TxEnv {
-    /// See [EIP-4844] and [`Env::calc_data_fee`].
+    /// See [EIP-4844], [`Env::calc_data_fee`], and [`Env::calc_max_data_fee`].
     ///
     /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
     #[inline]
@@ -628,6 +641,12 @@ impl TxEnv {
         }
 
         Default::default()
+    }
+
+    /// Clears environment and resets fields to default values.
+    #[inline]
+    pub fn clear(&mut self) {
+        *self = Self::default();
     }
 }
 
@@ -782,47 +801,6 @@ pub enum AnalysisKind {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[cfg(feature = "optimism")]
-    #[test]
-    fn test_validate_sys_tx() {
-        // Set the optimism flag to true and mark
-        // the tx as a system transaction.
-        let mut env = Env::default();
-        env.cfg.optimism = true;
-        env.tx.optimism.is_system_transaction = Some(true);
-        assert_eq!(
-            env.validate_tx::<crate::RegolithSpec>(),
-            Err(InvalidTransactionReason::DepositSystemTxPostRegolith)
-        );
-
-        // Pre-regolith system transactions should be allowed.
-        assert!(env.validate_tx::<crate::BedrockSpec>().is_ok());
-    }
-
-    #[cfg(feature = "optimism")]
-    #[test]
-    fn test_validate_deposit_tx() {
-        // Set the optimism flag and source hash.
-        let mut env = Env::default();
-        env.cfg.optimism = true;
-        env.tx.optimism.source_hash = Some(B256::ZERO);
-        assert!(env.validate_tx::<crate::RegolithSpec>().is_ok());
-    }
-
-    #[cfg(feature = "optimism")]
-    #[test]
-    fn test_validate_tx_against_state_deposit_tx() {
-        // Set the optimism flag and source hash.
-        let mut env = Env::default();
-        env.cfg.optimism = true;
-        env.tx.optimism.source_hash = Some(B256::ZERO);
-
-        // Nonce and balance checks should be skipped for deposit transactions.
-        assert!(env
-            .validate_tx_against_state(&mut Account::default())
-            .is_ok());
-    }
 
     #[test]
     fn test_validate_tx_chain_id() {
