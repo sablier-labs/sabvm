@@ -2,17 +2,17 @@ pub mod handler_cfg;
 
 pub use handler_cfg::{CfgEnvWithHandlerCfg, EnvWithHandlerCfg, HandlerCfg};
 
+use crate::HashSet;
 use crate::{
-    calc_blob_gasprice, Account, Address, Bytes, InvalidHeaderReason, InvalidTransactionReason, Spec, SpecId,
-    B256, BASE_ASSET_ID, GAS_PER_BLOB, KECCAK_EMPTY, MAX_BLOB_NUMBER_PER_BLOCK, MAX_INITCODE_SIZE, U256,
-    VERSIONED_HASH_VERSION_KZG,
+    calc_blob_gasprice, Account, Address, Bytes, InvalidHeaderReason, InvalidTransactionReason,
+    Spec, SpecId, B256, BASE_ASSET_ID, GAS_PER_BLOB, KECCAK_EMPTY, MAX_BLOB_NUMBER_PER_BLOCK,
+    MAX_INITCODE_SIZE, U256, VERSIONED_HASH_VERSION_KZG,
 };
 use core::{
     cmp::{min, Ordering},
     ops::Deref,
 };
 use std::boxed::Box;
-use std::collections::HashSet;
 use std::vec::Vec;
 
 /// EVM environment configuration.
@@ -257,10 +257,10 @@ impl Env {
             .and_then(|gas_cost| gas_cost.checked_add(self.tx.get_base_transfer_value()))
             .ok_or(InvalidTransactionReason::OverflowPaymentInTransaction)?;
 
-            if SPEC::enabled(SpecId::CANCUN) {
-                // if the tx is not a blob tx, this will be None, so we add zero
-                let data_fee = self.calc_max_data_fee().unwrap_or_default();
-                required_base_balance = required_base_balance
+        if SPEC::enabled(SpecId::CANCUN) {
+            // if the tx is not a blob tx, this will be None, so we add zero
+            let data_fee = self.calc_max_data_fee().unwrap_or_default();
+            required_base_balance = required_base_balance
                 .checked_add(U256::from(data_fee))
                 .ok_or(InvalidTransactionReason::OverflowPaymentInTransaction)?;
         }
