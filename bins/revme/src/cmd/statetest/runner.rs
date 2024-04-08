@@ -10,8 +10,9 @@ use revm::{
     inspectors::TracerEip3155,
     interpreter::CreateScheme,
     primitives::{
-        address, b256, calc_excess_blob_gas, init_balances, keccak256, Asset, Bytecode, Env,
-        HashMap, SpecId, TransactTo, B256, BASE_ASSET_ID, U256, Bytes, EVMResultGeneric, ExecutionResult
+        address, b256, calc_excess_blob_gas, init_balances, keccak256, Asset, Bytecode, Bytes,
+        EVMResultGeneric, Env, ExecutionResult, HashMap, SpecId, TransactTo, B256, BASE_ASSET_ID,
+        U256,
     },
     Evm, State,
 };

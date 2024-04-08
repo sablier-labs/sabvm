@@ -76,7 +76,7 @@ impl Gas {
     pub fn erase_cost(&mut self, returned: u64) {
         self.remaining_nomem += returned;
         self.remaining += returned;
-        
+
         // TODO: what if erase_cost() is called to erase the gas cost of a memory expansion?
         // TODO: what if the operations above overflow?
     }

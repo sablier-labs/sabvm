@@ -8,8 +8,9 @@ use crate::{
     interpreter::{return_ok, return_revert, Gas, InstructionResult},
     optimism,
     primitives::{
-        asset_id_address, db::Database, spec_to_generic, Account, EVMError, Env, ExecutionResult, HaltReason,
-        HashMap, InvalidTransactionReason, ResultAndState, Spec, SpecId, SpecId::REGOLITH, U256,
+        asset_id_address, db::Database, spec_to_generic, Account, EVMError, Env, ExecutionResult,
+        HaltReason, HashMap, InvalidTransactionReason, ResultAndState, Spec, SpecId,
+        SpecId::REGOLITH, U256,
     },
     Context, FrameResult,
 };
@@ -205,7 +206,12 @@ pub fn deduct_caller<SPEC: Spec, EXT, DB: Database>(
                 },
             ));
         }
-        caller_account.info.set_base_balance(caller_account.info.get_base_balance().saturating_sub(tx_l1_cost));
+        caller_account.info.set_base_balance(
+            caller_account
+                .info
+                .get_base_balance()
+                .saturating_sub(tx_l1_cost),
+        );
     }
     Ok(())
 }
@@ -375,8 +381,9 @@ mod tests {
     use crate::{
         db::{EmptyDB, InMemoryDB},
         primitives::{
-            bytes, state::{AccountInfo, Balances}, Address, BASE_ASSET_ID, BedrockSpec, Bytes, Env, LatestSpec, RegolithSpec,
-            B256,
+            bytes,
+            state::{AccountInfo, Balances},
+            Address, BedrockSpec, Bytes, Env, LatestSpec, RegolithSpec, B256, BASE_ASSET_ID,
         },
         L1BlockInfo,
     };
@@ -530,7 +537,7 @@ mod tests {
             .journaled_state
             .load_account(caller, &mut context.evm.inner.db)
             .unwrap();
-            assert_eq!(account.info.get_base_balance(), U256::from(1010));
+        assert_eq!(account.info.get_base_balance(), U256::from(1010));
     }
 
     #[test]

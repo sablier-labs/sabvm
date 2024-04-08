@@ -1,7 +1,7 @@
 use super::{DatabaseCommit, DatabaseRef, EmptyDB};
 use crate::primitives::{
-    init_balances, hash_map::Entry, Account, AccountInfo, Address, Bytecode, HashMap, Log, B256, KECCAK_EMPTY,
-    U256,
+    hash_map::Entry, init_balances, Account, AccountInfo, Address, Bytecode, HashMap, Log, B256,
+    KECCAK_EMPTY, U256,
 };
 use crate::Database;
 use core::convert::Infallible;

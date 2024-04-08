@@ -82,7 +82,6 @@ pub fn calldatasize<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut
     push!(interpreter, U256::from(interpreter.contract.input.len()));
 }
 
-
 pub fn callvalues<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     // TODO: make the gas cost proportional to the MNAs number
     gas!(interpreter, gas::BASE);
