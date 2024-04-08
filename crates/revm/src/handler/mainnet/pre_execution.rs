@@ -57,7 +57,12 @@ pub fn deduct_caller_inner<SPEC: Spec>(caller_account: &mut Account, env: &Env) 
     }
 
     // set new caller account balance.
-    caller_account.info.balance = caller_account.info.balance.saturating_sub(gas_cost);
+    caller_account.info.set_base_balance(
+        caller_account
+            .info
+            .get_base_balance()
+            .saturating_sub(gas_cost),
+    );
 
     // bump the nonce for calls. Nonce for CREATE will be bumped in `handle_create`.
     if matches!(env.tx.transact_to, TransactTo::Call(_)) {

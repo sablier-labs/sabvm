@@ -4,7 +4,7 @@ use crate::{
     interpreter::{
         return_ok, CallInputs, Contract, Gas, InstructionResult, Interpreter, InterpreterResult,
     },
-    primitives::{Address, Bytes, EVMError, Env, HashSet, U256},
+    primitives::{Address, Bytes, EVMError, Env, HashSet},
     ContextPrecompiles, FrameOrResult, CALL_STACK_LIMIT,
 };
 use core::{
@@ -220,11 +220,13 @@ impl<DB: Database> EvmContext<DB> {
 /// Test utilities for the [`EvmContext`].
 #[cfg(any(test, feature = "test-utils"))]
 pub(crate) mod test_utils {
+    use revm_precompile::HashMap;
+
     use super::*;
     use crate::{
         db::{CacheDB, EmptyDB},
         journaled_state::JournaledState,
-        primitives::{address, Address, Bytes, Env, HashSet, SpecId, B256, U256},
+        primitives::{address, Address, Bytes, Env, HashSet, SpecId, B256, BASE_ASSET_ID, U256},
         InnerEvmContext,
     };
     use std::boxed::Box;
@@ -239,7 +241,7 @@ pub(crate) mod test_utils {
             transfer: revm_interpreter::Transfer {
                 source: MOCK_CALLER,
                 target: to,
-                value: U256::ZERO,
+                assets: vec![], // No assets transferred
             },
             input: Bytes::new(),
             gas_limit: 0,
@@ -247,7 +249,7 @@ pub(crate) mod test_utils {
                 address: MOCK_CALLER,
                 caller: MOCK_CALLER,
                 code_address: MOCK_CALLER,
-                apparent_value: U256::ZERO,
+                apparent_assets: vec![], // No assets transferred
                 scheme: revm_interpreter::CallScheme::Call,
             },
             is_static: false,
@@ -267,7 +269,7 @@ pub(crate) mod test_utils {
             test_utils::MOCK_CALLER,
             crate::primitives::AccountInfo {
                 nonce: 0,
-                balance,
+                balances: HashMap::from([(BASE_ASSET_ID, balance)]),
                 code_hash: B256::default(),
                 code: None,
             },
@@ -314,10 +316,12 @@ mod tests {
     use super::*;
     use test_utils::*;
 
+    use revm_precompile::HashMap;
+
     use crate::{
         db::{CacheDB, EmptyDB},
         interpreter::InstructionResult,
-        primitives::{address, Bytecode, Bytes, Env, U256},
+        primitives::{address, Asset, Bytecode, Bytes, Env, BASE_ASSET_ID, U256},
         Frame, FrameOrResult, JournalEntry,
     };
     use std::boxed::Box;
@@ -352,7 +356,10 @@ mod tests {
         let mut evm_context = test_utils::create_empty_evm_context(Box::new(env), db);
         let contract = address!("dead10000000000000000000000000000001dead");
         let mut call_inputs = test_utils::create_mock_call_inputs(contract);
-        call_inputs.transfer.value = U256::from(1);
+        call_inputs.transfer.assets = vec![Asset {
+            id: BASE_ASSET_ID,
+            amount: U256::from(1),
+        }];
         let res = evm_context.make_call_frame(&call_inputs);
         let Ok(FrameOrResult::Result(result)) = res else {
             panic!("Expected FrameOrResult::Result");
@@ -392,7 +399,7 @@ mod tests {
             contract,
             crate::primitives::AccountInfo {
                 nonce: 0,
-                balance: bal,
+                balances: HashMap::from([(BASE_ASSET_ID, bal)]),
                 code_hash: by.clone().hash_slow(),
                 code: Some(by),
             },

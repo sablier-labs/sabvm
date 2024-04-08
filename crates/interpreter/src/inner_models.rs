@@ -1,5 +1,5 @@
 pub use crate::primitives::CreateScheme;
-use crate::primitives::{Address, Asset, Bytes, B256, TransactTo, TxEnv, U256};
+use crate::primitives::{Address, Asset, Bytes, TransactTo, TxEnv};
 use core::ops::Range;
 use std::boxed::Box;
 
@@ -51,7 +51,7 @@ impl CallInputs {
             transfer: Transfer {
                 source: tx_env.caller,
                 target: address,
-                value: tx_env.value,
+                assets: tx_env.transferred_assets.clone(),
             },
             input: tx_env.data.clone(),
             gas_limit,
@@ -59,7 +59,7 @@ impl CallInputs {
                 caller: tx_env.caller,
                 address,
                 code_address: address,
-                apparent_value: tx_env.value,
+                apparent_assets: tx_env.transferred_assets.clone(),
                 scheme: CallScheme::Call,
             },
             is_static: false,
@@ -83,7 +83,7 @@ impl CreateInputs {
         Some(CreateInputs {
             caller: tx_env.caller,
             scheme,
-            value: tx_env.value,
+            transferred_assets: tx_env.transferred_assets.clone(),
             init_code: tx_env.data.clone(),
             gas_limit,
         })

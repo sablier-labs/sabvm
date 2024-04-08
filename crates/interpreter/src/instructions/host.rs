@@ -11,7 +11,6 @@ use crate::{
 };
 use core::cmp::min;
 use revm_primitives::{Asset, BLOCK_HASH_HISTORY};
-use revm_primitives::BLOCK_HASH_HISTORY;
 use std::{boxed::Box, vec::Vec};
 
 /// EIP-1884: Repricing for trie-size-dependent opcodes
@@ -451,7 +450,7 @@ pub fn delegate_call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter
             transfer: Transfer {
                 source: interpreter.contract.address,
                 target: interpreter.contract.address,
-                apparent_assets: Vec::new(),
+                assets: Vec::new(),
             },
             input,
             gas_limit,
@@ -459,7 +458,7 @@ pub fn delegate_call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter
                 address: interpreter.contract.address,
                 caller: interpreter.contract.caller,
                 code_address: to,
-                apparent_assets: interpreter.contract.assets,
+                apparent_assets: interpreter.contract.assets.clone(),
                 scheme: CallScheme::DelegateCall,
             },
             is_static: interpreter.is_static,
@@ -540,7 +539,7 @@ pub fn balance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host
     push!(interpreter, balance);
 }
 
-pub fn mint<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+pub fn mint<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     // TODO: implement minting allowance just for Sablier
     // Only allow minting for contracts (not EOAs)
     if host.is_tx_sender_eoa() {
@@ -556,10 +555,10 @@ pub fn mint<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
         return;
     };
 
-    gas_or_fail!(interpreter, { gas::mint_cost::<SPEC>() });
+    gas_or_fail!(interpreter, { gas::mint_cost() });
 }
 
-pub fn burn<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+pub fn burn<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     // TODO: implement burning allowance just for Sablier
     // Only allow burning for contracts (not EOAs)
     if host.is_tx_sender_eoa() {
@@ -575,7 +574,7 @@ pub fn burn<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
         return;
     };
 
-    gas_or_fail!(interpreter, { gas::burn_cost::<SPEC>() });
+    gas_or_fail!(interpreter, { gas::burn_cost() });
 }
 
 #[cfg(test)]

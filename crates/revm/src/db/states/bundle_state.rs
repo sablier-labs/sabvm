@@ -563,11 +563,6 @@ impl BundleState {
                             .entry(key)
                             .or_insert(RevertToSlot::Some(value.present_value));
                     }
-
-                    // nullify `other` wipe as primary database wipe is done in `this`.
-                    if this_account.was_destroyed() {
-                        revert.wipe_storage = false;
-                    }
                 }
             }
 

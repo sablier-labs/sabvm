@@ -1,5 +1,4 @@
 use super::constants::*;
-use crate::inner_models::SelfDestructResult;
 use crate::primitives::{Address, Asset, SpecId, U256};
 use std::vec::Vec;
 
@@ -272,38 +271,6 @@ fn frontier_sstore_cost(current: U256, new: U256) -> u64 {
     }
 }
 
-/// `SELFDESTRUCT` opcode cost calculation.
-#[inline]
-pub const fn selfdestruct_cost(spec_id: SpecId, res: SelfDestructResult) -> u64 {
-    // EIP-161: State trie clearing (invariant-preserving alternative)
-    let should_charge_topup = if spec_id.is_enabled_in(SpecId::SPURIOUS_DRAGON) {
-        res.had_value && !res.target_exists
-    } else {
-        !res.target_exists
-    };
-
-    // EIP-150: Gas cost changes for IO-heavy operations
-    let selfdestruct_gas_topup = if spec_id.is_enabled_in(SpecId::TANGERINE) && should_charge_topup
-    {
-        25000
-    } else {
-        0
-    };
-
-    // EIP-150: Gas cost changes for IO-heavy operations
-    let selfdestruct_gas = if spec_id.is_enabled_in(SpecId::TANGERINE) {
-        5000
-    } else {
-        0
-    };
-
-    let mut gas = selfdestruct_gas + selfdestruct_gas_topup;
-    if spec_id.is_enabled_in(SpecId::BERLIN) && res.is_cold {
-        gas += COLD_ACCOUNT_ACCESS_COST
-    }
-    gas
-}
-
 /// Basic `CALL` opcode cost calculation, see [`call_cost`].
 #[inline]
 pub const fn call_gas(spec_id: SpecId, is_cold: bool) -> u64 {
@@ -374,12 +341,12 @@ pub const fn memory_gas(a: usize) -> u64 {
 }
 
 #[inline]
-pub fn mint_cost<SPEC: SpecId>() -> Option<u64> {
+pub fn mint_cost() -> Option<u64> {
     Some(MINT_ASSETS)
 }
 
 #[inline]
-pub fn burn_cost<SPEC: SpecId>() -> Option<u64> {
+pub fn burn_cost() -> Option<u64> {
     Some(BURN_ASSETS)
 }
 

@@ -1,6 +1,6 @@
 use crate::{
     interpreter::{CallInputs, CreateInputs, Interpreter},
-    primitives::{db::Database, Address, Log, U256},
+    primitives::{db::Database, Log},
     EvmContext,
 };
 use auto_impl::auto_impl;

@@ -1,7 +1,7 @@
 use crate::interpreter::InstructionResult;
 use crate::primitives::{
-    db::Database, hash_map::Entry, Account, Address, Asset, Bytecode, EVMError, HashMap, HashMap, HashSet, Log,
-    SpecId::*, State, StorageSlot, TransientStorage, B256, KECCAK_EMPTY, PRECOMPILE3, U256,
+    db::Database, hash_map::Entry, Account, Address, Asset, Bytecode, EVMError, HashMap, HashSet,
+    Log, SpecId::*, State, StorageSlot, TransientStorage, B256, KECCAK_EMPTY, PRECOMPILE3, U256,
 };
 use core::mem;
 use revm_interpreter::primitives::SpecId;
@@ -108,6 +108,7 @@ impl JournaledState {
             // kept, see [Self::new]
             spec: _,
             warm_preloaded_addresses: _,
+            native_asset_ids: _, // TODO: should this field be reset?
         } = self;
 
         *transient_storage = TransientStorage::default();
@@ -194,18 +195,21 @@ impl JournaledState {
             // sub amount from
             let from_account = self.state.get_mut(from).unwrap();
             Self::touch_account(self.journal.last_mut().unwrap(), from, from_account);
+
             let from_balance = &mut from_account.info.get_balance(asset_id);
-            *from_balance = from_balance
-                .checked_sub(asset_amount)
-                .ok_or(InstructionResult::OutOfFunds)?;
+            let Some(from_balance_incr) = from_balance.checked_sub(asset_amount) else {
+                return Ok(Some(InstructionResult::OutOfFunds));
+            };
+            *from_balance = from_balance_incr;
 
             // add amount to
             let to_account = self.state.get_mut(to).unwrap();
             Self::touch_account(self.journal.last_mut().unwrap(), to, to_account);
             let to_balance = &mut to_account.info.get_balance(asset_id);
-            *to_balance = to_balance
-                .checked_add(asset_amount)
-                .ok_or(InstructionResult::OverflowPayment)?;
+            let Some(to_balance_decr) = to_balance.checked_add(asset_amount) else {
+                return Ok(Some(InstructionResult::OverflowPayment));
+            };
+            *to_balance = to_balance_decr;
             // Overflow of U256 balance is not possible to happen on mainnet. We don't bother to return funds from from_acc.
 
             self.journal
@@ -737,6 +741,8 @@ impl JournaledState {
         }
 
         // add the id of the minted asset to the collection
+
+        // TODO: shouldn't this rather be done inside the Database?
         self.native_asset_ids.insert(asset_id);
 
         // add journal entry of the minted assets

@@ -3,7 +3,7 @@ use crate::{
     handler::register::EvmHandler,
     interpreter::{opcode, opcode::BoxedInstruction, InstructionResult, Interpreter},
     primitives::EVMError,
-    Evm, FrameOrResult, FrameResult, Inspector, JournalEntry,
+    Evm, FrameOrResult, FrameResult, Inspector,
 };
 use core::cell::RefCell;
 use revm_interpreter::opcode::InstructionTables;
@@ -90,38 +90,6 @@ pub fn inspector_handle_register<'a, DB: Database, EXT: GetInspector<DB>>(
     inspect_log(opcode::LOG2);
     inspect_log(opcode::LOG3);
     inspect_log(opcode::LOG4);
-
-    // // register selfdestruct function.
-    if let Some(i) = table.get_mut(opcode::SELFDESTRUCT as usize) {
-        let old = core::mem::replace(i, Box::new(|_, _| ()));
-        *i = Box::new(
-            move |interpreter: &mut Interpreter, host: &mut Evm<'a, EXT, DB>| {
-                // execute selfdestruct
-                old(interpreter, host);
-                // check if selfdestruct was successful and if journal entry is made.
-                if let Some(JournalEntry::AccountDestroyed {
-                    address,
-                    target,
-                    had_balance,
-                    ..
-                }) = host
-                    .context
-                    .evm
-                    .journaled_state
-                    .journal
-                    .last()
-                    .unwrap()
-                    .last()
-                {
-                    host.context.external.get_inspector().selfdestruct(
-                        *address,
-                        *target,
-                        *had_balance,
-                    );
-                }
-            },
-        )
-    }
 
     // cast vector to array.
     handler.set_instruction_table(InstructionTables::Boxed(

@@ -9,11 +9,11 @@ use crate::{
         keccak256, Account, Address, AnalysisKind, Bytecode, Bytes, CreateScheme, EVMError, Env,
         HashSet, Spec,
         SpecId::{self, *},
-        B256, U256,
+        B256, BASE_ASSET_ID, U256,
     },
     FrameOrResult, JournalCheckpoint, CALL_STACK_LIMIT,
 };
-use revm_interpreter::{SStoreResult, SelfDestructResult};
+use revm_interpreter::SStoreResult;
 use std::boxed::Box;
 
 /// EVM contexts contains data that EVM needs for execution.
@@ -153,7 +153,11 @@ impl<DB: Database> InnerEvmContext<DB> {
 
     /// Return account balance and is_cold flag.
     #[inline]
-    pub fn balance(&mut self, address: Address, asset_id: B256) -> Result<(U256, bool), EVMError<DB::Error>> {
+    pub fn balance(
+        &mut self,
+        address: Address,
+        asset_id: B256,
+    ) -> Result<(U256, bool), EVMError<DB::Error>> {
         self.journaled_state
             .load_account(address, &mut self.db)
             .map(|(acc, is_cold)| (acc.info.get_balance(asset_id), is_cold))
@@ -217,17 +221,6 @@ impl<DB: Database> InnerEvmContext<DB> {
         self.journaled_state.tstore(address, index, value)
     }
 
-    /// Selfdestructs the account.
-    #[inline]
-    pub fn selfdestruct(
-        &mut self,
-        address: Address,
-        target: Address,
-    ) -> Result<SelfDestructResult, EVMError<DB::Error>> {
-        self.journaled_state
-            .selfdestruct(address, target, &mut self.db)
-    }
-
     /// Make create frame.
     #[inline]
     pub fn make_create_frame(
@@ -257,7 +250,7 @@ impl<DB: Database> InnerEvmContext<DB> {
         // Check the solvency of the caller, wrt the transferred assets
         for asset in &inputs.transferred_assets {
             // Fetch the asset balance of the caller.
-            let (caller_balance, _) = self.balance(inputs.caller)?;
+            let (caller_balance, _) = self.balance(inputs.caller, asset.id)?;
 
             // Check if the caller has a big-enough balance to send to the created contract.
             if caller_balance < asset.amount {

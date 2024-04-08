@@ -1,7 +1,7 @@
 use revm_interpreter::gas;
 
 use crate::{
-    primitives::{db::Database, EVMError, Env, InvalidTransaction, Spec},
+    primitives::{db::Database, EVMError, Env, InvalidTransactionReason, Spec},
     Context,
 };
 
@@ -36,30 +36,41 @@ pub fn validate_tx_against_state<SPEC: Spec, EXT, DB: Database>(
 }
 
 /// Validate initial transaction gas.
-pub fn validate_initial_tx_gas<SPEC: Spec, DB: Database>(
-    env: &Env,
+pub fn validate_initial_tx_gas<SPEC: Spec, EXT, DB: Database>(
+    context: &Context<EXT, DB>,
 ) -> Result<u64, EVMError<DB::Error>> {
+    let env = &context.evm.env;
     let input = &env.tx.data;
     let is_create = env.tx.transact_to.is_create();
     let access_list = &env.tx.access_list;
 
-    let initial_gas_spend =
-        gas::validate_initial_tx_gas(SPEC::SPEC_ID, input, is_create, access_list, &env.tx.transferred_assets);
+    let initial_gas_spend = gas::validate_initial_tx_gas(
+        SPEC::SPEC_ID,
+        input,
+        is_create,
+        access_list,
+        &env.tx.transferred_assets,
+    );
 
     // Additional check to see if limit is big enough to cover initial gas.
     if initial_gas_spend > env.tx.gas_limit {
-        return Err(InvalidTransaction::CallGasCostMoreThanGasLimit.into());
+        return Err(InvalidTransactionReason::CallGasCostMoreThanGasLimit.into());
     }
 
     // Check whether all of the transferred assets are valid
     let transferred_assets = env.tx.transferred_assets.clone();
     for asset in transferred_assets {
-        if !self.context.journaled_state.is_asset_id_valid(asset.id) {
+        if !context
+            .evm
+            .inner
+            .journaled_state
+            .is_asset_id_valid(asset.id)
+        {
             return Err(EVMError::Transaction(
                 InvalidTransactionReason::InvalidAssetId { asset_id: asset.id },
             ));
         }
     }
-    
+
     Ok(initial_gas_spend)
 }

@@ -1,4 +1,4 @@
-use crate::primitives::{Address, Bytecode, Bytes, Env, Log, B256, U256};
+use crate::primitives::{Address, Bytecode, Env, Log, B256, U256};
 
 mod dummy;
 pub use dummy::DummyHost;

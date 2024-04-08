@@ -1,7 +1,4 @@
-use super::{
-    changes::PlainStorageRevert, AccountStatus, BundleAccount, PlainStateReverts,
-    StorageWithOriginalValues,
-};
+use super::{changes::PlainStorageRevert, AccountStatus, PlainStateReverts};
 use core::ops::{Deref, DerefMut};
 use revm_interpreter::primitives::{AccountInfo, Address, HashMap, U256};
 use std::vec::Vec;
