@@ -444,7 +444,8 @@ mod test {
         inspector::inspector_handle_register,
         inspectors::NoOpInspector,
         primitives::{
-            address, AccountInfo, Address, Bytecode, Bytes, PrecompileResult, TransactTo, U256,
+            address, AccountInfo, Address, Balances, Bytecode, Bytes, PrecompileResult, TransactTo,
+            BASE_ASSET_ID, U256,
         },
         Context, ContextPrecompile, ContextStatefulPrecompile, Evm, InMemoryDB, InnerEvmContext,
     };
@@ -471,7 +472,15 @@ mod test {
         let mut evm = Evm::builder()
             .with_db(InMemoryDB::default())
             .modify_db(|db| {
-                db.insert_account_info(to_addr, AccountInfo::new(U256::ZERO, 0, code_hash, code))
+                db.insert_account_info(
+                    to_addr,
+                    AccountInfo::new(
+                        Balances::from([(BASE_ASSET_ID, U256::ZERO)]),
+                        0,
+                        code_hash,
+                        code,
+                    ),
+                )
             })
             .modify_tx_env(|tx| tx.transact_to = TransactTo::Call(to_addr))
             // we need to use handle register box to capture the custom context in the handle
@@ -523,7 +532,15 @@ mod test {
         let mut evm = Evm::builder()
             .with_db(InMemoryDB::default())
             .modify_db(|db| {
-                db.insert_account_info(to_addr, AccountInfo::new(U256::ZERO, 0, code_hash, code))
+                db.insert_account_info(
+                    to_addr,
+                    AccountInfo::new(
+                        Balances::from([(BASE_ASSET_ID, U256::ZERO)]),
+                        0,
+                        code_hash,
+                        code,
+                    ),
+                )
             })
             .modify_tx_env(|tx| tx.transact_to = TransactTo::Call(to_addr))
             .append_handler_register(|handler| {

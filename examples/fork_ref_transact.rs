@@ -76,7 +76,7 @@ async fn main() -> anyhow::Result<()> {
             // calldata formed via abigen
             tx.data = encoded.0.into();
             // transferred assets
-            evm.env.tx.transferred_assets = vec![Asset {
+            tx.transferred_assets = vec![Asset {
                 id: B256::from(BASE_ASSET_ID),
                 amount: U256::from(0),
             }];

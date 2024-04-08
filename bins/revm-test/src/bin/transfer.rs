@@ -20,7 +20,6 @@ fn main() {
                 amount: U256::from(10),
             };
             tx.transferred_assets = vec![asset];
-            tx.value = U256::from(10);
             tx.transact_to = TransactTo::Call(
                 "0x0000000000000000000000000000000000000000"
                     .parse()

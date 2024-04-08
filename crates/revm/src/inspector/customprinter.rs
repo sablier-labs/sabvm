@@ -118,7 +118,7 @@ mod test {
 
     #[test]
     fn gas_calculation_underflow() {
-        use crate::primitives::{address, bytes, init_balances, Asset, B256, BASE_ASSET_ID, U256};
+        use crate::primitives::{address, bytes, Asset, BASE_ASSET_ID};
         let callee = address!("5fdcca53617f4d2b9134b29090c87d01058e27e9");
 
         // https://github.com/bluealloy/revm/issues/277
