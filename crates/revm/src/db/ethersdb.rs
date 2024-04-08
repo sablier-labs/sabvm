@@ -88,11 +88,7 @@ impl<M: Middleware> DatabaseRef for EthersDB<M> {
         let bytecode = Bytecode::new_raw(code?.0.into());
         let code_hash = bytecode.hash_slow();
         Ok(Some(AccountInfo::new(
-            init_balances(U256::from_limbs(
-                balance
-                    .unwrap_or_else(|e| panic!("ethers get balance error: {e:?}"))
-                    .0,
-            )),
+            init_balances(balance),
             nonce,
             code_hash,
             bytecode,
