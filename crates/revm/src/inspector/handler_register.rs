@@ -34,8 +34,8 @@ impl<DB: Database, INSP: Inspector<DB>> GetInspector<DB> for INSP {
 /// A few instructions handlers are wrapped twice once for `step` and `step_end`
 /// and in case of Logs and Selfdestruct wrapper is wrapped again for the
 /// `log` and `selfdestruct` calls.
-pub fn inspector_handle_register<'a, DB: Database, EXT: GetInspector<DB>>(
-    handler: &mut EvmHandler<'a, EXT, DB>,
+pub fn inspector_handle_register<DB: Database, EXT: GetInspector<DB>>(
+    handler: &mut EvmHandler<'_, EXT, DB>,
 ) {
     // Every instruction inside flat table that is going to be wrapped by inspector calls.
     let table = handler
@@ -57,7 +57,7 @@ pub fn inspector_handle_register<'a, DB: Database, EXT: GetInspector<DB>>(
         if let Some(i) = table.get_mut(index as usize) {
             let old = core::mem::replace(i, Box::new(|_, _| ()));
             *i = Box::new(
-                move |interpreter: &mut Interpreter, host: &mut Evm<'a, EXT, DB>| {
+                move |interpreter: &mut Interpreter, host: &mut Evm<'_, EXT, DB>| {
                     let old_log_len = host.context.evm.journaled_state.logs.len();
                     old(interpreter, host);
                     // check if log was added. It is possible that revert happened

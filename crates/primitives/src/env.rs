@@ -547,7 +547,7 @@ pub struct TxEnv {
     pub data: Bytes,
     /// The nonce of the transaction.
     ///
-    /// Caution: If set to `None`, then nonce validation against the account's nonce is skipped: [InvalidTransaction::NonceTooHigh] and [InvalidTransaction::NonceTooLow]
+    /// Caution: If set to `None`, then nonce validation against the account's nonce is skipped: [InvalidTransactionReason::NonceTooHigh] and [InvalidTransactionReason::NonceTooLow]
     pub nonce: Option<u64>,
 
     /// The chain ID of the transaction. If set to `None`, no checks are performed.

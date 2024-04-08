@@ -14,7 +14,6 @@ use crate::{
     Context, FrameResult,
 };
 use core::ops::Mul;
-use std::string::ToString;
 use std::sync::Arc;
 
 pub fn optimism_handle_register<DB: Database, EXT>(handler: &mut EvmHandler<'_, EXT, DB>) {
@@ -390,7 +389,7 @@ mod tests {
         primitives::{
             bytes,
             state::{AccountInfo, Balances},
-            Address, BedrockSpec, Bytes, Env, LatestSpec, RegolithSpec, B256, BASE_ASSET_ID,
+            Address, BedrockSpec, Bytes, LatestSpec, RegolithSpec, B256, BASE_ASSET_ID,
         },
         L1BlockInfo,
     };
