@@ -1,6 +1,8 @@
 use crate::{
     db::{Database, DatabaseRef},
-    primitives::{AccountInfo, Address, Bytecode, B256, KECCAK_EMPTY, U256},
+    primitives::{
+        AccountInfo, Address, Balances, Bytecode, B256, BASE_ASSET_ID, KECCAK_EMPTY, U256,
+    },
 };
 use alloy_provider::{Network, Provider};
 use alloy_rpc_types::BlockId;
@@ -91,7 +93,7 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for AlloyD
         let nonce = nonce?;
 
         Ok(Some(AccountInfo::new(
-            balance,
+            Balances::from([(BASE_ASSET_ID, balance)]),
             nonce.to::<u64>(),
             code_hash,
             code,

@@ -8,9 +8,8 @@ use crate::{
     interpreter::{return_ok, return_revert, Gas, InstructionResult},
     optimism,
     primitives::{
-        asset_id_address, db::Database, spec_to_generic, Account, EVMError, Env, ExecutionResult,
-        HaltReason, HashMap, InvalidTransactionReason, ResultAndState, Spec, SpecId,
-        SpecId::REGOLITH, U256,
+        db::Database, spec_to_generic, Account, EVMError, Env, ExecutionResult, HaltReason,
+        HashMap, InvalidTransactionReason, ResultAndState, Spec, SpecId, SpecId::REGOLITH, U256,
     },
     Context, FrameResult,
 };
@@ -258,7 +257,9 @@ pub fn reward_beneficiary<SPEC: Spec, EXT, DB: Database>(
             ));
         };
         l1_fee_vault_account.mark_touch();
-        l1_fee_vault_account.info.balance += l1_cost;
+        l1_fee_vault_account
+            .info
+            .set_base_balance(l1_fee_vault_account.info.get_base_balance() + l1_cost);
 
         // Send the base fee of the transaction to the Base Fee Vault.
         let Ok((base_fee_vault_account, _)) = context
@@ -272,13 +273,17 @@ pub fn reward_beneficiary<SPEC: Spec, EXT, DB: Database>(
             ));
         };
         base_fee_vault_account.mark_touch();
-        base_fee_vault_account.info.balance += context
+
+        let amount_to_add = context
             .evm
             .inner
             .env
             .block
             .basefee
             .mul(U256::from(gas.spent() - gas.refunded() as u64));
+        base_fee_vault_account
+            .info
+            .set_base_balance(base_fee_vault_account.info.get_base_balance() + amount_to_add);
     }
     Ok(())
 }
@@ -335,9 +340,11 @@ pub fn end<SPEC: Spec, EXT, DB: Database>(
                         .unwrap_or_default(),
                 );
                 acc.info.nonce = acc.info.nonce.saturating_add(1);
-                acc.info.balance = acc.info.balance.saturating_add(U256::from(
-                    context.evm.inner.env().tx.optimism.mint.unwrap_or(0),
-                ));
+                acc.info
+                    .set_base_balance(acc.info.get_base_balance().saturating_add(U256::from(
+                        context.evm.inner.env().tx.optimism.mint.unwrap_or(0),
+                    )));
+
                 acc.mark_touch();
                 acc
             };
