@@ -11,7 +11,6 @@ use crate::{
 };
 use core::cmp::min;
 use revm_primitives::{Asset, BLOCK_HASH_HISTORY};
-use std::{boxed::Box, vec::Vec};
 
 /// EIP-1884: Repricing for trie-size-dependent opcodes
 pub fn selfbalance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {

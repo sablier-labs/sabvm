@@ -7,7 +7,7 @@ use crate::{
 };
 use core::cell::RefCell;
 use revm_interpreter::opcode::InstructionTables;
-use std::{boxed::Box, rc::Rc, sync::Arc, vec::Vec};
+use std::{rc::Rc, sync::Arc};
 
 /// Provides access to an `Inspector` instance.
 pub trait GetInspector<DB: Database> {

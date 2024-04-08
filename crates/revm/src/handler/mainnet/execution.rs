@@ -8,7 +8,6 @@ use crate::{
     CallFrame, Context, CreateFrame, Frame, FrameOrResult, FrameResult,
 };
 use revm_interpreter::{CallOutcome, InterpreterResult};
-use std::boxed::Box;
 
 /// Helper function called inside [`last_frame_return`]
 #[inline]

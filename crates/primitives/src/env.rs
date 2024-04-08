@@ -12,8 +12,6 @@ use core::{
     cmp::{min, Ordering},
     ops::Deref,
 };
-use std::boxed::Box;
-use std::vec::Vec;
 
 /// EVM environment configuration.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]

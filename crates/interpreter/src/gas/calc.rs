@@ -1,6 +1,5 @@
 use super::constants::*;
 use crate::primitives::{Address, Asset, SpecId, U256};
-use std::vec::Vec;
 
 /// `const` Option `?`.
 macro_rules! tri {

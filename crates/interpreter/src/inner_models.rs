@@ -1,7 +1,6 @@
 pub use crate::primitives::CreateScheme;
 use crate::primitives::{Address, Asset, Bytes, TransactTo, TxEnv};
 use core::ops::Range;
-use std::boxed::Box;
 
 /// Inputs for a call.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
