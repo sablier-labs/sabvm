@@ -87,7 +87,9 @@ impl<EXT, DB: Database> Evm<'_, EXT, DB> {
     #[inline]
     pub fn preverify_transaction(&mut self) -> Result<(), EVMError<DB::Error>> {
         self.handler.validation().env(&self.context.evm.env)?;
-        self.handler.validation().initial_tx_gas(&self.context)?;
+        self.handler
+            .validation()
+            .initial_tx_gas(&mut self.context)?;
         self.handler
             .validation()
             .tx_against_state(&mut self.context)?;
@@ -99,7 +101,10 @@ impl<EXT, DB: Database> Evm<'_, EXT, DB> {
     /// This function will not validate the transaction.
     #[inline]
     pub fn transact_preverified(&mut self) -> EVMResult<DB::Error> {
-        let initial_gas_spend = self.handler.validation().initial_tx_gas(&self.context)?;
+        let initial_gas_spend = self
+            .handler
+            .validation()
+            .initial_tx_gas(&mut self.context)?;
         let output = self.transact_preverified_inner(initial_gas_spend);
         self.handler.post_execution().end(&mut self.context, output)
     }
@@ -164,7 +169,10 @@ impl<EXT, DB: Database> Evm<'_, EXT, DB> {
     #[inline]
     pub fn transact(&mut self) -> EVMResult<DB::Error> {
         self.handler.validation().env(&self.context.evm.env)?;
-        let initial_gas_spend = self.handler.validation().initial_tx_gas(&self.context)?;
+        let initial_gas_spend = self
+            .handler
+            .validation()
+            .initial_tx_gas(&mut self.context)?;
         self.handler
             .validation()
             .tx_against_state(&mut self.context)?;

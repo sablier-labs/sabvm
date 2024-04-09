@@ -3,9 +3,10 @@ use super::{
     CacheAccount, StateBuilder, TransitionAccount, TransitionState,
 };
 use crate::db::EmptyDB;
+use crate::primitives::state::State as EVMState;
 use revm_interpreter::primitives::{
     db::{Database, DatabaseCommit},
-    hash_map, Account, AccountInfo, Address, Bytecode, HashMap, B256, BLOCK_HASH_HISTORY, U256,
+    hash_map, AccountInfo, Address, Bytecode, HashMap, B256, BLOCK_HASH_HISTORY, U256,
 };
 use std::collections::{btree_map, BTreeMap};
 
@@ -306,10 +307,18 @@ impl<DB: Database> Database for State<DB> {
             }
         }
     }
+
+    fn is_asset_id_valid(&mut self, asset_id: B256) -> Result<bool, Self::Error> {
+        self.database.is_asset_id_valid(asset_id)
+    }
+
+    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error> {
+        self.database.get_asset_ids()
+    }
 }
 
 impl<DB: Database> DatabaseCommit for State<DB> {
-    fn commit(&mut self, evm_state: HashMap<Address, Account>) {
+    fn commit(&mut self, evm_state: EVMState) {
         let transitions = self.cache.apply_evm_state(evm_state);
         self.apply_transition(transitions);
     }

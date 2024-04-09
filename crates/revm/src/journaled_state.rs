@@ -1,7 +1,7 @@
 use crate::interpreter::InstructionResult;
 use crate::primitives::{
-    db::Database, hash_map::Entry, Account, Address, Asset, Bytecode, EVMError, HashMap, HashSet,
-    Log, SpecId::*, State, StorageSlot, TransientStorage, B256, KECCAK_EMPTY, PRECOMPILE3, U256,
+    db::Database, hash_map::Entry, Account, Address, Asset, Bytecode, EVMError, HashSet, Log,
+    SpecId::*, State, StorageSlot, TransientStorage, B256, KECCAK_EMPTY, PRECOMPILE3, U256,
 };
 use core::mem;
 use revm_interpreter::primitives::SpecId;
@@ -22,8 +22,6 @@ pub struct JournaledState {
     pub depth: usize,
     /// journal with changes that happened between calls.
     pub journal: Vec<Vec<JournalEntry>>,
-    // the ids of the assets recognized by the VM
-    pub native_asset_ids: HashSet<B256>,
     /// Ethereum before EIP-161 differently defined empty and not-existing account
     /// Spec is needed for two things SpuriousDragon's `EIP-161 State clear`,
     /// and for Cancun's `EIP-6780: SELFDESTRUCT in same transaction`
@@ -51,12 +49,11 @@ impl JournaledState {
     ///
     pub fn new(spec: SpecId, warm_preloaded_addresses: HashSet<Address>) -> JournaledState {
         Self {
-            state: HashMap::new(),
+            state: State::default(),
             transient_storage: TransientStorage::default(),
             logs: Vec::new(),
             journal: vec![vec![]],
             depth: 0,
-            native_asset_ids: HashSet::new(),
             spec,
             warm_preloaded_addresses,
         }
@@ -79,7 +76,7 @@ impl JournaledState {
     /// be removed from state.
     #[inline]
     pub fn touch(&mut self, address: &Address) {
-        if let Some(account) = self.state.get_mut(address) {
+        if let Some(account) = self.state.accounts.get_mut(address) {
             Self::touch_account(self.journal.last_mut().unwrap(), address, account);
         }
     }
@@ -107,7 +104,6 @@ impl JournaledState {
             // kept, see [Self::new]
             spec: _,
             warm_preloaded_addresses: _,
-            native_asset_ids: _, // TODO: should this field be reset?
         } = self;
 
         *transient_storage = TransientStorage::default();
@@ -129,6 +125,7 @@ impl JournaledState {
     #[inline]
     pub fn account(&self, address: Address) -> &Account {
         self.state
+            .accounts
             .get(&address)
             .expect("Account expected to be loaded") // Always assume that acc is already loaded
     }
@@ -150,14 +147,14 @@ impl JournaledState {
             .unwrap()
             .push(JournalEntry::CodeChange { address });
 
-        let account = self.state.get_mut(&address).unwrap();
+        let account = self.state.accounts.get_mut(&address).unwrap();
         account.info.code_hash = code.hash_slow();
         account.info.code = Some(code);
     }
 
     #[inline]
     pub fn inc_nonce(&mut self, address: Address) -> Option<u64> {
-        let account = self.state.get_mut(&address).unwrap();
+        let account = self.state.accounts.get_mut(&address).unwrap();
         // Check if nonce is going to overflow.
         if account.info.nonce == u64::MAX {
             return None;
@@ -192,7 +189,7 @@ impl JournaledState {
             let asset_amount = asset.amount;
 
             // sub amount from
-            let from_account = self.state.get_mut(from).unwrap();
+            let from_account = self.state.accounts.get_mut(from).unwrap();
             Self::touch_account(self.journal.last_mut().unwrap(), from, from_account);
 
             let from_balance = &mut from_account.info.get_balance(asset_id);
@@ -202,7 +199,7 @@ impl JournaledState {
             *from_balance = from_balance_incr;
 
             // add amount to
-            let to_account = self.state.get_mut(to).unwrap();
+            let to_account = self.state.accounts.get_mut(to).unwrap();
             Self::touch_account(self.journal.last_mut().unwrap(), to, to_account);
             let to_balance = &mut to_account.info.get_balance(asset_id);
             let Some(to_balance_decr) = to_balance.checked_add(asset_amount) else {
@@ -252,7 +249,7 @@ impl JournaledState {
         let checkpoint = self.checkpoint();
 
         // Newly created account is present, as we just loaded it.
-        let account = self.state.get_mut(&address).unwrap();
+        let account = self.state.accounts.get_mut(&address).unwrap();
         let last_journal = self.journal.last_mut().unwrap();
 
         // New account can be created if:
@@ -296,7 +293,7 @@ impl JournaledState {
         for asset in transferred_assets {
             let asset_id = asset.id;
             let asset_amount = asset.amount;
-            let account = self.state.get_mut(&address).unwrap();
+            let account = self.state.accounts.get_mut(&address).unwrap();
 
             // Add asset amount to created account, as we already have target here.
             let Some(new_balance) = account.info.get_balance(asset_id).checked_add(asset_amount)
@@ -307,7 +304,7 @@ impl JournaledState {
             account.info.set_balance(asset_id, new_balance);
 
             // Sub asset amount from caller
-            let caller_account = self.state.get_mut(&caller).unwrap();
+            let caller_account = self.state.accounts.get_mut(&caller).unwrap();
             // Balance is already checked in `create_inner`, so it is safe to just subtract.
             caller_account.info.decrease_balance(asset_id, asset_amount);
 
@@ -334,14 +331,14 @@ impl JournaledState {
         for entry in journal_entries.into_iter().rev() {
             match entry {
                 JournalEntry::AccountLoaded { address } => {
-                    state.remove(&address);
+                    state.accounts.remove(&address);
                 }
                 JournalEntry::AccountTouched { address } => {
                     if is_spurious_dragon_enabled && address == PRECOMPILE3 {
                         continue;
                     }
                     // remove touched status
-                    state.get_mut(&address).unwrap().unmark_touch();
+                    state.accounts.get_mut(&address).unwrap().unmark_touch();
                 }
                 JournalEntry::BalanceTransfer {
                     from,
@@ -350,16 +347,16 @@ impl JournaledState {
                     asset_amount,
                 } => {
                     // we don't need to check overflow and underflow when adding and subtracting the balance.
-                    let from = state.get_mut(&from).unwrap();
+                    let from = state.accounts.get_mut(&from).unwrap();
                     from.info.increase_balance(asset_id, asset_amount);
-                    let to = state.get_mut(&to).unwrap();
+                    let to = state.accounts.get_mut(&to).unwrap();
                     to.info.decrease_balance(asset_id, asset_amount);
                 }
                 JournalEntry::NonceChange { address } => {
-                    state.get_mut(&address).unwrap().info.nonce -= 1;
+                    state.accounts.get_mut(&address).unwrap().info.nonce -= 1;
                 }
                 JournalEntry::AccountCreated { address } => {
-                    let account = &mut state.get_mut(&address).unwrap();
+                    let account = &mut state.accounts.get_mut(&address).unwrap();
                     account.unmark_created();
                     account.info.nonce = 0;
                 }
@@ -368,7 +365,7 @@ impl JournaledState {
                     key,
                     had_value,
                 } => {
-                    let storage = &mut state.get_mut(&address).unwrap().storage;
+                    let storage = &mut state.accounts.get_mut(&address).unwrap().storage;
                     if let Some(had_value) = had_value {
                         storage.get_mut(&key).unwrap().present_value = had_value;
                     } else {
@@ -390,7 +387,7 @@ impl JournaledState {
                     }
                 }
                 JournalEntry::CodeChange { address } => {
-                    let acc = state.get_mut(&address).unwrap();
+                    let acc = state.accounts.get_mut(&address).unwrap();
                     acc.info.code_hash = KECCAK_EMPTY;
                     acc.info.code = None;
                 }
@@ -399,8 +396,7 @@ impl JournaledState {
                     asset_id,
                     minted_amount,
                 } => {
-                    let minter_acc = state.get_mut(&minter).unwrap();
-                    // TODO: is there a guarantee that the assets have, actually, been minted before the tx reverted?
+                    let minter_acc = state.accounts.get_mut(&minter).unwrap();
                     minter_acc.info.decrease_balance(asset_id, minted_amount);
                 }
                 JournalEntry::AssetsBurned {
@@ -408,8 +404,11 @@ impl JournaledState {
                     asset_id,
                     burned_amount,
                 } => {
-                    let receiver = state.get_mut(&burner).unwrap();
-                    receiver.info.increase_balance(asset_id, burned_amount);
+                    let burner_acc = state.accounts.get_mut(&burner).unwrap();
+                    burner_acc.info.increase_balance(asset_id, burned_amount);
+                }
+                JournalEntry::AssetIdsLoaded { asset_ids: _ } => {
+                    state.asset_ids.clear();
                 }
             }
         }
@@ -468,7 +467,7 @@ impl JournaledState {
         db: &mut DB,
     ) -> Result<&mut Account, EVMError<DB::Error>> {
         // load or get account.
-        let account = match self.state.entry(address) {
+        let account = match self.state.accounts.entry(address) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(vac) => vac.insert(
                 db.basic(address)
@@ -487,11 +486,6 @@ impl JournaledState {
         Ok(account)
     }
 
-    #[inline]
-    pub fn is_asset_id_valid(&self, asset_id: B256) -> bool {
-        self.native_asset_ids.contains(&asset_id)
-    }
-
     /// load account into memory. return if it is cold or warm accessed
     #[inline]
     pub fn load_account<DB: Database>(
@@ -499,7 +493,7 @@ impl JournaledState {
         address: Address,
         db: &mut DB,
     ) -> Result<(&mut Account, bool), EVMError<DB::Error>> {
-        Ok(match self.state.entry(address) {
+        Ok(match self.state.accounts.entry(address) {
             Entry::Occupied(entry) => (entry.into_mut(), false),
             Entry::Vacant(vac) => {
                 let account =
@@ -521,6 +515,29 @@ impl JournaledState {
                 (vac.insert(account), is_cold)
             }
         })
+    }
+
+    /// load the native asset ids into memory. return whether the loading was cold.
+    #[inline]
+    pub fn load_native_asset_ids<DB: Database>(
+        &mut self,
+        db: &mut DB,
+    ) -> Result<bool, EVMError<DB::Error>> {
+        if !self.state.asset_ids.is_empty() {
+            Ok(false)
+        } else {
+            self.state.asset_ids = db.get_asset_ids().map_err(EVMError::Database)?;
+
+            // journal the loading of asset ids.
+            self.journal
+                .last_mut()
+                .unwrap()
+                .push(JournalEntry::AssetIdsLoaded {
+                    asset_ids: self.state.asset_ids.clone(),
+                });
+
+            Ok(true)
+        }
     }
 
     /// Load account from database to JournaledState.
@@ -581,7 +598,7 @@ impl JournaledState {
         db: &mut DB,
     ) -> Result<(U256, bool), EVMError<DB::Error>> {
         // assume acc is warm
-        let account = self.state.get_mut(&address).unwrap();
+        let account = self.state.accounts.get_mut(&address).unwrap();
         // only if account is created in this tx we can assume that storage is empty.
         let is_newly_created = account.is_created();
         let load = match account.storage.entry(key) {
@@ -627,7 +644,7 @@ impl JournaledState {
     ) -> Result<SStoreResult, EVMError<DB::Error>> {
         // assume that acc exists and load the slot.
         let (present, is_cold) = self.sload(address, key, db)?;
-        let acc = self.state.get_mut(&address).unwrap();
+        let acc = self.state.accounts.get_mut(&address).unwrap();
 
         // if there is no original value in dirty return present value, that is our original.
         let slot = acc.storage.get_mut(&key).unwrap();
@@ -726,12 +743,14 @@ impl JournaledState {
         amount: U256,
         db: &mut DB,
     ) -> bool {
-        // TODO: is loading the account really necessary?
-        if self.load_account(minter, db).is_err() {
+        if self.load_native_asset_ids(db).is_err() {
             return false;
         }
 
-        let account = self.state.get_mut(&minter).unwrap();
+        if self.load_account(minter, db).is_err() {
+            return false;
+        }
+        let account = self.state.accounts.get_mut(&minter).unwrap();
         let balance = account.info.get_balance(asset_id);
         if let Some(new_balance) = balance.checked_add(amount) {
             account.info.set_balance(asset_id, new_balance);
@@ -739,10 +758,10 @@ impl JournaledState {
             return false;
         }
 
-        // add the id of the minted asset to the collection
-
-        // TODO: shouldn't this rather be done inside the Database?
-        self.native_asset_ids.insert(asset_id);
+        // add the id of the minted asset to the collection, if it's not already there
+        if !self.state.asset_ids.contains(&asset_id) {
+            self.state.asset_ids.push(asset_id);
+        }
 
         // add journal entry of the minted assets
         self.journal
@@ -764,16 +783,17 @@ impl JournaledState {
         amount: U256,
         db: &mut DB,
     ) -> bool {
-        // TODO: is loading the account really necessary?
         if self.load_account(burner, db).is_err() {
             return false;
         }
 
-        if !self.is_asset_id_valid(asset_id) {
+        // TODO: shouldn't this be verified before this function is called?
+        let result = db.is_asset_id_valid(asset_id);
+        if result.is_err() || result.is_ok_and(|r| !r) {
             return false;
         }
 
-        let account = self.state.get_mut(&burner).unwrap();
+        let account = self.state.accounts.get_mut(&burner).unwrap();
         let balance = account.info.get_balance(asset_id);
         if let Some(new_balance) = balance.checked_sub(amount) {
             account.info.set_balance(asset_id, new_balance);
@@ -825,6 +845,10 @@ pub enum JournalEntry {
         asset_id: B256,
         minted_amount: U256,
     },
+    /// Asset ids Loaded
+    /// Action: Add the loaded asset ids to the state
+    /// Revert: Remove the loaded asset ids from the state
+    AssetIdsLoaded { asset_ids: Vec<B256> },
     /// Assets burned
     /// Action: Burn assets
     /// Revert: Refund the burned assets

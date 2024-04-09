@@ -2,8 +2,15 @@ use crate::{Address, Bytecode, HashMap, B256, BASE_ASSET_ID, KECCAK_EMPTY, U256}
 use bitflags::bitflags;
 use core::hash::{Hash, Hasher};
 
-/// EVM State is a mapping from addresses to accounts.
-pub type State = HashMap<Address, Account>;
+/// EVM State contains a mapping from addresses to accounts, as well as the collection of supported MNA ids.
+// pub type State = HashMap<Address, Account>;
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct State {
+    pub accounts: HashMap<Address, Account>,
+    // the ids of the assets recognized by the VM
+    pub asset_ids: Vec<B256>,
+}
 
 /// Structure used for EIP-1153 transient storage.
 pub type TransientStorage = HashMap<(Address, U256), U256>;

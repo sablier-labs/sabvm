@@ -37,7 +37,7 @@ pub fn validate_tx_against_state<SPEC: Spec, EXT, DB: Database>(
 
 /// Validate initial transaction gas.
 pub fn validate_initial_tx_gas<SPEC: Spec, EXT, DB: Database>(
-    context: &Context<EXT, DB>,
+    context: &mut Context<EXT, DB>,
 ) -> Result<u64, EVMError<DB::Error>> {
     let env = &context.evm.env;
     let input = &env.tx.data;
@@ -60,12 +60,8 @@ pub fn validate_initial_tx_gas<SPEC: Spec, EXT, DB: Database>(
     // Check whether all of the transferred assets are valid
     let transferred_assets = env.tx.transferred_assets.clone();
     for asset in transferred_assets {
-        if !context
-            .evm
-            .inner
-            .journaled_state
-            .is_asset_id_valid(asset.id)
-        {
+        let result = context.evm.db.is_asset_id_valid(asset.id);
+        if result.is_err() || result.is_ok_and(|r| !r) {
             return Err(EVMError::Transaction(
                 InvalidTransactionReason::InvalidAssetId { asset_id: asset.id },
             ));

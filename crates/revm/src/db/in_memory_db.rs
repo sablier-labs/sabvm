@@ -1,7 +1,8 @@
 use super::{DatabaseCommit, DatabaseRef, EmptyDB};
+use crate::primitives::state::State;
 use crate::primitives::{
-    hash_map::Entry, init_balances, Account, AccountInfo, Address, Bytecode, HashMap, Log, B256,
-    KECCAK_EMPTY, U256,
+    hash_map::Entry, init_balances, AccountInfo, Address, Bytecode, HashMap, Log, B256,
+    BASE_ASSET_ID, KECCAK_EMPTY, U256,
 };
 use crate::Database;
 use core::convert::Infallible;
@@ -22,6 +23,8 @@ pub struct CacheDB<ExtDB> {
     /// Account info where None means it is not existing. Not existing state is needed for Pre TANGERINE forks.
     /// `code` is always `None`, and bytecode can be found in `contracts`.
     pub accounts: HashMap<Address, DbAccount>,
+    // the ids of the assets recognized by the VM
+    pub asset_ids: Vec<B256>,
     /// Tracks all contracts by their code hash.
     pub contracts: HashMap<B256, Bytecode>,
     /// All logs that were committed via [DatabaseCommit::commit].
@@ -45,8 +48,10 @@ impl<ExtDB> CacheDB<ExtDB> {
         let mut contracts = HashMap::new();
         contracts.insert(KECCAK_EMPTY, Bytecode::new());
         contracts.insert(B256::ZERO, Bytecode::new());
+
         Self {
             accounts: HashMap::new(),
+            asset_ids: vec![BASE_ASSET_ID],
             contracts,
             logs: Vec::default(),
             block_hashes: HashMap::new(),
@@ -127,8 +132,8 @@ impl<ExtDB: DatabaseRef> CacheDB<ExtDB> {
 }
 
 impl<ExtDB> DatabaseCommit for CacheDB<ExtDB> {
-    fn commit(&mut self, changes: HashMap<Address, Account>) {
-        for (address, mut account) in changes {
+    fn commit(&mut self, changes: State) {
+        for (address, mut account) in changes.accounts {
             if !account.is_touched() {
                 continue;
             }
@@ -154,6 +159,8 @@ impl<ExtDB> DatabaseCommit for CacheDB<ExtDB> {
                     .map(|(key, value)| (key, value.present_value())),
             );
         }
+
+        self.asset_ids = changes.asset_ids;
     }
 }
 
@@ -236,6 +243,18 @@ impl<ExtDB: DatabaseRef> Database for CacheDB<ExtDB> {
             }
         }
     }
+
+    fn is_asset_id_valid(&mut self, asset_id: B256) -> Result<bool, Self::Error> {
+        if self.asset_ids.contains(&asset_id) {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error> {
+        Ok(self.asset_ids.clone())
+    }
 }
 
 impl<ExtDB: DatabaseRef> DatabaseRef for CacheDB<ExtDB> {
@@ -279,6 +298,14 @@ impl<ExtDB: DatabaseRef> DatabaseRef for CacheDB<ExtDB> {
             Some(entry) => Ok(*entry),
             None => self.db.block_hash_ref(number),
         }
+    }
+
+    fn is_asset_id_valid_ref(&self, asset_id: B256) -> Result<bool, Self::Error> {
+        self.db.is_asset_id_valid_ref(asset_id)
+    }
+
+    fn get_asset_ids_ref(&self) -> Result<Vec<B256>, Self::Error> {
+        self.db.get_asset_ids_ref()
     }
 }
 
@@ -397,6 +424,16 @@ impl Database for BenchmarkDB {
     // History related
     fn block_hash(&mut self, _number: U256) -> Result<B256, Self::Error> {
         Ok(B256::default())
+    }
+
+    // Check if asset id is valid
+    fn is_asset_id_valid(&mut self, _asset_id: B256) -> Result<bool, Self::Error> {
+        Ok(false)
+    }
+
+    // Get the supported asset ids
+    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error> {
+        Ok(vec![BASE_ASSET_ID])
     }
 }
 

@@ -80,6 +80,15 @@ impl<E> Database for EmptyDBTyped<E> {
     fn block_hash(&mut self, number: U256) -> Result<B256, Self::Error> {
         <Self as DatabaseRef>::block_hash_ref(self, number)
     }
+
+    #[inline]
+    fn is_asset_id_valid(&mut self, asset_id: B256) -> Result<bool, Self::Error> {
+        <Self as DatabaseRef>::is_asset_id_valid_ref(self, asset_id)
+    }
+
+    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error> {
+        <Self as DatabaseRef>::get_asset_ids_ref(self)
+    }
 }
 
 impl<E> DatabaseRef for EmptyDBTyped<E> {
@@ -103,6 +112,16 @@ impl<E> DatabaseRef for EmptyDBTyped<E> {
     #[inline]
     fn block_hash_ref(&self, number: U256) -> Result<B256, Self::Error> {
         Ok(keccak256(number.to_string().as_bytes()))
+    }
+
+    #[inline]
+    fn is_asset_id_valid_ref(&self, _asset_id: B256) -> Result<bool, Self::Error> {
+        Ok(false)
+    }
+
+    #[doc = r" Get the supported asset ids"]
+    fn get_asset_ids_ref(&self) -> Result<Vec<B256>, Self::Error> {
+        Ok(Vec::new())
     }
 }
 

@@ -13,6 +13,8 @@ use crate::{
     },
     Context, FrameResult,
 };
+
+use crate::primitives::state::State;
 use core::ops::Mul;
 use std::sync::Arc;
 
@@ -347,7 +349,10 @@ pub fn end<SPEC: Spec, EXT, DB: Database>(
                 acc.mark_touch();
                 acc
             };
-            let state = HashMap::from([(caller, account)]);
+            let state = State {
+                accounts: HashMap::from([(caller, account)]),
+                asset_ids: Vec::new(),
+            };
 
             // The gas used of a failed deposit post-regolith is the gas
             // limit of the transaction. pre-regolith, it is the gas limit

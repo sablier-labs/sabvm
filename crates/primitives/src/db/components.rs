@@ -5,9 +5,11 @@ pub mod state;
 pub use block_hash::{BlockHash, BlockHashRef};
 pub use state::{State, StateRef};
 
+use crate::state::State as EVMState;
+
 use crate::{
     db::{Database, DatabaseRef},
-    Account, AccountInfo, Address, Bytecode, HashMap, B256, U256,
+    AccountInfo, Address, Bytecode, B256, U256,
 };
 
 use super::DatabaseCommit;
@@ -48,6 +50,16 @@ impl<S: State, BH: BlockHash> Database for DatabaseComponents<S, BH> {
             .block_hash(number)
             .map_err(Self::Error::BlockHash)
     }
+
+    fn is_asset_id_valid(&mut self, asset_id: B256) -> Result<bool, Self::Error> {
+        self.state
+            .is_asset_id_valid(asset_id)
+            .map_err(Self::Error::State)
+    }
+
+    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error> {
+        self.state.get_asset_ids().map_err(Self::Error::State)
+    }
 }
 
 impl<S: StateRef, BH: BlockHashRef> DatabaseRef for DatabaseComponents<S, BH> {
@@ -74,10 +86,20 @@ impl<S: StateRef, BH: BlockHashRef> DatabaseRef for DatabaseComponents<S, BH> {
             .block_hash(number)
             .map_err(Self::Error::BlockHash)
     }
+
+    fn is_asset_id_valid_ref(&self, asset_id: B256) -> Result<bool, Self::Error> {
+        self.state
+            .is_asset_id_valid(asset_id)
+            .map_err(Self::Error::State)
+    }
+
+    fn get_asset_ids_ref(&self) -> Result<Vec<B256>, Self::Error> {
+        self.state.get_asset_ids().map_err(Self::Error::State)
+    }
 }
 
 impl<S: DatabaseCommit, BH: BlockHashRef> DatabaseCommit for DatabaseComponents<S, BH> {
-    fn commit(&mut self, changes: HashMap<Address, Account>) {
+    fn commit(&mut self, changes: EVMState) {
         self.state.commit(changes);
     }
 }

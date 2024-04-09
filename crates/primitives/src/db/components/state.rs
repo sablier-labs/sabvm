@@ -18,6 +18,12 @@ pub trait State {
 
     /// Get storage value of address at index.
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error>;
+
+    /// Check if asset id is valid
+    fn is_asset_id_valid(&mut self, asset_id: B256) -> Result<bool, Self::Error>;
+
+    /// Get the supported asset ids
+    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error>;
 }
 
 #[auto_impl(&, &mut, Box, Rc, Arc)]
@@ -32,6 +38,12 @@ pub trait StateRef {
 
     /// Get storage value of address at index.
     fn storage(&self, address: Address, index: U256) -> Result<U256, Self::Error>;
+
+    /// Check if asset id is valid
+    fn is_asset_id_valid(&self, asset_id: B256) -> Result<bool, Self::Error>;
+
+    /// Get the supported asset ids
+    fn get_asset_ids(&self) -> Result<Vec<B256>, Self::Error>;
 }
 
 impl<T> State for &T
@@ -51,6 +63,16 @@ where
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
         StateRef::storage(*self, address, index)
     }
+
+    /// Check if asset id is valid
+    fn is_asset_id_valid(&mut self, asset_id: B256) -> Result<bool, Self::Error> {
+        StateRef::is_asset_id_valid(*self, asset_id)
+    }
+
+    /// Get the supported asset ids
+    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error> {
+        StateRef::get_asset_ids(*self)
+    }
 }
 
 impl<T> State for Arc<T>
@@ -69,5 +91,13 @@ where
 
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
         self.deref().storage(address, index)
+    }
+
+    fn is_asset_id_valid(&mut self, asset_id: B256) -> Result<bool, Self::Error> {
+        self.deref().is_asset_id_valid(asset_id)
+    }
+
+    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error> {
+        self.deref().get_asset_ids()
     }
 }
