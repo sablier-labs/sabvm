@@ -456,11 +456,6 @@ impl<EXT, DB: Database> Host for Evm<'_, EXT, DB> {
         self.context.evm.journaled_state.log(log);
     }
 
-    fn is_tx_sender_eoa(&mut self) -> bool {
-        let caller = self.env().tx.caller;
-        self.code(caller).is_none()
-    }
-
     fn mint(&mut self, minter: Address, sub_id: B256, amount: U256) -> bool {
         let asset_id = asset_id_address(minter, sub_id);
 

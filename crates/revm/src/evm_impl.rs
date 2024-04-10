@@ -623,11 +623,6 @@ impl<'a, SPEC: Spec + 'static, DB: Database> Host for EVMImpl<'a, SPEC, DB> {
         self.context.code_hash(address)
     }
 
-    fn is_tx_sender_eoa(&mut self) -> bool {
-        let caller = self.env().tx.caller;
-        self.code(caller).is_none()
-    }
-
     fn sload(&mut self, address: Address, index: U256) -> Option<(U256, bool)> {
         self.context.sload(address, index)
     }
