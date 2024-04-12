@@ -33,6 +33,9 @@ pub trait Host {
 
     /// Check whether the sender of the current tx is an EOA.
     fn is_tx_sender_eoa(&mut self) -> bool {
+        // TODO: tx.caller == tx.origin => it will always be an EOA
+        // at the same time, the address actually calling the MINT
+        // opcode will always be a contract
         let caller = self.env().tx.caller;
         self.code(caller).is_none()
     }
@@ -58,10 +61,10 @@ pub trait Host {
     fn balance(&mut self, asset_id: B256, address: Address) -> Option<(U256, bool)>;
 
     /// Mint a native asset.
-    fn mint(&mut self, minter: Address, sub_id: B256, amount: U256) -> bool;
+    fn mint(&mut self, minter: Address, sub_id: U256, amount: U256) -> bool;
 
     /// Burn a native asset.
-    fn burn(&mut self, burner: Address, sub_id: B256, amount: U256) -> bool;
+    fn burn(&mut self, burner: Address, sub_id: U256, amount: U256) -> bool;
 }
 
 /// Represents the result of an `sstore` operation.

@@ -10,9 +10,10 @@ pub const KECCAK_EMPTY: B256 =
     b256!("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470");
 
 // Returns the asset ID by hashing the address and sub ID.
-pub fn asset_id_address(address: Address, sub_id: B256) -> B256 {
+pub fn asset_id_address(address: Address, sub_id: U256) -> B256 {
     let first = &address[..];
-    let second = &sub_id[..];
+    let second_bytes = B256::from(sub_id);
+    let second = &second_bytes[..];
     keccak256([first, second].concat())
 }
 

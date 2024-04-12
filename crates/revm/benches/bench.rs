@@ -82,7 +82,7 @@ fn transfer(c: &mut Criterion) {
             tx.caller = address!("0000000000000000000000000000000000000001");
             tx.transact_to = TransactTo::Call(address!("0000000000000000000000000000000000000000"));
             tx.transferred_assets = vec![Asset {
-                id: B256::from(BASE_ASSET_ID),
+                id: BASE_ASSET_ID,
                 amount: U256::from(10),
             }];
         })

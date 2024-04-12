@@ -1,6 +1,3 @@
-//! Custom print inspector, it has step level information of execution.
-//! It is a great tool if some debugging is needed.
-
 use revm_interpreter::CallOutcome;
 use revm_interpreter::CreateOutcome;
 
@@ -107,6 +104,7 @@ impl<DB: Database> Inspector<DB> for CustomPrintTracer {
 
 #[cfg(test)]
 mod test {
+    use revm_interpreter::Host;
     use revm_precompile::HashMap;
 
     use crate::{
@@ -118,7 +116,10 @@ mod test {
 
     #[test]
     fn gas_calculation_underflow() {
-        use crate::primitives::{address, bytes, Asset, BASE_ASSET_ID};
+        use crate::primitives::{
+            address, bytes, keccak256, AccountInfo, Asset, Bytecode, Bytes, TransactTo,
+            BASE_ASSET_ID, U256,
+        };
         let callee = address!("5fdcca53617f4d2b9134b29090c87d01058e27e9");
 
         // https://github.com/bluealloy/revm/issues/277
@@ -127,19 +128,19 @@ mod test {
             .with_db(InMemoryDB::default())
             .modify_db(|db| {
                 let code = bytes!("5b597fb075978b6c412c64d169d56d839a8fe01b3f4607ed603b2c78917ce8be1430fe6101e8527ffe64706ecad72a2f5c97a95e006e279dc57081902029ce96af7edae5de116fec610208527f9fc1ef09d4dd80683858ae3ea18869fe789ddc365d8d9d800e26c9872bac5e5b6102285260276102485360d461024953601661024a53600e61024b53607d61024c53600961024d53600b61024e5360b761024f5360596102505360796102515360a061025253607261025353603a6102545360fb61025553601261025653602861025753600761025853606f61025953601761025a53606161025b53606061025c5360a661025d53602b61025e53608961025f53607a61026053606461026153608c6102625360806102635360d56102645360826102655360ae61026653607f6101e8610146610220677a814b184591c555735fdcca53617f4d2b9134b29090c87d01058e27e962047654f259595947443b1b816b65cdb6277f4b59c10a36f4e7b8658f5a5e6f5561");
-                let info = crate::primitives::AccountInfo {
+                let info = AccountInfo {
                     balances: HashMap::from([(BASE_ASSET_ID, "0x100c5d668240db8e00".parse().unwrap())]),
-                    code_hash: crate::primitives::keccak256(&code),
-                    code: Some(crate::primitives::Bytecode::new_raw(code.clone())),
+                    code_hash: keccak256(&code),
+                    code: Some(Bytecode::new_raw(code.clone())),
                     nonce: 1,
                 };
                 db.insert_account_info(callee, info);
             })
             .modify_tx_env(|tx| {
                 tx.caller = address!("5fdcca53617f4d2b9134b29090c87d01058e27e0");
-                tx.transact_to = crate::primitives::TransactTo::Call(callee);
-                tx.data = crate::primitives::Bytes::new();
-                tx.transferred_assets = vec![(Asset{ id: BASE_ASSET_ID, amount: crate::primitives::U256::ZERO})];
+                tx.transact_to = TransactTo::Call(callee);
+                tx.data = Bytes::new();
+                tx.transferred_assets = vec![(Asset{ id: BASE_ASSET_ID, amount: U256::ZERO})];
             })
             .with_external_context(CustomPrintTracer::default())
             .with_spec_id(SpecId::BERLIN)
@@ -147,5 +148,63 @@ mod test {
             .build();
 
         evm.transact().expect("Transaction to work");
+    }
+
+    #[test]
+    fn transfer_base_asset() {
+        use crate::primitives::{
+            address, AccountInfo, Asset, Bytes, TransactTo, B256, BASE_ASSET_ID, U256,
+        };
+        let callee_eoa = address!("5fdcca53617f4d2b9134b29090c87d01058e27e9");
+        let caller_eoa = address!("5fdcca53617f4d2b9134b29090c87d01058e27e0");
+
+        let mut db = InMemoryDB::default();
+        let mut evm = Evm::builder()
+            .with_db(db)
+            .modify_db(|db| {
+                let callee_info = AccountInfo {
+                    balances: HashMap::from([(BASE_ASSET_ID, U256::ZERO)]),
+                    code_hash: B256::default(),
+                    code: None,
+                    nonce: 0,
+                };
+                db.insert_account_info(callee_eoa, callee_info);
+
+                let caller_info = AccountInfo {
+                    balances: HashMap::from([(BASE_ASSET_ID, U256::from(10))]),
+                    code_hash: B256::default(),
+                    code: None,
+                    nonce: 0,
+                };
+                db.insert_account_info(caller_eoa, caller_info);
+            })
+            .modify_tx_env(|tx| {
+                tx.caller = caller_eoa;
+                tx.transact_to = TransactTo::Call(callee_eoa);
+                tx.data = Bytes::new();
+                tx.transferred_assets = vec![
+                    (Asset {
+                        id: BASE_ASSET_ID,
+                        amount: U256::from(10),
+                    }),
+                ];
+            })
+            .with_external_context(CustomPrintTracer::default())
+            .with_spec_id(SpecId::BERLIN)
+            .append_handler_register(inspector_handle_register)
+            .build();
+
+        evm.transact_commit().expect("Transaction to work");
+
+        db = evm.db().clone();
+        let callee_base_balance = *db
+            .accounts
+            .get(&caller_eoa)
+            .unwrap()
+            .info
+            .balances
+            .get(&BASE_ASSET_ID)
+            .unwrap();
+        assert_eq!(callee_base_balance, U256::from(10));
     }
 }

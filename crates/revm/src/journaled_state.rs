@@ -180,6 +180,8 @@ impl JournaledState {
         assets: &Vec<Asset>,
         db: &mut DB,
     ) -> Result<Option<InstructionResult>, EVMError<DB::Error>> {
+        self.load_native_asset_ids(db)?;
+
         // load accounts
         self.load_account(*from, db)?;
         self.load_account(*to, db)?;
@@ -783,6 +785,10 @@ impl JournaledState {
         amount: U256,
         db: &mut DB,
     ) -> bool {
+        if self.load_native_asset_ids(db).is_err() {
+            return false;
+        }
+
         if self.load_account(burner, db).is_err() {
             return false;
         }
