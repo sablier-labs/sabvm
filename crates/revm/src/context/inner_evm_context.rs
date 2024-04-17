@@ -306,7 +306,12 @@ impl<DB: Database> InnerEvmContext<DB> {
         Ok(FrameOrResult::new_create_frame(
             created_address,
             checkpoint,
-            Interpreter::new(contract, gas.limit(), false),
+            Interpreter::new(
+                contract,
+                gas.limit(),
+                false,
+                self.journaled_state.state.asset_ids.clone(),
+            ),
         ))
     }
 

@@ -1,6 +1,6 @@
 use crate::{
     gas,
-    primitives::{Spec, B256, KECCAK_EMPTY, U256},
+    primitives::{Spec, B256, BASE_ASSET_ID, KECCAK_EMPTY, U256},
     Host, InstructionResult, Interpreter,
 };
 use core::ptr;
@@ -82,16 +82,32 @@ pub fn calldatasize<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut
     push!(interpreter, U256::from(interpreter.contract.input.len()));
 }
 
-pub fn callvalues<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn callvalue<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
+    gas!(interpreter, gas::BASE);
+
+    let base_asset_amount = interpreter
+        .contract
+        .call_assets
+        .iter()
+        .find(|asset| asset.id == BASE_ASSET_ID)
+        .map(|asset| asset.amount)
+        .unwrap_or(U256::ZERO);
+    push!(interpreter, base_asset_amount);
+}
+
+pub fn mna_callvalues<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     // TODO: make the gas cost proportional to the MNAs number
     gas!(interpreter, gas::BASE);
 
-    for asset in &interpreter.contract.assets {
+    for asset in &interpreter.contract.call_assets {
         push!(interpreter, asset.amount);
         push!(interpreter, asset.id.into());
     }
 
-    push!(interpreter, U256::from(interpreter.contract.assets.len()));
+    push!(
+        interpreter,
+        U256::from(interpreter.contract.call_assets.len())
+    );
 }
 
 pub fn calldatacopy<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {

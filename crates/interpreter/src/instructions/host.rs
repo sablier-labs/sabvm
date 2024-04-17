@@ -10,7 +10,7 @@ use crate::{
     SStoreResult, Transfer, MAX_INITCODE_SIZE,
 };
 use core::cmp::min;
-use revm_primitives::{Asset, BLOCK_HASH_HISTORY};
+use revm_primitives::{Asset, BASE_ASSET_ID, BLOCK_HASH_HISTORY};
 
 /// EIP-1884: Repricing for trie-size-dependent opcodes
 pub fn selfbalance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
@@ -21,8 +21,31 @@ pub fn selfbalance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, 
         return;
     };
 
-    // TODO: take MNAs into account here
     push!(interpreter, balance);
+}
+
+/// EIP-1884: Repricing for trie-size-dependent opcodes
+pub fn self_mna_balances<H: Host + ?Sized, SPEC: Spec>(
+    interpreter: &mut Interpreter,
+    host: &mut H,
+) {
+    check!(interpreter, ISTANBUL);
+    gas!(interpreter, gas::LOW);
+
+    for asset_id in interpreter.asset_ids.iter() {
+        // Get the balance of the contract for the asset_id
+        let Some((balance, _)) = host.balance(*asset_id, interpreter.contract.address) else {
+            interpreter.instruction_result = InstructionResult::FatalExternalError;
+            return;
+        };
+
+        // Push balance and asset_id to the stack
+        push!(interpreter, balance);
+        push_b256!(interpreter, *asset_id);
+    }
+
+    // Push the number of assets to the stack
+    push!(interpreter, U256::from(interpreter.asset_ids.len() as u64));
 }
 
 pub fn extcodesize<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
@@ -224,15 +247,24 @@ fn pop_transferred_assets(interpreter: &mut Interpreter, transferred_assets: &mu
     }
 }
 
-fn get_transferred_assets(interpreter: &mut Interpreter) -> Vec<Asset> {
-    let mut transferred_assets = Vec::new();
-    pop_transferred_assets(interpreter, &mut transferred_assets);
-    transferred_assets
-}
-
 pub fn create<const IS_CREATE2: bool, H: Host + ?Sized, SPEC: Spec>(
     interpreter: &mut Interpreter,
     host: &mut H,
+) {
+    create_inner::<IS_CREATE2, H, SPEC>(interpreter, host, false);
+}
+
+pub fn mna_create<const IS_CREATE2: bool, H: Host + ?Sized, SPEC: Spec>(
+    interpreter: &mut Interpreter,
+    host: &mut H,
+) {
+    create_inner::<IS_CREATE2, H, SPEC>(interpreter, host, true);
+}
+
+fn create_inner<const IS_CREATE2: bool, H: Host + ?Sized, SPEC: Spec>(
+    interpreter: &mut Interpreter,
+    host: &mut H,
+    is_mna_create: bool,
 ) {
     // Dev: deploying smart contracts is not allowed for general public
     // TODO: implement a way to allow deploying smart contracts by Sablier
@@ -246,7 +278,18 @@ pub fn create<const IS_CREATE2: bool, H: Host + ?Sized, SPEC: Spec>(
     }
 
     let mut transferred_assets = Vec::<Asset>::new();
-    pop_transferred_assets(interpreter, transferred_assets.as_mut());
+
+    if is_mna_create {
+        pop_transferred_assets(interpreter, transferred_assets.as_mut());
+    } else {
+        pop!(interpreter, value);
+        if value != U256::ZERO {
+            transferred_assets.push(Asset {
+                id: BASE_ASSET_ID,
+                amount: value,
+            });
+        }
+    }
 
     pop!(interpreter, code_offset, len);
     let len = as_usize_or_fail!(interpreter, len);
@@ -307,12 +350,37 @@ pub fn create<const IS_CREATE2: bool, H: Host + ?Sized, SPEC: Spec>(
 }
 
 pub fn call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    call_inner::<H, SPEC>(interpreter, host, false);
+}
+
+pub fn mna_call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    call_inner::<H, SPEC>(interpreter, host, true);
+}
+
+fn call_inner<H: Host + ?Sized, SPEC: Spec>(
+    interpreter: &mut Interpreter,
+    host: &mut H,
+    is_mna_call: bool,
+) {
     pop!(interpreter, local_gas_limit);
     pop_address!(interpreter, to);
     // max gas limit is not possible in real ethereum situation.
     let local_gas_limit = u64::try_from(local_gas_limit).unwrap_or(u64::MAX);
 
-    let transferred_assets = get_transferred_assets(interpreter);
+    let mut transferred_assets = Vec::<Asset>::new();
+
+    if is_mna_call {
+        pop_transferred_assets(interpreter, transferred_assets.as_mut());
+    } else {
+        pop!(interpreter, value);
+        if value != U256::ZERO {
+            transferred_assets.push(Asset {
+                id: BASE_ASSET_ID,
+                amount: value,
+            });
+        }
+    }
+
     if interpreter.is_static && !transferred_assets.is_empty() {
         interpreter.instruction_result = InstructionResult::CallNotAllowedInsideStatic;
         return;
@@ -367,12 +435,37 @@ pub fn call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &
 }
 
 pub fn call_code<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    call_code_inner::<H, SPEC>(interpreter, host, false);
+}
+
+pub fn mna_call_code<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    call_code_inner::<H, SPEC>(interpreter, host, true);
+}
+
+fn call_code_inner<H: Host + ?Sized, SPEC: Spec>(
+    interpreter: &mut Interpreter,
+    host: &mut H,
+    is_mna_call_code: bool,
+) {
     pop!(interpreter, local_gas_limit);
     pop_address!(interpreter, to);
     // max gas limit is not possible in real ethereum situation.
     let local_gas_limit = u64::try_from(local_gas_limit).unwrap_or(u64::MAX);
 
-    let transferred_assets = get_transferred_assets(interpreter);
+    let mut transferred_assets = Vec::<Asset>::new();
+
+    if is_mna_call_code {
+        pop_transferred_assets(interpreter, transferred_assets.as_mut());
+    } else {
+        pop!(interpreter, value);
+        if value != U256::ZERO {
+            transferred_assets.push(Asset {
+                id: BASE_ASSET_ID,
+                amount: value,
+            });
+        }
+    }
+
     let Some((input, return_memory_offset)) = get_memory_input_and_out_ranges(interpreter) else {
         return;
     };
@@ -457,7 +550,7 @@ pub fn delegate_call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter
                 address: interpreter.contract.address,
                 caller: interpreter.contract.caller,
                 code_address: to,
-                apparent_assets: interpreter.contract.assets.clone(),
+                apparent_assets: interpreter.contract.call_assets.clone(),
                 scheme: CallScheme::DelegateCall,
             },
             is_static: interpreter.is_static,
@@ -513,6 +606,14 @@ pub fn static_call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, 
 }
 
 pub fn balance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    pop_address!(interpreter, address);
+    push_b256!(interpreter, BASE_ASSET_ID);
+    push_b256!(interpreter, address.into_word());
+
+    mna_balance::<H, SPEC>(interpreter, host);
+}
+
+pub fn mna_balance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     pop_address!(interpreter, address);
     pop!(interpreter, asset_id);
 

@@ -216,18 +216,18 @@ opcodes! {
     // 0x2B
     // 0x2C
     // 0x2D
-    // 0x2E
-    // 0x2F
-    0x30 => ADDRESS   => system::address,
-    0x31 => BALANCE   => host::balance::<H, SPEC>,
-    0x32 => ORIGIN    => host_env::origin,
-    0x33 => CALLER    => system::caller,
-    0x34 => CALLVALUES => system::callvalues,
-    0x35 => CALLDATALOAD => system::calldataload,
-    0x36 => CALLDATASIZE => system::calldatasize,
-    0x37 => CALLDATACOPY => system::calldatacopy,
-    0x38 => CODESIZE     => system::codesize,
-    0x39 => CODECOPY     => system::codecopy,
+    0x2E => MNABALANCE    => host::mna_balance::<H, SPEC>,
+    0x2F => MNACALLVALUES => system::mna_callvalues,
+    0x30 => ADDRESS       => system::address,
+    0x31 => BALANCE       => host::balance::<H, SPEC>,
+    0x32 => ORIGIN        => host_env::origin,
+    0x33 => CALLER        => system::caller,
+    0x34 => CALLVALUE     => system::callvalue,
+    0x35 => CALLDATALOAD  => system::calldataload,
+    0x36 => CALLDATASIZE  => system::calldatasize,
+    0x37 => CALLDATACOPY  => system::calldatacopy,
+    0x38 => CODESIZE      => system::codesize,
+    0x39 => CODECOPY      => system::codecopy,
 
     0x3A => GASPRICE       => host_env::gasprice,
     0x3B => EXTCODESIZE    => host::extcodesize::<H, SPEC>,
@@ -413,15 +413,15 @@ opcodes! {
     // 0xEB
     // 0xEC
     // 0xED
-    // 0xEE
-    // 0xEF
+    0xEE => MNACALL      => host::mna_call::<H, SPEC>,
+    0xEF => MNACALLCODE  => host::mna_call_code::<H, SPEC>,
     0xF0 => CREATE       => host::create::<false, H, SPEC>,
     0xF1 => CALL         => host::call::<H, SPEC>,
     0xF2 => CALLCODE     => host::call_code::<H, SPEC>,
     0xF3 => RETURN       => control::ret,
     0xF4 => DELEGATECALL => host::delegate_call::<H, SPEC>,
     0xF5 => CREATE2      => host::create::<true, H, SPEC>,
-    // 0xF6
+    0xF6 => MNACREATE    => host::mna_create::<true, H, SPEC>,
     // 0xF7
     // 0xF8
     // 0xF9
@@ -511,7 +511,9 @@ impl OpCode {
                 | OpCode::CALLDATACOPY
                 | OpCode::RETURNDATACOPY
                 | OpCode::CALL
+                | OpCode::MNACALL
                 | OpCode::CALLCODE
+                | OpCode::MNACALLCODE
                 | OpCode::DELEGATECALL
                 | OpCode::STATICCALL
         )
@@ -652,13 +654,13 @@ const fn opcode_gas_info(opcode: u8, spec: SpecId) -> OpInfo {
         0x2B => OpInfo::none(),
         0x2C => OpInfo::none(),
         0x2D => OpInfo::none(),
-        0x2E => OpInfo::none(),
-        0x2F => OpInfo::none(),
+        MNABALANCE => OpInfo::dynamic_gas(),
+        MNACALLVALUES => OpInfo::gas(gas::BASE),
         ADDRESS => OpInfo::gas(gas::BASE),
         BALANCE => OpInfo::dynamic_gas(),
         ORIGIN => OpInfo::gas(gas::BASE),
         CALLER => OpInfo::gas(gas::BASE),
-        CALLVALUES => OpInfo::gas(gas::BASE),
+        CALLVALUE => OpInfo::gas(gas::BASE),
         CALLDATALOAD => OpInfo::gas(gas::VERYLOW),
         CALLDATASIZE => OpInfo::gas(gas::BASE),
         CALLDATACOPY => OpInfo::dynamic_gas(),
@@ -905,15 +907,15 @@ const fn opcode_gas_info(opcode: u8, spec: SpecId) -> OpInfo {
         0xEB => OpInfo::none(),
         0xEC => OpInfo::none(),
         0xED => OpInfo::none(),
-        0xEE => OpInfo::none(),
-        0xEF => OpInfo::none(),
+        MNACALL => OpInfo::gas_block_end(0),
+        MNACALLCODE => OpInfo::gas_block_end(0),
         CREATE => OpInfo::gas_block_end(0),
         CALL => OpInfo::gas_block_end(0),
         CALLCODE => OpInfo::gas_block_end(0),
         RETURN => OpInfo::gas_block_end(0),
         DELEGATECALL => OpInfo::gas_block_end(0),
         CREATE2 => OpInfo::gas_block_end(0),
-        0xF6 => OpInfo::none(),
+        MNACREATE => OpInfo::gas_block_end(0),
         0xF7 => OpInfo::none(),
         0xF8 => OpInfo::none(),
         0xF9 => OpInfo::none(),

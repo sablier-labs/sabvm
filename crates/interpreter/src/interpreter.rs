@@ -13,7 +13,7 @@ use crate::{
     CreateInputs, CreateOutcome, Gas, Host, InstructionResult,
 };
 use core::cmp::min;
-use revm_primitives::U256;
+use revm_primitives::{B256, U256};
 
 /// EVM bytecode interpreter.
 #[derive(Debug)]
@@ -47,6 +47,9 @@ pub struct Interpreter {
     /// Set inside CALL or CREATE instructions and RETURN or REVERT instructions. Additionally those instructions will set
     /// InstructionResult to CallOrCreate/Return/Revert so we know the reason.
     pub next_action: InterpreterAction,
+
+    // The ids of the assets recognized by the VM
+    pub asset_ids: Vec<B256>,
 }
 
 /// The result of an interpreter operation.
@@ -113,7 +116,7 @@ impl InterpreterAction {
 
 impl Interpreter {
     /// Create new interpreter
-    pub fn new(contract: Contract, gas_limit: u64, is_static: bool) -> Self {
+    pub fn new(contract: Contract, gas_limit: u64, is_static: bool, asset_ids: Vec<B256>) -> Self {
         Self {
             instruction_pointer: contract.bytecode.as_ptr(),
             contract,
@@ -124,6 +127,7 @@ impl Interpreter {
             shared_memory: EMPTY_SHARED_MEMORY,
             stack: Stack::new(),
             next_action: InterpreterAction::None,
+            asset_ids,
         }
     }
 
@@ -364,7 +368,7 @@ mod tests {
 
     #[test]
     fn object_safety() {
-        let mut interp = Interpreter::new(Contract::default(), u64::MAX, false);
+        let mut interp = Interpreter::new(Contract::default(), u64::MAX, false, Vec::new());
 
         let mut host = crate::DummyHost::default();
         let table: InstructionTable<DummyHost> =

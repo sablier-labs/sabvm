@@ -16,8 +16,8 @@ pub struct Contract {
     pub address: Address,
     /// Caller of the EVM.
     pub caller: Address,
-    /// Assets sent to the contract.
-    pub assets: Vec<Asset>,
+    /// Assets sent to the contract in the current call.
+    pub call_assets: Vec<Asset>,
 }
 
 impl Contract {
@@ -39,7 +39,7 @@ impl Contract {
             hash,
             address,
             caller,
-            assets,
+            call_assets: assets,
         }
     }
 

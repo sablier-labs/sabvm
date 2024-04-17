@@ -135,7 +135,7 @@ mod tests {
     #[test]
     fn test_shift_left() {
         let mut host = DummyHost::new(Env::default());
-        let mut interpreter = Interpreter::new(Contract::default(), u64::MAX, false);
+        let mut interpreter = Interpreter::new(Contract::default(), u64::MAX, false, Vec::new());
 
         struct TestCase {
             value: U256,
@@ -216,7 +216,7 @@ mod tests {
     #[test]
     fn test_logical_shift_right() {
         let mut host = DummyHost::new(Env::default());
-        let mut interpreter = Interpreter::new(Contract::default(), u64::MAX, false);
+        let mut interpreter = Interpreter::new(Contract::default(), u64::MAX, false, Vec::new());
 
         struct TestCase {
             value: U256,
@@ -297,7 +297,7 @@ mod tests {
     #[test]
     fn test_arithmetic_shift_right() {
         let mut host = DummyHost::new(Env::default());
-        let mut interpreter = Interpreter::new(Contract::default(), u64::MAX, false);
+        let mut interpreter = Interpreter::new(Contract::default(), u64::MAX, false, Vec::new());
 
         struct TestCase {
             value: U256,

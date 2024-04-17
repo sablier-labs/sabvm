@@ -5,7 +5,7 @@ use revm::{
     db::BenchmarkDB,
     interpreter::{analysis::to_analysed, BytecodeLocked, Contract, DummyHost, Interpreter},
     primitives::{
-        address, bytes, hex, Asset, BerlinSpec, Bytecode, BytecodeState, Bytes, TransactTo, B256,
+        address, bytes, hex, Asset, BerlinSpec, Bytecode, BytecodeState, Bytes, TransactTo,
         BASE_ASSET_ID, U256,
     },
     Evm,
@@ -118,7 +118,7 @@ fn bench_eval(g: &mut BenchmarkGroup<'_, WallTime>, evm: &mut Evm<'static, (), B
             // replace memory with empty memory to use it inside interpreter.
             // Later return memory back.
             let temp = core::mem::replace(&mut shared_memory, EMPTY_SHARED_MEMORY);
-            let mut interpreter = Interpreter::new(contract.clone(), u64::MAX, false);
+            let mut interpreter = Interpreter::new(contract.clone(), u64::MAX, false, Vec::new());
             let res = interpreter.run(temp, &instruction_table, &mut host);
             shared_memory = interpreter.take_memory();
             host.clear();

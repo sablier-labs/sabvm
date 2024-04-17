@@ -207,7 +207,12 @@ impl<DB: Database> EvmContext<DB> {
             Ok(FrameOrResult::new_call_frame(
                 inputs.return_memory_offset.clone(),
                 checkpoint,
-                Interpreter::new(contract, gas.limit(), inputs.is_static),
+                Interpreter::new(
+                    contract,
+                    gas.limit(),
+                    inputs.is_static,
+                    self.journaled_state.state.asset_ids.clone(),
+                ),
             ))
         } else {
             self.journaled_state.checkpoint_commit();
