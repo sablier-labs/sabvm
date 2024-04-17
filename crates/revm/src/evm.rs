@@ -456,6 +456,7 @@ impl<EXT, DB: Database> Host for Evm<'_, EXT, DB> {
         self.context.evm.journaled_state.log(log);
     }
 
+    // TODO: also return the calculated Asset Id of the minted asset?
     fn mint(&mut self, minter: Address, sub_id: U256, amount: U256) -> bool {
         let asset_id = asset_id_address(minter, sub_id);
 
