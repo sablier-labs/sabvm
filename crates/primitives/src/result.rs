@@ -1,4 +1,4 @@
-use crate::{Address, Bytes, Log, State, B256, U256};
+use crate::{Address, Bytes, Log, State, U256};
 use core::fmt;
 
 /// Result of EVM execution.
@@ -211,7 +211,7 @@ pub enum InvalidTransactionReason {
     },
     /// Transaction account doesn't have enough asset balance to cover the transferred value.
     NotEnoughAssetBalanceForTransfer {
-        asset_id: B256,
+        asset_id: U256,
         required_balance: U256,
         actual_balance: U256,
     },
@@ -235,7 +235,7 @@ pub enum InvalidTransactionReason {
     InvalidChainId,
     /// One of the asset ids in the transaction is invalid.
     InvalidAssetId {
-        asset_id: B256,
+        asset_id: U256,
     },
     /// Access list is not supported for blocks before the Berlin hardfork.
     AccessListNotSupported,

@@ -41,7 +41,7 @@ pub fn self_mna_balances<H: Host + ?Sized, SPEC: Spec>(
 
         // Push balance and asset_id to the stack
         push!(interpreter, balance);
-        push_b256!(interpreter, *asset_id);
+        push!(interpreter, *asset_id);
     }
 
     // Push the number of assets to the stack
@@ -241,7 +241,7 @@ fn pop_transferred_assets(interpreter: &mut Interpreter, transferred_assets: &mu
     for _ in 0..nr_of_transferred_assets {
         pop!(interpreter, asset_id, value);
         transferred_assets.push(Asset {
-            id: B256::from(asset_id),
+            id: asset_id,
             amount: value,
         });
     }
@@ -607,7 +607,7 @@ pub fn static_call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, 
 
 pub fn balance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     pop_address!(interpreter, address);
-    push_b256!(interpreter, BASE_ASSET_ID);
+    push!(interpreter, BASE_ASSET_ID);
     push_b256!(interpreter, address.into_word());
 
     mna_balance::<H, SPEC>(interpreter, host);
@@ -616,8 +616,6 @@ pub fn balance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host
 pub fn mna_balance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     pop_address!(interpreter, address);
     pop!(interpreter, asset_id);
-
-    let asset_id = B256::from(asset_id);
 
     let Some((balance, is_cold)) = host.balance(asset_id, address) else {
         interpreter.instruction_result = InstructionResult::FatalExternalError;

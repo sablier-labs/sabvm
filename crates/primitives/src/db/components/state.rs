@@ -20,10 +20,10 @@ pub trait State {
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error>;
 
     /// Check if asset id is valid
-    fn is_asset_id_valid(&mut self, asset_id: B256) -> Result<bool, Self::Error>;
+    fn is_asset_id_valid(&mut self, asset_id: U256) -> Result<bool, Self::Error>;
 
     /// Get the supported asset ids
-    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error>;
+    fn get_asset_ids(&mut self) -> Result<Vec<U256>, Self::Error>;
 }
 
 #[auto_impl(&, &mut, Box, Rc, Arc)]
@@ -40,10 +40,10 @@ pub trait StateRef {
     fn storage(&self, address: Address, index: U256) -> Result<U256, Self::Error>;
 
     /// Check if asset id is valid
-    fn is_asset_id_valid(&self, asset_id: B256) -> Result<bool, Self::Error>;
+    fn is_asset_id_valid(&self, asset_id: U256) -> Result<bool, Self::Error>;
 
     /// Get the supported asset ids
-    fn get_asset_ids(&self) -> Result<Vec<B256>, Self::Error>;
+    fn get_asset_ids(&self) -> Result<Vec<U256>, Self::Error>;
 }
 
 impl<T> State for &T
@@ -65,12 +65,12 @@ where
     }
 
     /// Check if asset id is valid
-    fn is_asset_id_valid(&mut self, asset_id: B256) -> Result<bool, Self::Error> {
+    fn is_asset_id_valid(&mut self, asset_id: U256) -> Result<bool, Self::Error> {
         StateRef::is_asset_id_valid(*self, asset_id)
     }
 
     /// Get the supported asset ids
-    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error> {
+    fn get_asset_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
         StateRef::get_asset_ids(*self)
     }
 }
@@ -93,11 +93,11 @@ where
         self.deref().storage(address, index)
     }
 
-    fn is_asset_id_valid(&mut self, asset_id: B256) -> Result<bool, Self::Error> {
+    fn is_asset_id_valid(&mut self, asset_id: U256) -> Result<bool, Self::Error> {
         self.deref().is_asset_id_valid(asset_id)
     }
 
-    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error> {
+    fn get_asset_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
         self.deref().get_asset_ids()
     }
 }

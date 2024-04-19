@@ -311,7 +311,7 @@ pub fn execute_test_suite(
                     .unwrap()
                     .clone();
                 let asset = Asset {
-                    id: B256::from(BASE_ASSET_ID),
+                    id: BASE_ASSET_ID,
                     amount: U256::from(unit.transaction.value[test.indexes.value]),
                 };
                 env.tx.transferred_assets = vec![asset];

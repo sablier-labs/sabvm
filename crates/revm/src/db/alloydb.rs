@@ -129,11 +129,11 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for AlloyD
         Ok(slot_val)
     }
 
-    fn is_asset_id_valid_ref(&self, _asset_id: B256) -> Result<bool, Self::Error> {
+    fn is_asset_id_valid_ref(&self, _asset_id: U256) -> Result<bool, Self::Error> {
         panic!("The MNA id collection is not relevant for EthersDB");
     }
 
-    fn get_asset_ids_ref(&self) -> Result<Vec<B256>, Self::Error> {
+    fn get_asset_ids_ref(&self) -> Result<Vec<U256>, Self::Error> {
         panic!("The MNA id collection is not relevant for EthersDB");
     }
 }
@@ -162,12 +162,12 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> Database for AlloyDB<T
     }
 
     #[inline]
-    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error> {
+    fn get_asset_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
         <Self as DatabaseRef>::get_asset_ids_ref(self)
     }
 
     #[inline]
-    fn is_asset_id_valid(&mut self, asset_id: B256) -> Result<bool, Self::Error> {
+    fn is_asset_id_valid(&mut self, asset_id: U256) -> Result<bool, Self::Error> {
         <Self as DatabaseRef>::is_asset_id_valid_ref(self, asset_id)
     }
 }

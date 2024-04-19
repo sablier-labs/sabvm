@@ -3,7 +3,7 @@ use ethers_core::abi::parse_abi;
 use ethers_providers::{Http, Provider};
 use revm::{
     db::{CacheDB, EmptyDB, EthersDB},
-    primitives::{address, Asset, ExecutionResult, Output, TransactTo, B256, BASE_ASSET_ID, U256},
+    primitives::{address, Asset, ExecutionResult, Output, TransactTo, BASE_ASSET_ID, U256},
     Database, Evm,
 };
 use std::sync::Arc;
@@ -77,7 +77,7 @@ async fn main() -> anyhow::Result<()> {
             tx.data = encoded.0.into();
             // transferred assets
             tx.transferred_assets = vec![Asset {
-                id: B256::from(BASE_ASSET_ID),
+                id: BASE_ASSET_ID,
                 amount: U256::from(0),
             }];
         })

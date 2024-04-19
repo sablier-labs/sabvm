@@ -24,7 +24,7 @@ pub struct CacheDB<ExtDB> {
     /// `code` is always `None`, and bytecode can be found in `contracts`.
     pub accounts: HashMap<Address, DbAccount>,
     // the ids of the assets recognized by the VM
-    pub asset_ids: Vec<B256>,
+    pub asset_ids: Vec<U256>,
     /// Tracks all contracts by their code hash.
     pub contracts: HashMap<B256, Bytecode>,
     /// All logs that were committed via [DatabaseCommit::commit].
@@ -244,7 +244,7 @@ impl<ExtDB: DatabaseRef> Database for CacheDB<ExtDB> {
         }
     }
 
-    fn is_asset_id_valid(&mut self, asset_id: B256) -> Result<bool, Self::Error> {
+    fn is_asset_id_valid(&mut self, asset_id: U256) -> Result<bool, Self::Error> {
         if self.asset_ids.contains(&asset_id) {
             Ok(true)
         } else {
@@ -252,7 +252,7 @@ impl<ExtDB: DatabaseRef> Database for CacheDB<ExtDB> {
         }
     }
 
-    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error> {
+    fn get_asset_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
         Ok(self.asset_ids.clone())
     }
 }
@@ -300,11 +300,11 @@ impl<ExtDB: DatabaseRef> DatabaseRef for CacheDB<ExtDB> {
         }
     }
 
-    fn is_asset_id_valid_ref(&self, asset_id: B256) -> Result<bool, Self::Error> {
+    fn is_asset_id_valid_ref(&self, asset_id: U256) -> Result<bool, Self::Error> {
         self.db.is_asset_id_valid_ref(asset_id)
     }
 
-    fn get_asset_ids_ref(&self) -> Result<Vec<B256>, Self::Error> {
+    fn get_asset_ids_ref(&self) -> Result<Vec<U256>, Self::Error> {
         self.db.get_asset_ids_ref()
     }
 }
@@ -427,12 +427,12 @@ impl Database for BenchmarkDB {
     }
 
     // Check if asset id is valid
-    fn is_asset_id_valid(&mut self, _asset_id: B256) -> Result<bool, Self::Error> {
+    fn is_asset_id_valid(&mut self, _asset_id: U256) -> Result<bool, Self::Error> {
         Ok(false)
     }
 
     // Get the supported asset ids
-    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error> {
+    fn get_asset_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
         Ok(vec![BASE_ASSET_ID])
     }
 }

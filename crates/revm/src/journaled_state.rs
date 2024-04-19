@@ -1,7 +1,7 @@
 use crate::interpreter::InstructionResult;
 use crate::primitives::{
     db::Database, hash_map::Entry, Account, Address, Asset, Bytecode, EVMError, HashSet, Log,
-    SpecId::*, State, StorageSlot, TransientStorage, B256, KECCAK_EMPTY, PRECOMPILE3, U256,
+    SpecId::*, State, StorageSlot, TransientStorage, KECCAK_EMPTY, PRECOMPILE3, U256,
 };
 use core::mem;
 use revm_interpreter::primitives::SpecId;
@@ -741,7 +741,7 @@ impl JournaledState {
     pub fn mint<DB: Database>(
         &mut self,
         minter: Address,
-        asset_id: B256,
+        asset_id: U256,
         amount: U256,
         db: &mut DB,
     ) -> bool {
@@ -781,7 +781,7 @@ impl JournaledState {
     pub fn burn<DB: Database>(
         &mut self,
         burner: Address,
-        asset_id: B256,
+        asset_id: U256,
         amount: U256,
         db: &mut DB,
     ) -> bool {
@@ -840,7 +840,7 @@ pub enum JournalEntry {
     BalanceTransfer {
         from: Address,
         to: Address,
-        asset_id: B256,
+        asset_id: U256,
         asset_amount: U256,
     },
     /// Assets minted
@@ -848,19 +848,19 @@ pub enum JournalEntry {
     /// Revert: Remove minted assets
     AssetsMinted {
         minter: Address,
-        asset_id: B256,
+        asset_id: U256,
         minted_amount: U256,
     },
     /// Asset ids Loaded
     /// Action: Add the loaded asset ids to the state
     /// Revert: Remove the loaded asset ids from the state
-    AssetIdsLoaded { asset_ids: Vec<B256> },
+    AssetIdsLoaded { asset_ids: Vec<U256> },
     /// Assets burned
     /// Action: Burn assets
     /// Revert: Refund the burned assets
     AssetsBurned {
         burner: Address,
-        asset_id: B256,
+        asset_id: U256,
         burned_amount: U256,
     },
     /// Increment nonce

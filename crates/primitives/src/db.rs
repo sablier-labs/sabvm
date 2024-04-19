@@ -27,10 +27,10 @@ pub trait Database {
     fn block_hash(&mut self, number: U256) -> Result<B256, Self::Error>;
 
     /// Get the supported asset ids
-    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error>;
+    fn get_asset_ids(&mut self) -> Result<Vec<U256>, Self::Error>;
 
     /// Check if asset id is valid
-    fn is_asset_id_valid(&mut self, asset_id: B256) -> Result<bool, Self::Error>;
+    fn is_asset_id_valid(&mut self, asset_id: U256) -> Result<bool, Self::Error>;
 }
 
 /// EVM database commit interface.
@@ -64,10 +64,10 @@ pub trait DatabaseRef {
     fn block_hash_ref(&self, number: U256) -> Result<B256, Self::Error>;
 
     /// Check if asset id is valid
-    fn is_asset_id_valid_ref(&self, asset_id: B256) -> Result<bool, Self::Error>;
+    fn is_asset_id_valid_ref(&self, asset_id: U256) -> Result<bool, Self::Error>;
 
     /// Get the supported asset ids
-    fn get_asset_ids_ref(&self) -> Result<Vec<B256>, Self::Error>;
+    fn get_asset_ids_ref(&self) -> Result<Vec<U256>, Self::Error>;
 }
 
 /// Wraps a [`DatabaseRef`] to provide a [`Database`] implementation.
@@ -105,12 +105,12 @@ impl<T: DatabaseRef> Database for WrapDatabaseRef<T> {
     }
 
     #[inline]
-    fn is_asset_id_valid(&mut self, asset_id: B256) -> Result<bool, Self::Error> {
+    fn is_asset_id_valid(&mut self, asset_id: U256) -> Result<bool, Self::Error> {
         self.0.is_asset_id_valid_ref(asset_id)
     }
 
     #[inline]
-    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error> {
+    fn get_asset_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
         self.0.get_asset_ids_ref()
     }
 }
@@ -162,12 +162,12 @@ impl<'a, E> Database for RefDBWrapper<'a, E> {
     }
 
     #[inline]
-    fn is_asset_id_valid(&mut self, asset_id: B256) -> Result<bool, Self::Error> {
+    fn is_asset_id_valid(&mut self, asset_id: U256) -> Result<bool, Self::Error> {
         self.db.is_asset_id_valid_ref(asset_id)
     }
 
     #[inline]
-    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error> {
+    fn get_asset_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
         self.db.get_asset_ids_ref()
     }
 }

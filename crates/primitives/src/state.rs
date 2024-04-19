@@ -9,7 +9,7 @@ use core::hash::{Hash, Hasher};
 pub struct State {
     pub accounts: HashMap<Address, Account>,
     // the ids of the assets recognized by the VM
-    pub asset_ids: Vec<B256>,
+    pub asset_ids: Vec<U256>,
 }
 
 /// Structure used for EIP-1153 transient storage.
@@ -172,7 +172,7 @@ impl StorageSlot {
     }
 }
 
-pub type Balances = HashMap<B256, U256>; //TODO: create a custom type w/ a suggestive name for the (B256, U256) tuple. This will make the code more readable - especially in places where the tuple members are currently accessed via `.0` and `.1`.
+pub type Balances = HashMap<U256, U256>; //TODO: create a custom type w/ a suggestive name for the (U256, U256) tuple. This will make the code more readable - especially in places where the tuple members are currently accessed via `.0` and `.1`.
 
 /// The account information.
 #[derive(Clone, Debug, Eq)]
@@ -285,14 +285,14 @@ impl AccountInfo {
     }
 
     /// Decreases the asset balance of the account, wrapping around `0` on underflow.
-    pub fn decrease_balance(&mut self, asset_id: B256, balance: U256) -> Option<U256> {
+    pub fn decrease_balance(&mut self, asset_id: U256, balance: U256) -> Option<U256> {
         let current_balance = self.get_balance(asset_id);
         self.balances
             .insert(asset_id, current_balance.wrapping_sub(balance))
     }
 
     /// Decreases the asset balance of the account, saturating at zero.
-    pub fn decrease_balance_saturating(&mut self, asset_id: B256, balance: U256) -> Option<U256> {
+    pub fn decrease_balance_saturating(&mut self, asset_id: U256, balance: U256) -> Option<U256> {
         let current_balance = self.get_balance(asset_id);
         self.balances
             .insert(asset_id, current_balance.saturating_sub(balance))
@@ -309,7 +309,7 @@ impl AccountInfo {
     }
 
     /// Returns the balance of `asset_id`, defaulting to zero if none is set.
-    pub fn get_balance(&self, asset_id: B256) -> U256 {
+    pub fn get_balance(&self, asset_id: U256) -> U256 {
         self.balances.get(&asset_id).copied().unwrap_or_default()
     }
 
@@ -319,14 +319,14 @@ impl AccountInfo {
     }
 
     /// Increases the `asset_id` balance of the account, wrapping around `U256::MAX` on overflow.
-    pub fn increase_balance(&mut self, asset_id: B256, value: U256) -> Option<U256> {
+    pub fn increase_balance(&mut self, asset_id: U256, value: U256) -> Option<U256> {
         let current_balance = self.get_balance(asset_id);
         self.balances
             .insert(asset_id, current_balance.wrapping_add(value))
     }
 
     /// Increases the `asset_id` balance of the account, saturating at `U256::MAX`.
-    pub fn increase_balance_saturating(&mut self, asset_id: B256, value: U256) -> Option<U256> {
+    pub fn increase_balance_saturating(&mut self, asset_id: U256, value: U256) -> Option<U256> {
         let current_balance = self.get_balance(asset_id);
         self.balances
             .insert(asset_id, current_balance.saturating_add(value))
@@ -342,7 +342,7 @@ impl AccountInfo {
         self.increase_balance_saturating(BASE_ASSET_ID, value)
     }
 
-    pub fn set_balance(&mut self, asset_id: B256, balance: U256) -> Option<U256> {
+    pub fn set_balance(&mut self, asset_id: U256, balance: U256) -> Option<U256> {
         self.balances.insert(asset_id, balance)
     }
 

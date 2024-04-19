@@ -155,7 +155,7 @@ impl<DB: Database> InnerEvmContext<DB> {
     pub fn balance(
         &mut self,
         address: Address,
-        asset_id: B256,
+        asset_id: U256,
     ) -> Result<(U256, bool), EVMError<DB::Error>> {
         self.journaled_state
             .load_account(address, &mut self.db)

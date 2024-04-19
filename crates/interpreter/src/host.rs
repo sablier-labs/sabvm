@@ -58,7 +58,7 @@ pub trait Host {
     fn log(&mut self, log: Log);
 
     /// Get asset balance of address and if account is cold loaded.
-    fn balance(&mut self, asset_id: B256, address: Address) -> Option<(U256, bool)>;
+    fn balance(&mut self, asset_id: U256, address: Address) -> Option<(U256, bool)>;
 
     /// Mint a native asset.
     fn mint(&mut self, minter: Address, sub_id: U256, amount: U256) -> bool;

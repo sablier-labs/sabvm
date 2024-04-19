@@ -82,11 +82,11 @@ impl<E> Database for EmptyDBTyped<E> {
     }
 
     #[inline]
-    fn is_asset_id_valid(&mut self, asset_id: B256) -> Result<bool, Self::Error> {
+    fn is_asset_id_valid(&mut self, asset_id: U256) -> Result<bool, Self::Error> {
         <Self as DatabaseRef>::is_asset_id_valid_ref(self, asset_id)
     }
 
-    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error> {
+    fn get_asset_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
         <Self as DatabaseRef>::get_asset_ids_ref(self)
     }
 }
@@ -115,12 +115,12 @@ impl<E> DatabaseRef for EmptyDBTyped<E> {
     }
 
     #[inline]
-    fn is_asset_id_valid_ref(&self, _asset_id: B256) -> Result<bool, Self::Error> {
+    fn is_asset_id_valid_ref(&self, _asset_id: U256) -> Result<bool, Self::Error> {
         Ok(false)
     }
 
     #[doc = r" Get the supported asset ids"]
-    fn get_asset_ids_ref(&self) -> Result<Vec<B256>, Self::Error> {
+    fn get_asset_ids_ref(&self) -> Result<Vec<U256>, Self::Error> {
         Ok(Vec::new())
     }
 }

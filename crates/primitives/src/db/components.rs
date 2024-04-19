@@ -51,13 +51,13 @@ impl<S: State, BH: BlockHash> Database for DatabaseComponents<S, BH> {
             .map_err(Self::Error::BlockHash)
     }
 
-    fn is_asset_id_valid(&mut self, asset_id: B256) -> Result<bool, Self::Error> {
+    fn is_asset_id_valid(&mut self, asset_id: U256) -> Result<bool, Self::Error> {
         self.state
             .is_asset_id_valid(asset_id)
             .map_err(Self::Error::State)
     }
 
-    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error> {
+    fn get_asset_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
         self.state.get_asset_ids().map_err(Self::Error::State)
     }
 }
@@ -87,13 +87,13 @@ impl<S: StateRef, BH: BlockHashRef> DatabaseRef for DatabaseComponents<S, BH> {
             .map_err(Self::Error::BlockHash)
     }
 
-    fn is_asset_id_valid_ref(&self, asset_id: B256) -> Result<bool, Self::Error> {
+    fn is_asset_id_valid_ref(&self, asset_id: U256) -> Result<bool, Self::Error> {
         self.state
             .is_asset_id_valid(asset_id)
             .map_err(Self::Error::State)
     }
 
-    fn get_asset_ids_ref(&self) -> Result<Vec<B256>, Self::Error> {
+    fn get_asset_ids_ref(&self) -> Result<Vec<U256>, Self::Error> {
         self.state.get_asset_ids().map_err(Self::Error::State)
     }
 }

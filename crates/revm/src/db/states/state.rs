@@ -106,8 +106,8 @@ impl<DB: Database> State<DB> {
     /// Drain all asset balances from given account and return those values.
     pub fn drain_balances(
         &mut self,
-        asset_ids_and_addresses: impl IntoIterator<Item = (B256, Address)>,
-    ) -> Result<Vec<(B256, u128)>, DB::Error> {
+        asset_ids_and_addresses: impl IntoIterator<Item = (U256, Address)>,
+    ) -> Result<Vec<(U256, u128)>, DB::Error> {
         // make transition and update cache state
         let mut transitions = Vec::new();
         let mut balances = Vec::new();
@@ -308,11 +308,11 @@ impl<DB: Database> Database for State<DB> {
         }
     }
 
-    fn is_asset_id_valid(&mut self, asset_id: B256) -> Result<bool, Self::Error> {
+    fn is_asset_id_valid(&mut self, asset_id: U256) -> Result<bool, Self::Error> {
         self.database.is_asset_id_valid(asset_id)
     }
 
-    fn get_asset_ids(&mut self) -> Result<Vec<B256>, Self::Error> {
+    fn get_asset_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
         self.database.get_asset_ids()
     }
 }

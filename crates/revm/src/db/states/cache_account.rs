@@ -3,7 +3,7 @@ use super::{
     StorageWithOriginalValues, TransitionAccount,
 };
 use crate::primitives::BASE_ASSET_ID;
-use revm_interpreter::primitives::{AccountInfo, B256, U256};
+use revm_interpreter::primitives::{AccountInfo, U256};
 use revm_precompile::HashMap;
 
 /// Cache account contains plain state that gets updated
@@ -191,7 +191,7 @@ impl CacheAccount {
     ///
     /// Note: to skip some edge cases we assume that additional balance is never zero.
     /// And as increment is always related to block fee/reward and withdrawals this is correct.
-    pub fn increment_balance(&mut self, asset_id: B256, value: u128) -> Option<TransitionAccount> {
+    pub fn increment_balance(&mut self, asset_id: U256, value: u128) -> Option<TransitionAccount> {
         if value == 0 {
             return None;
         }
@@ -233,7 +233,7 @@ impl CacheAccount {
     /// Drain balance of `asset_id` from account and return drained amount and transition.
     ///
     /// Used for hardfork transitions.
-    pub fn drain_balance(&mut self, asset_id: B256) -> (u128, TransitionAccount) {
+    pub fn drain_balance(&mut self, asset_id: U256) -> (u128, TransitionAccount) {
         self.account_info_change(|info| {
             let output = info.get_balance(asset_id);
             info.set_balance(asset_id, U256::ZERO);

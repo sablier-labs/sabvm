@@ -13,7 +13,7 @@ use crate::{
     CreateInputs, CreateOutcome, Gas, Host, InstructionResult,
 };
 use core::cmp::min;
-use revm_primitives::{B256, U256};
+use revm_primitives::U256;
 
 /// EVM bytecode interpreter.
 #[derive(Debug)]
@@ -49,7 +49,7 @@ pub struct Interpreter {
     pub next_action: InterpreterAction,
 
     // The ids of the assets recognized by the VM
-    pub asset_ids: Vec<B256>,
+    pub asset_ids: Vec<U256>,
 }
 
 /// The result of an interpreter operation.
@@ -116,7 +116,7 @@ impl InterpreterAction {
 
 impl Interpreter {
     /// Create new interpreter
-    pub fn new(contract: Contract, gas_limit: u64, is_static: bool, asset_ids: Vec<B256>) -> Self {
+    pub fn new(contract: Contract, gas_limit: u64, is_static: bool, asset_ids: Vec<U256>) -> Self {
         Self {
             instruction_pointer: contract.bytecode.as_ptr(),
             contract,

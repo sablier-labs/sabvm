@@ -1,4 +1,4 @@
-use crate::{Address, B256};
+use crate::{Address, U256};
 
 /// EIP-170: Contract code size limit
 /// By default limit is 0x6000 (~25kb)
@@ -34,4 +34,4 @@ pub const BLOB_GASPRICE_UPDATE_FRACTION: u64 = 3338477;
 pub const VERSIONED_HASH_VERSION_KZG: u8 = 0x01;
 
 // ID of base asset
-pub const BASE_ASSET_ID: B256 = B256::ZERO;
+pub const BASE_ASSET_ID: U256 = U256::ZERO;

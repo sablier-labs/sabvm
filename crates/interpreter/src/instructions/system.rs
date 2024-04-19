@@ -101,7 +101,7 @@ pub fn mna_callvalues<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &m
 
     for asset in &interpreter.contract.call_assets {
         push!(interpreter, asset.amount);
-        push!(interpreter, asset.id.into());
+        push!(interpreter, asset.id);
     }
 
     push!(

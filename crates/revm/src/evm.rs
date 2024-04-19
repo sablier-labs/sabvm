@@ -404,7 +404,7 @@ impl<EXT, DB: Database> Host for Evm<'_, EXT, DB> {
             .ok()
     }
 
-    fn balance(&mut self, asset_id: B256, address: Address) -> Option<(U256, bool)> {
+    fn balance(&mut self, asset_id: U256, address: Address) -> Option<(U256, bool)> {
         self.context
             .evm
             .balance(address, asset_id)

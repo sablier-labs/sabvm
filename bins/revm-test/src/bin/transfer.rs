@@ -1,6 +1,6 @@
 use revm::{
     db::BenchmarkDB,
-    primitives::{Asset, Bytecode, TransactTo, B256, BASE_ASSET_ID, U256},
+    primitives::{Asset, Bytecode, TransactTo, BASE_ASSET_ID, U256},
     Evm,
 };
 
@@ -16,7 +16,7 @@ fn main() {
                 .parse()
                 .unwrap();
             let asset = Asset {
-                id: B256::from(BASE_ASSET_ID),
+                id: BASE_ASSET_ID,
                 amount: U256::from(10),
             };
             tx.transferred_assets = vec![asset];

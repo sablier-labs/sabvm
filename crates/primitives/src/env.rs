@@ -8,10 +8,7 @@ use crate::{
     Spec, SpecId, B256, BASE_ASSET_ID, GAS_PER_BLOB, KECCAK_EMPTY, MAX_BLOB_NUMBER_PER_BLOCK,
     MAX_INITCODE_SIZE, U256, VERSIONED_HASH_VERSION_KZG,
 };
-use core::{
-    cmp::{min, Ordering},
-    ops::Deref,
-};
+use core::cmp::{min, Ordering};
 
 /// EVM environment configuration.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
@@ -192,7 +189,7 @@ impl Env {
             let slice: &[Asset] = &self.tx.transferred_assets;
 
             // Check that the submitted asset IDs are unique
-            let unique_ids: HashSet<&B256> = slice.iter().map(|asset| &asset.id).collect();
+            let unique_ids: HashSet<&U256> = slice.iter().map(|asset| &asset.id).collect();
 
             if unique_ids.len() != slice.len() {
                 return Err(InvalidTransactionReason::AssetIdsNotUnique);
@@ -273,7 +270,7 @@ impl Env {
                 .tx
                 .transferred_assets
                 .iter()
-                .filter(|asset| asset.id.deref() != BASE_ASSET_ID)
+                .filter(|asset| asset.id != BASE_ASSET_ID)
             {
                 let (asset_id, transfer_amount) = (transferred_asset.id, transferred_asset.amount);
                 let asset_balance = account.info.get_balance(asset_id);
@@ -597,7 +594,7 @@ pub struct TxEnv {
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Asset {
-    pub id: B256,
+    pub id: U256,
     pub amount: U256,
 }
 

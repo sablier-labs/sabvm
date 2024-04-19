@@ -115,7 +115,7 @@ impl Host for DummyHost {
     }
 
     #[inline]
-    fn balance(&mut self, _asset_id: B256, _address: Address) -> Option<(U256, bool)> {
+    fn balance(&mut self, _asset_id: U256, _address: Address) -> Option<(U256, bool)> {
         Some((U256::ZERO, false))
     }
 
