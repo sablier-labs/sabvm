@@ -670,3 +670,8 @@ pub fn burn<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &
 
     gas_or_fail!(interpreter, { gas::burn_cost() });
 }
+
+pub fn selfdestruct<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, _host: &mut H) {
+    // A no-op
+    interpreter.instruction_result = InstructionResult::Continue;
+}
