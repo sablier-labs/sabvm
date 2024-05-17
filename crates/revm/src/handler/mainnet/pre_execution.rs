@@ -10,15 +10,25 @@ use crate::{
         SpecId::{CANCUN, SHANGHAI},
         TransactTo, U256,
     },
-    Context, ContextPrecompiles,
+    sabvm_precompile,
+    sabvm_precompile::SabVMContextPrecompile,
+    Context, ContextPrecompile, ContextPrecompiles,
 };
 
 /// Main precompile load
 #[inline]
 pub fn load_precompiles<SPEC: Spec, DB: Database>() -> ContextPrecompiles<DB> {
-    Precompiles::new(PrecompileSpecId::from_spec_id(SPEC::SPEC_ID))
-        .clone()
-        .into()
+    let mut precompiles: ContextPrecompiles<DB> =
+        Precompiles::new(PrecompileSpecId::from_spec_id(SPEC::SPEC_ID))
+            .clone()
+            .into();
+
+    precompiles.extend([(
+        sabvm_precompile::ADDRESS,
+        ContextPrecompile::ContextStatefulMut(Box::new(SabVMContextPrecompile {})),
+    )]);
+
+    precompiles
 }
 
 /// Main load handle
