@@ -288,4 +288,68 @@ mod test {
         let expected_remaining_balance = caller_initial_balance - amount_to_burn;
         assert_eq!(caller_minted_asset_balance, expected_remaining_balance);
     }
+
+    #[test]
+    fn ask_precompile_for_mnabalance() {
+        use crate::primitives::{
+            address, AccountInfo, Bytes, TransactTo, B256, BASE_ASSET_ID, U256,
+        };
+        use crate::sabvm_precompile::ADDRESS;
+
+        let callee_eoa = ADDRESS;
+        let caller_eoa = address!("5fdcca53617f4d2b9134b29090c87d01058e27e0");
+        let caller_balance = U256::from(10);
+
+        let db = InMemoryDB::default();
+        let mut evm = Evm::builder()
+            .with_db(db)
+            .modify_db(|db| {
+                let callee_info = AccountInfo {
+                    balances: HashMap::from([(BASE_ASSET_ID, U256::ZERO)]),
+                    code_hash: B256::default(),
+                    code: None,
+                    nonce: 0,
+                };
+                db.insert_account_info(callee_eoa, callee_info);
+
+                let caller_info = AccountInfo {
+                    balances: HashMap::from([(BASE_ASSET_ID, caller_balance)]),
+                    code_hash: B256::default(),
+                    code: None,
+                    nonce: 0,
+                };
+                db.insert_account_info(caller_eoa, caller_info);
+            })
+            .modify_tx_env(|tx| {
+                tx.caller = caller_eoa;
+                tx.transact_to = TransactTo::Call(callee_eoa);
+
+                //Compose the Tx Data, as follows: the mnabalance id + address + asset_id
+                let prefix = b"0x2E";
+                let caller_eoa_bytes = caller_eoa.into_array();
+                let base_asset_id_bytes: [u8; 32] = BASE_ASSET_ID.to_be_bytes();
+
+                let mut concatenated = Vec::with_capacity(
+                    prefix.len() + caller_eoa_bytes.len() + base_asset_id_bytes.len(),
+                );
+                concatenated.extend_from_slice(prefix);
+                concatenated.extend_from_slice(&caller_eoa_bytes);
+                concatenated.extend_from_slice(&base_asset_id_bytes);
+                tx.data = Bytes::from(concatenated);
+            })
+            .with_external_context(CustomPrintTracer::default())
+            .with_spec_id(SpecId::LATEST)
+            .append_handler_register(inspector_handle_register)
+            .build();
+
+        let tx_result = evm.transact_commit();
+        assert!(tx_result.is_ok());
+
+        let execution_result = tx_result.unwrap();
+        assert!(execution_result.is_success());
+
+        let tx_output = execution_result.output().unwrap();
+        let balance = U256::from_be_bytes::<32>(tx_output.to_vec().try_into().unwrap());
+        assert_eq!(balance, caller_balance);
+    }
 }
