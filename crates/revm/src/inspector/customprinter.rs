@@ -290,7 +290,7 @@ mod test {
     }
 
     #[test]
-    fn ask_precompile_for_mnabalance() {
+    fn ask_precompile_for_balanceof() {
         use crate::primitives::{
             address, AccountInfo, Bytes, TransactTo, B256, BASE_ASSET_ID, U256,
         };
@@ -324,7 +324,7 @@ mod test {
                 tx.caller = caller_eoa;
                 tx.transact_to = TransactTo::Call(callee_eoa);
 
-                //Compose the Tx Data, as follows: the mnabalance id + address + asset_id
+                //Compose the Tx Data, as follows: the BALANCEOF id + address + asset_id
                 let prefix = b"0x2E";
                 let caller_eoa_bytes = caller_eoa.into_array();
                 let base_asset_id_bytes: [u8; 32] = BASE_ASSET_ID.to_be_bytes();

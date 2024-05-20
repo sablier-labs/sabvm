@@ -38,7 +38,7 @@ impl Env {
     /// Calculates the effective gas price of the transaction.
     #[inline]
     pub fn effective_gas_price(&self) -> U256 {
-        //TODO: this being the calculation of how much gas the tx signer is willing to pay for the tx, find the place where it's dynamically calculated how much gas the ongoing tx is consuming - and add the cost to process the MNAs there
+        //TODO: this being the calculation of how much gas the tx signer is willing to pay for the tx, find the place where it's dynamically calculated how much gas the ongoing tx is consuming - and add the cost to process the MNTs there
         if let Some(priority_fee) = self.tx.gas_priority_fee {
             min(self.tx.gas_price, self.block.basefee + priority_fee)
         } else {

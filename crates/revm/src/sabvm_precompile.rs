@@ -47,7 +47,7 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for SabVMContextPrecompile {
 
         // Handle the different opcodes
         match opcode_id {
-            // MNABALANCE
+            // BALANCEOF
             0x2E => {
                 // Extract the address from the input
                 let address = match consume_bytes_from(&mut input, 20) {

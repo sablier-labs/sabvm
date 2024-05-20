@@ -2,7 +2,7 @@ use crate::{Address, Bytecode, HashMap, B256, BASE_ASSET_ID, KECCAK_EMPTY, U256}
 use bitflags::bitflags;
 use core::hash::{Hash, Hasher};
 
-/// EVM State contains a mapping from addresses to accounts, as well as the collection of supported MNA ids.
+/// EVM State contains a mapping from addresses to accounts, as well as the collection of supported MNT ids.
 // pub type State = HashMap<Address, Account>;
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

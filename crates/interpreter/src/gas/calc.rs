@@ -350,7 +350,7 @@ pub fn burn_cost() -> Option<u64> {
 }
 
 /// Initial gas that is deducted for transaction to be included.
-/// Initial gas contains initial stipend gas, gas for access list and input data  and gas for transferred MNAs.
+/// Initial gas contains initial stipend gas, gas for access list and input data  and gas for transferred MNTs.
 pub fn validate_initial_tx_gas(
     spec_id: SpecId,
     input: &[u8],

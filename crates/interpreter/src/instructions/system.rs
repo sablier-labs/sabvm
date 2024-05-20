@@ -95,8 +95,8 @@ pub fn callvalue<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H)
     push!(interpreter, base_asset_amount);
 }
 
-pub fn mna_callvalues<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
-    // TODO: make the gas cost proportional to the MNAs number
+pub fn mnt_callvalues<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
+    // TODO: make the gas cost proportional to the MNTs number
     gas!(interpreter, gas::BASE);
 
     for asset in &interpreter.contract.call_assets {

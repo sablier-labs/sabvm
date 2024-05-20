@@ -216,8 +216,8 @@ opcodes! {
     // 0x2B
     // 0x2C
     // 0x2D
-    0x2E => MNABALANCE    => host::mna_balance::<H, SPEC>,
-    0x2F => MNACALLVALUES => system::mna_callvalues,
+    0x2E => BALANCEOF    => host::balance_of::<H, SPEC>,
+    0x2F => MNTCALLVALUES => system::mnt_callvalues,
     0x30 => ADDRESS       => system::address,
     0x31 => BALANCE       => host::balance::<H, SPEC>,
     0x32 => ORIGIN        => host_env::origin,
@@ -413,15 +413,15 @@ opcodes! {
     // 0xEB
     // 0xEC
     // 0xED
-    0xEE => MNACALL      => host::mna_call::<H, SPEC>,
-    0xEF => MNACALLCODE  => host::mna_call_code::<H, SPEC>,
+    0xEE => MNTCALL      => host::mnt_call::<H, SPEC>,
+    0xEF => MNTCALLCODE  => host::mnt_call_code::<H, SPEC>,
     0xF0 => CREATE       => host::create::<false, H, SPEC>,
     0xF1 => CALL         => host::call::<H, SPEC>,
     0xF2 => CALLCODE     => host::call_code::<H, SPEC>,
     0xF3 => RETURN       => control::ret,
     0xF4 => DELEGATECALL => host::delegate_call::<H, SPEC>,
     0xF5 => CREATE2      => host::create::<true, H, SPEC>,
-    0xF6 => MNACREATE    => host::mna_create::<true, H, SPEC>,
+    0xF6 => MNTCREATE    => host::mnt_create::<true, H, SPEC>,
     // 0xF7
     // 0xF8
     // 0xF9
@@ -512,9 +512,9 @@ impl OpCode {
                 | OpCode::CALLDATACOPY
                 | OpCode::RETURNDATACOPY
                 | OpCode::CALL
-                | OpCode::MNACALL
+                | OpCode::MNTCALL
                 | OpCode::CALLCODE
-                | OpCode::MNACALLCODE
+                | OpCode::MNTCALLCODE
                 | OpCode::DELEGATECALL
                 | OpCode::STATICCALL
         )
@@ -655,8 +655,8 @@ const fn opcode_gas_info(opcode: u8, spec: SpecId) -> OpInfo {
         0x2B => OpInfo::none(),
         0x2C => OpInfo::none(),
         0x2D => OpInfo::none(),
-        MNABALANCE => OpInfo::dynamic_gas(),
-        MNACALLVALUES => OpInfo::gas(gas::BASE),
+        BALANCEOF => OpInfo::dynamic_gas(),
+        MNTCALLVALUES => OpInfo::gas(gas::BASE),
         ADDRESS => OpInfo::gas(gas::BASE),
         BALANCE => OpInfo::dynamic_gas(),
         ORIGIN => OpInfo::gas(gas::BASE),
@@ -908,15 +908,15 @@ const fn opcode_gas_info(opcode: u8, spec: SpecId) -> OpInfo {
         0xEB => OpInfo::none(),
         0xEC => OpInfo::none(),
         0xED => OpInfo::none(),
-        MNACALL => OpInfo::gas_block_end(0),
-        MNACALLCODE => OpInfo::gas_block_end(0),
+        MNTCALL => OpInfo::gas_block_end(0),
+        MNTCALLCODE => OpInfo::gas_block_end(0),
         CREATE => OpInfo::gas_block_end(0),
         CALL => OpInfo::gas_block_end(0),
         CALLCODE => OpInfo::gas_block_end(0),
         RETURN => OpInfo::gas_block_end(0),
         DELEGATECALL => OpInfo::gas_block_end(0),
         CREATE2 => OpInfo::gas_block_end(0),
-        MNACREATE => OpInfo::gas_block_end(0),
+        MNTCREATE => OpInfo::gas_block_end(0),
         0xF7 => OpInfo::none(),
         0xF8 => OpInfo::none(),
         0xF9 => OpInfo::none(),

@@ -25,7 +25,7 @@ pub fn selfbalance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, 
 }
 
 /// EIP-1884: Repricing for trie-size-dependent opcodes
-pub fn self_mna_balances<H: Host + ?Sized, SPEC: Spec>(
+pub fn self_mnt_balances<H: Host + ?Sized, SPEC: Spec>(
     interpreter: &mut Interpreter,
     host: &mut H,
 ) {
@@ -254,7 +254,7 @@ pub fn create<const IS_CREATE2: bool, H: Host + ?Sized, SPEC: Spec>(
     create_inner::<IS_CREATE2, H, SPEC>(interpreter, host, false);
 }
 
-pub fn mna_create<const IS_CREATE2: bool, H: Host + ?Sized, SPEC: Spec>(
+pub fn mnt_create<const IS_CREATE2: bool, H: Host + ?Sized, SPEC: Spec>(
     interpreter: &mut Interpreter,
     host: &mut H,
 ) {
@@ -264,7 +264,7 @@ pub fn mna_create<const IS_CREATE2: bool, H: Host + ?Sized, SPEC: Spec>(
 fn create_inner<const IS_CREATE2: bool, H: Host + ?Sized, SPEC: Spec>(
     interpreter: &mut Interpreter,
     host: &mut H,
-    is_mna_create: bool,
+    is_mnt_create: bool,
 ) {
     // Dev: deploying smart contracts is not allowed for general public
     // TODO: implement a way to allow deploying smart contracts by Sablier
@@ -279,7 +279,7 @@ fn create_inner<const IS_CREATE2: bool, H: Host + ?Sized, SPEC: Spec>(
 
     let mut transferred_assets = Vec::<Asset>::new();
 
-    if is_mna_create {
+    if is_mnt_create {
         pop_transferred_assets(interpreter, transferred_assets.as_mut());
     } else {
         pop!(interpreter, value);
@@ -353,14 +353,14 @@ pub fn call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &
     call_inner::<H, SPEC>(interpreter, host, false);
 }
 
-pub fn mna_call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+pub fn mnt_call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     call_inner::<H, SPEC>(interpreter, host, true);
 }
 
 fn call_inner<H: Host + ?Sized, SPEC: Spec>(
     interpreter: &mut Interpreter,
     host: &mut H,
-    is_mna_call: bool,
+    is_mnt_call: bool,
 ) {
     pop!(interpreter, local_gas_limit);
     pop_address!(interpreter, to);
@@ -369,7 +369,7 @@ fn call_inner<H: Host + ?Sized, SPEC: Spec>(
 
     let mut transferred_assets = Vec::<Asset>::new();
 
-    if is_mna_call {
+    if is_mnt_call {
         pop_transferred_assets(interpreter, transferred_assets.as_mut());
     } else {
         pop!(interpreter, value);
@@ -438,14 +438,14 @@ pub fn call_code<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, ho
     call_code_inner::<H, SPEC>(interpreter, host, false);
 }
 
-pub fn mna_call_code<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+pub fn mnt_call_code<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     call_code_inner::<H, SPEC>(interpreter, host, true);
 }
 
 fn call_code_inner<H: Host + ?Sized, SPEC: Spec>(
     interpreter: &mut Interpreter,
     host: &mut H,
-    is_mna_call_code: bool,
+    is_mnt_call_code: bool,
 ) {
     pop!(interpreter, local_gas_limit);
     pop_address!(interpreter, to);
@@ -454,7 +454,7 @@ fn call_code_inner<H: Host + ?Sized, SPEC: Spec>(
 
     let mut transferred_assets = Vec::<Asset>::new();
 
-    if is_mna_call_code {
+    if is_mnt_call_code {
         pop_transferred_assets(interpreter, transferred_assets.as_mut());
     } else {
         pop!(interpreter, value);
@@ -610,10 +610,10 @@ pub fn balance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host
     push!(interpreter, BASE_ASSET_ID);
     push_b256!(interpreter, address.into_word());
 
-    mna_balance::<H, SPEC>(interpreter, host);
+    balance_of::<H, SPEC>(interpreter, host);
 }
 
-pub fn mna_balance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+pub fn balance_of<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     pop_address!(interpreter, address);
     pop!(interpreter, asset_id);
 

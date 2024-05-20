@@ -130,11 +130,11 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for AlloyD
     }
 
     fn is_asset_id_valid_ref(&self, _asset_id: U256) -> Result<bool, Self::Error> {
-        panic!("The MNA id collection is not relevant for EthersDB");
+        panic!("The MNT id collection is not relevant for EthersDB");
     }
 
     fn get_asset_ids_ref(&self) -> Result<Vec<U256>, Self::Error> {
-        panic!("The MNA id collection is not relevant for EthersDB");
+        panic!("The MNT id collection is not relevant for EthersDB");
     }
 }
 
