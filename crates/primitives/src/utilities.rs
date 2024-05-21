@@ -2,7 +2,7 @@ use crate::{
     b256, Address, Balances, B256, BASE_ASSET_ID, BLOB_GASPRICE_UPDATE_FRACTION, MIN_BLOB_GASPRICE,
     TARGET_BLOB_GAS_PER_BLOCK, U256,
 };
-pub use alloy_primitives::aliases::B160;
+pub use alloy_primitives::aliases::{B160, U160};
 pub use alloy_primitives::keccak256;
 
 /// The Keccak-256 hash of the empty string `""`.

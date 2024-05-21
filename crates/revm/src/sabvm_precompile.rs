@@ -1,6 +1,6 @@
 use crate::{
     precompile::{u64_to_address, Error, PrecompileResult},
-    primitives::{Address, Bytes, U256},
+    primitives::{Address, Bytes, U160, U256},
     ContextStatefulPrecompileMut, Database, InnerEvmContext,
 };
 
@@ -36,12 +36,13 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for SabVMContextPrecompile {
             return Err(Error::OutOfGas);
         }
 
-        // Create a local mutable  copy of the input bytes
+        // Create a local mutable copy of the input bytes
         let mut input = input.clone();
 
         // Parse the input bytes, to figure out what opcode to execute
-        let opcode_id = match consume_bytes_from(&mut input, 4) {
-            Ok(bytes) => u32::from_be_bytes(bytes.try_into().unwrap()),
+        const OPCODE_ID_LEN: usize = std::mem::size_of::<u8>();
+        let opcode_id = match consume_bytes_from(&mut input, OPCODE_ID_LEN) {
+            Ok(bytes) => u8::from_be_bytes(bytes.try_into().unwrap()),
             Err(err) => return Err(err),
         };
 
@@ -50,12 +51,15 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for SabVMContextPrecompile {
             // BALANCEOF
             0x2E => {
                 // Extract the address from the input
-                let address = match consume_bytes_from(&mut input, 20) {
-                    Ok(bytes) => Address::from_word(bytes.as_slice().try_into().unwrap()),
+                const ADDRESS_LEN: usize = U160::BYTES;
+                let address: Address = match consume_bytes_from(&mut input, ADDRESS_LEN) {
+                    Ok(bytes) => {
+                        U160::from_be_bytes::<ADDRESS_LEN>(bytes.try_into().unwrap()).into()
+                    }
                     Err(err) => return Err(err),
                 };
 
-                const ASSET_ID_LEN: usize = 32;
+                const ASSET_ID_LEN: usize = U256::BYTES;
 
                 // Extract the asset_id from the input
                 let asset_id = match consume_bytes_from(&mut input, ASSET_ID_LEN) {

@@ -294,10 +294,9 @@ mod test {
         use crate::primitives::{
             address, AccountInfo, Bytes, TransactTo, B256, BASE_ASSET_ID, U256,
         };
-        use crate::sabvm_precompile::ADDRESS;
+        use crate::sabvm_precompile::ADDRESS as SABVM_PRECOMPILE_ADDRESS;
 
-        let callee_eoa = ADDRESS;
-        let caller_eoa = address!("5fdcca53617f4d2b9134b29090c87d01058e27e0");
+        let caller = address!("5fdcca53617f4d2b9134b29090c87d01058e27e0");
         let caller_balance = U256::from(10);
 
         let db = InMemoryDB::default();
@@ -310,7 +309,7 @@ mod test {
                     code: None,
                     nonce: 0,
                 };
-                db.insert_account_info(callee_eoa, callee_info);
+                db.insert_account_info(SABVM_PRECOMPILE_ADDRESS, callee_info);
 
                 let caller_info = AccountInfo {
                     balances: HashMap::from([(BASE_ASSET_ID, caller_balance)]),
@@ -318,23 +317,17 @@ mod test {
                     code: None,
                     nonce: 0,
                 };
-                db.insert_account_info(caller_eoa, caller_info);
+                db.insert_account_info(caller, caller_info);
             })
             .modify_tx_env(|tx| {
-                tx.caller = caller_eoa;
-                tx.transact_to = TransactTo::Call(callee_eoa);
+                tx.caller = caller;
+                tx.transact_to = TransactTo::Call(SABVM_PRECOMPILE_ADDRESS);
 
                 //Compose the Tx Data, as follows: the BALANCEOF id + address + asset_id
-                let prefix = b"0x2E";
-                let caller_eoa_bytes = caller_eoa.into_array();
-                let base_asset_id_bytes: [u8; 32] = BASE_ASSET_ID.to_be_bytes();
-
-                let mut concatenated = Vec::with_capacity(
-                    prefix.len() + caller_eoa_bytes.len() + base_asset_id_bytes.len(),
-                );
-                concatenated.extend_from_slice(prefix);
-                concatenated.extend_from_slice(&caller_eoa_bytes);
-                concatenated.extend_from_slice(&base_asset_id_bytes);
+                const BALANCEOF_ID: u8 = 0x2E;
+                let mut concatenated = vec![BALANCEOF_ID];
+                concatenated.append(caller.to_vec().as_mut());
+                concatenated.append(BASE_ASSET_ID.to_be_bytes_vec().as_mut());
                 tx.data = Bytes::from(concatenated);
             })
             .with_external_context(CustomPrintTracer::default())
