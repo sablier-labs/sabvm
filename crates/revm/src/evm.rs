@@ -6,9 +6,9 @@ use crate::{
         opcode::InstructionTables, Host, Interpreter, InterpreterAction, SStoreResult, SharedMemory,
     },
     primitives::{
-        asset_id_address, specification::SpecId, Address, BlockEnv, Bytecode, CfgEnv, EVMError,
-        EVMResult, Env, EnvWithHandlerCfg, ExecutionResult, HandlerCfg, Log, ResultAndState,
-        TransactTo, TxEnv, B256, U256,
+        specification::SpecId, Address, BlockEnv, Bytecode, CfgEnv, EVMError, EVMResult, Env,
+        EnvWithHandlerCfg, ExecutionResult, HandlerCfg, Log, ResultAndState, TransactTo, TxEnv,
+        B256, U256,
     },
     Context, ContextWithHandlerCfg, Frame, FrameOrResult, FrameResult,
 };
@@ -456,17 +456,14 @@ impl<EXT, DB: Database> Host for Evm<'_, EXT, DB> {
         self.context.evm.journaled_state.log(log);
     }
 
-    // TODO: also return the calculated Asset Id of the minted asset?
     fn mint(&mut self, minter: Address, sub_id: U256, amount: U256) -> bool {
         if amount == U256::ZERO {
             return false;
         }
 
-        let asset_id = asset_id_address(minter, sub_id);
-
         self.context.evm.inner.journaled_state.mint(
             minter,
-            asset_id,
+            sub_id,
             amount,
             &mut self.context.evm.inner.db,
         )
@@ -477,11 +474,9 @@ impl<EXT, DB: Database> Host for Evm<'_, EXT, DB> {
             return false;
         }
 
-        let asset_id = asset_id_address(burner, sub_id);
-
         self.context.evm.inner.journaled_state.burn(
             burner,
-            asset_id,
+            sub_id,
             amount,
             &mut self.context.evm.inner.db,
         )

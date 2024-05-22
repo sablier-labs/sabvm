@@ -1,7 +1,7 @@
 use crate::interpreter::InstructionResult;
 use crate::primitives::{
-    db::Database, hash_map::Entry, Account, Address, Asset, Bytecode, EVMError, HashSet, Log,
-    SpecId::*, State, StorageSlot, TransientStorage, KECCAK_EMPTY, PRECOMPILE3, U256,
+    asset_id_address, db::Database, hash_map::Entry, Account, Address, Asset, Bytecode, EVMError,
+    HashSet, Log, SpecId::*, State, StorageSlot, TransientStorage, KECCAK_EMPTY, PRECOMPILE3, U256,
 };
 use core::mem;
 use revm_interpreter::primitives::SpecId;
@@ -741,7 +741,7 @@ impl JournaledState {
     pub fn mint<DB: Database>(
         &mut self,
         minter: Address,
-        asset_id: U256,
+        sub_id: U256,
         amount: U256,
         db: &mut DB,
     ) -> bool {
@@ -752,6 +752,7 @@ impl JournaledState {
         if self.load_account(minter, db).is_err() {
             return false;
         }
+        let asset_id = asset_id_address(minter, sub_id);
         let account = self.state.accounts.get_mut(&minter).unwrap();
         let balance = account.info.get_balance(asset_id);
         if let Some(new_balance) = balance.checked_add(amount) {
@@ -771,7 +772,7 @@ impl JournaledState {
             .unwrap()
             .push(JournalEntry::AssetsMinted {
                 minter,
-                asset_id,
+                asset_id: asset_id,
                 minted_amount: amount,
             });
 
@@ -781,7 +782,7 @@ impl JournaledState {
     pub fn burn<DB: Database>(
         &mut self,
         burner: Address,
-        asset_id: U256,
+        sub_id: U256,
         amount: U256,
         db: &mut DB,
     ) -> bool {
@@ -793,12 +794,13 @@ impl JournaledState {
             return false;
         }
 
+        let asset_id = asset_id_address(burner, sub_id);
+
         // TODO: shouldn't this be verified before this function is called?
         let result = db.is_asset_id_valid(asset_id);
         if result.is_err() || result.is_ok_and(|r| !r) {
             return false;
         }
-
         let account = self.state.accounts.get_mut(&burner).unwrap();
         let balance = account.info.get_balance(asset_id);
         if let Some(new_balance) = balance.checked_sub(amount) {
