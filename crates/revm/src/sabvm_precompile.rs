@@ -24,6 +24,24 @@ fn consume_bytes_from(input: &mut Bytes, no_bytes: usize) -> Result<Vec<u8>, Err
     Ok(input.split_to(no_bytes).to_vec())
 }
 
+fn consume_u8(input: &mut Bytes) -> Result<u8, Error> {
+    const U8_LEN: usize = std::mem::size_of::<u8>();
+    let bytes = consume_bytes_from(input, U8_LEN)?;
+    Ok(u8::from_be_bytes(bytes.try_into().unwrap()))
+}
+
+fn consume_u256_from(input: &mut Bytes) -> Result<U256, Error> {
+    const U256_LEN: usize = U256::BYTES;
+    let bytes = consume_bytes_from(input, U256_LEN)?;
+    Ok(U256::from_be_bytes::<U256_LEN>(bytes.try_into().unwrap()))
+}
+
+fn consume_address_from(input: &mut Bytes) -> Result<Address, Error> {
+    const ADDRESS_LEN: usize = U160::BYTES;
+    let bytes = consume_bytes_from(input, ADDRESS_LEN)?;
+    Ok(U160::from_be_bytes::<ADDRESS_LEN>(bytes.try_into().unwrap()).into())
+}
+
 impl<DB: Database> ContextStatefulPrecompileMut<DB> for SabVMContextPrecompile {
     fn call_mut(
         &mut self,
@@ -40,35 +58,24 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for SabVMContextPrecompile {
         let mut input = input.clone();
 
         // Parse the input bytes, to figure out what opcode to execute
-        const OPCODE_ID_LEN: usize = std::mem::size_of::<u8>();
-        let opcode_id = match consume_bytes_from(&mut input, OPCODE_ID_LEN) {
-            Ok(bytes) => u8::from_be_bytes(bytes.try_into().unwrap()),
-            Err(err) => return Err(err),
-        };
+        let opcode_id = consume_u8(&mut input)?;
+
+        // TODO: instead of opcode ids, operate based on function selectors from the INativeTokens interface
 
         // Handle the different opcodes
         match opcode_id {
             // BALANCEOF
             0x2E => {
                 // Extract the address from the input
-                const ADDRESS_LEN: usize = U160::BYTES;
-                let address: Address = match consume_bytes_from(&mut input, ADDRESS_LEN) {
-                    Ok(bytes) => {
-                        U160::from_be_bytes::<ADDRESS_LEN>(bytes.try_into().unwrap()).into()
-                    }
-                    Err(err) => return Err(err),
-                };
-
-                const ASSET_ID_LEN: usize = U256::BYTES;
+                let address = consume_address_from(&mut input)?;
 
                 // Extract the asset_id from the input
-                let asset_id = match consume_bytes_from(&mut input, ASSET_ID_LEN) {
-                    Ok(bytes) => U256::from_be_bytes::<ASSET_ID_LEN>(bytes.try_into().unwrap()),
-                    Err(err) => return Err(err),
-                };
+                let asset_id = consume_u256_from(&mut input)?;
 
                 match evmctx.balance(address, asset_id) {
-                    Ok(balance) => Ok((gas_used, balance.0.to_be_bytes::<ASSET_ID_LEN>().into())),
+                    Ok(balance) => {
+                        Ok((gas_used, balance.0.to_be_bytes::<{ U256::BYTES }>().into()))
+                    }
                     Err(_) => Err(Error::SabVMInvalidInput),
                 }
             }
@@ -76,18 +83,10 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for SabVMContextPrecompile {
             // MINT
             0xC0 => {
                 // Extract the sub_id from the input
-                const SUB_ID_LEN: usize = U256::BYTES;
-                let sub_id = match consume_bytes_from(&mut input, SUB_ID_LEN) {
-                    Ok(bytes) => U256::from_be_bytes::<SUB_ID_LEN>(bytes.try_into().unwrap()),
-                    Err(err) => return Err(err),
-                };
+                let sub_id = consume_u256_from(&mut input)?;
 
                 // Extract the amount from the input
-                const AMOUNT_LEN: usize = U256::BYTES;
-                let amount = match consume_bytes_from(&mut input, AMOUNT_LEN) {
-                    Ok(bytes) => U256::from_be_bytes::<AMOUNT_LEN>(bytes.try_into().unwrap()),
-                    Err(err) => return Err(err),
-                };
+                let amount = consume_u256_from(&mut input)?;
 
                 let minter = evmctx.env().tx.caller;
                 if evmctx
