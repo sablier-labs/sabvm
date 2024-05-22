@@ -73,6 +73,33 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for SabVMContextPrecompile {
                 }
             }
 
+            // MINT
+            0xC0 => {
+                // Extract the sub_id from the input
+                const SUB_ID_LEN: usize = U256::BYTES;
+                let sub_id = match consume_bytes_from(&mut input, SUB_ID_LEN) {
+                    Ok(bytes) => U256::from_be_bytes::<SUB_ID_LEN>(bytes.try_into().unwrap()),
+                    Err(err) => return Err(err),
+                };
+
+                // Extract the amount from the input
+                const AMOUNT_LEN: usize = U256::BYTES;
+                let amount = match consume_bytes_from(&mut input, AMOUNT_LEN) {
+                    Ok(bytes) => U256::from_be_bytes::<AMOUNT_LEN>(bytes.try_into().unwrap()),
+                    Err(err) => return Err(err),
+                };
+
+                let minter = evmctx.env().tx.caller;
+                if evmctx
+                    .journaled_state
+                    .mint(minter, sub_id, amount, &mut evmctx.db)
+                {
+                    Ok((gas_used, Bytes::new()))
+                } else {
+                    Err(Error::Other(String::from("Mint failed")))
+                }
+            }
+
             _ => Err(Error::SabVMInvalidInput),
         }
     }
