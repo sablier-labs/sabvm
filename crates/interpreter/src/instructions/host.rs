@@ -645,8 +645,9 @@ pub fn mint<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &
         return;
     }
 
+    pop_address!(interpreter, recipient);
     pop!(interpreter, sub_id, amount);
-    if !host.mint(interpreter.contract.address, sub_id, amount) {
+    if !host.mint(interpreter.contract.address, recipient, sub_id, amount) {
         interpreter.instruction_result = InstructionResult::FatalExternalError;
         return;
     };

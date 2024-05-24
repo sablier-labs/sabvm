@@ -82,6 +82,9 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for SabVMContextPrecompile {
 
             // MINT
             0xC0 => {
+                // Extract the recipient's address from the input
+                let recipient = consume_address_from(&mut input)?;
+
                 // Extract the sub_id from the input
                 let sub_id = consume_u256_from(&mut input)?;
 
@@ -91,7 +94,7 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for SabVMContextPrecompile {
                 let minter = evmctx.env().tx.caller;
                 if evmctx
                     .journaled_state
-                    .mint(minter, sub_id, amount, &mut evmctx.db)
+                    .mint(minter, recipient, sub_id, amount, &mut evmctx.db)
                 {
                     Ok((gas_used, Bytes::new()))
                 } else {

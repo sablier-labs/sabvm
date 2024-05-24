@@ -456,13 +456,16 @@ impl<EXT, DB: Database> Host for Evm<'_, EXT, DB> {
         self.context.evm.journaled_state.log(log);
     }
 
-    fn mint(&mut self, minter: Address, sub_id: U256, amount: U256) -> bool {
+    fn mint(&mut self, minter: Address, recipient: Address, sub_id: U256, amount: U256) -> bool {
+        // TODO: also return the calculated Asset Id from this function
+
         if amount == U256::ZERO {
             return false;
         }
 
         self.context.evm.inner.journaled_state.mint(
             minter,
+            recipient,
             sub_id,
             amount,
             &mut self.context.evm.inner.db,

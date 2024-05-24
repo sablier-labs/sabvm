@@ -61,7 +61,7 @@ pub trait Host {
     fn balance(&mut self, asset_id: U256, address: Address) -> Option<(U256, bool)>;
 
     /// Mint a native asset.
-    fn mint(&mut self, minter: Address, sub_id: U256, amount: U256) -> bool;
+    fn mint(&mut self, minter: Address, recipient: Address, sub_id: U256, amount: U256) -> bool;
 
     /// Burn a native asset.
     fn burn(&mut self, burner: Address, sub_id: U256, amount: U256) -> bool;

@@ -394,11 +394,12 @@ impl JournaledState {
                     acc.info.code = None;
                 }
                 JournalEntry::AssetsMinted {
-                    minter,
+                    minter: _,
+                    recipient,
                     asset_id,
                     minted_amount,
                 } => {
-                    let minter_acc = state.accounts.get_mut(&minter).unwrap();
+                    let minter_acc = state.accounts.get_mut(&recipient).unwrap();
                     minter_acc.info.decrease_balance(asset_id, minted_amount);
                 }
                 JournalEntry::AssetsBurned {
@@ -741,6 +742,7 @@ impl JournaledState {
     pub fn mint<DB: Database>(
         &mut self,
         minter: Address,
+        recipient: Address,
         sub_id: U256,
         amount: U256,
         db: &mut DB,
@@ -753,7 +755,7 @@ impl JournaledState {
             return false;
         }
         let asset_id = asset_id_address(minter, sub_id);
-        let account = self.state.accounts.get_mut(&minter).unwrap();
+        let account = self.state.accounts.get_mut(&recipient).unwrap();
         let balance = account.info.get_balance(asset_id);
         if let Some(new_balance) = balance.checked_add(amount) {
             account.info.set_balance(asset_id, new_balance);
@@ -772,7 +774,8 @@ impl JournaledState {
             .unwrap()
             .push(JournalEntry::AssetsMinted {
                 minter,
-                asset_id: asset_id,
+                recipient,
+                asset_id,
                 minted_amount: amount,
             });
 
@@ -850,6 +853,7 @@ pub enum JournalEntry {
     /// Revert: Remove minted assets
     AssetsMinted {
         minter: Address,
+        recipient: Address,
         asset_id: U256,
         minted_amount: U256,
     },

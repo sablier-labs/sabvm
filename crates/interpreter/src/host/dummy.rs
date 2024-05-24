@@ -120,7 +120,13 @@ impl Host for DummyHost {
     }
 
     #[inline]
-    fn mint(&mut self, _minter: Address, _sub_id: U256, _amount: U256) -> bool {
+    fn mint(
+        &mut self,
+        _minter: Address,
+        _recipient: Address,
+        _sub_id: U256,
+        _amount: U256,
+    ) -> bool {
         panic!("Mint is not supported for this host")
     }
 

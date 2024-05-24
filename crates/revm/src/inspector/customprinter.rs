@@ -232,7 +232,7 @@ mod test {
         // Test the minting of a native asset
         let sub_id = U256::from(2);
         let amount_to_mint = U256::from(1000);
-        assert!(evm.mint(caller_contract, sub_id, amount_to_mint));
+        assert!(evm.mint(caller_contract, caller_contract, sub_id, amount_to_mint));
 
         let minted_asset_id = asset_id_address(caller_contract, sub_id);
 
