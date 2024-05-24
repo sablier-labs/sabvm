@@ -121,6 +121,23 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for SabVMContextPrecompile {
                 }
             }
 
+            // MNTCALLVALUES
+            0x2F => {
+                let mut call_values: Vec<u8> = evmctx
+                    .env
+                    .tx
+                    .transferred_assets
+                    .len()
+                    .to_be_bytes()
+                    .to_vec();
+                for asset in evmctx.env.tx.transferred_assets.iter() {
+                    call_values.append(asset.id.to_be_bytes_vec().as_mut());
+                    call_values.append(asset.amount.to_be_bytes_vec().as_mut());
+                }
+
+                Ok((gas_used, Bytes::from(call_values)))
+            }
+
             _ => Err(Error::SabVMInvalidInput),
         }
     }
