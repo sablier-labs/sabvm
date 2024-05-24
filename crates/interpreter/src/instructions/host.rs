@@ -1,46 +1,54 @@
+mod call_helpers;
+
+pub use call_helpers::{calc_call_gas, get_memory_input_and_out_ranges};
+
 use crate::{
     gas::{self, COLD_ACCOUNT_ACCESS_COST, WARM_STORAGE_READ_COST},
     interpreter::{Interpreter, InterpreterAction},
-    primitives::{Address, Bytes, Spec, SpecId::*, B256, U256},
+    primitives::{Bytes, Log, LogData, Spec, SpecId::*, B256, U256},
     CallContext, CallInputs, CallScheme, CreateInputs, CreateScheme, Host, InstructionResult,
-    Transfer, MAX_INITCODE_SIZE,
+    SStoreResult, Transfer, MAX_INITCODE_SIZE,
 };
-use alloc::{boxed::Box, vec::Vec};
 use core::cmp::min;
-use revm_primitives::BLOCK_HASH_HISTORY;
+use revm_primitives::{Asset, BASE_ASSET_ID, BLOCK_HASH_HISTORY};
 
-pub fn balance<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
-    pop_address!(interpreter, address);
-    let Some((balance, is_cold)) = host.balance(address) else {
+/// EIP-1884: Repricing for trie-size-dependent opcodes
+pub fn selfbalance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    check!(interpreter, ISTANBUL);
+    gas!(interpreter, gas::LOW);
+    let Some((balance, _)) = host.base_balance(interpreter.contract.address) else {
         interpreter.instruction_result = InstructionResult::FatalExternalError;
         return;
     };
-    gas!(
-        interpreter,
-        if SPEC::enabled(ISTANBUL) {
-            // EIP-1884: Repricing for trie-size-dependent opcodes
-            gas::account_access_gas::<SPEC>(is_cold)
-        } else if SPEC::enabled(TANGERINE) {
-            400
-        } else {
-            20
-        }
-    );
+
     push!(interpreter, balance);
 }
 
 /// EIP-1884: Repricing for trie-size-dependent opcodes
-pub fn selfbalance<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+pub fn self_mnt_balances<H: Host + ?Sized, SPEC: Spec>(
+    interpreter: &mut Interpreter,
+    host: &mut H,
+) {
     check!(interpreter, ISTANBUL);
     gas!(interpreter, gas::LOW);
-    let Some((balance, _)) = host.balance(interpreter.contract.address) else {
-        interpreter.instruction_result = InstructionResult::FatalExternalError;
-        return;
-    };
-    push!(interpreter, balance);
+
+    for asset_id in interpreter.asset_ids.iter() {
+        // Get the balance of the contract for the asset_id
+        let Some((balance, _)) = host.balance(*asset_id, interpreter.contract.address) else {
+            interpreter.instruction_result = InstructionResult::FatalExternalError;
+            return;
+        };
+
+        // Push balance and asset_id to the stack
+        push!(interpreter, balance);
+        push!(interpreter, *asset_id);
+    }
+
+    // Push the number of assets to the stack
+    push!(interpreter, U256::from(interpreter.asset_ids.len() as u64));
 }
 
-pub fn extcodesize<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+pub fn extcodesize<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     pop_address!(interpreter, address);
     let Some((code, is_cold)) = host.code(address) else {
         interpreter.instruction_result = InstructionResult::FatalExternalError;
@@ -65,7 +73,7 @@ pub fn extcodesize<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mu
 }
 
 /// EIP-1052: EXTCODEHASH opcode
-pub fn extcodehash<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+pub fn extcodehash<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     check!(interpreter, CONSTANTINOPLE);
     pop_address!(interpreter, address);
     let Some((code_hash, is_cold)) = host.code_hash(address) else {
@@ -89,7 +97,7 @@ pub fn extcodehash<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mu
     push_b256!(interpreter, code_hash);
 }
 
-pub fn extcodecopy<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+pub fn extcodecopy<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     pop_address!(interpreter, address);
     pop!(interpreter, memory_offset, code_offset, len_u256);
 
@@ -101,14 +109,14 @@ pub fn extcodecopy<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mu
     let len = as_usize_or_fail!(interpreter, len_u256);
     gas_or_fail!(
         interpreter,
-        gas::extcodecopy_cost::<SPEC>(len as u64, is_cold)
+        gas::extcodecopy_cost(SPEC::SPEC_ID, len as u64, is_cold)
     );
     if len == 0 {
         return;
     }
     let memory_offset = as_usize_or_fail!(interpreter, memory_offset);
     let code_offset = min(as_usize_saturated!(code_offset), code.len());
-    shared_memory_resize!(interpreter, memory_offset, len);
+    resize_memory!(interpreter, memory_offset, len);
 
     // Note: this can't panic because we resized memory to fit.
     interpreter
@@ -116,7 +124,7 @@ pub fn extcodecopy<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mu
         .set_data(memory_offset, code_offset, len, code.bytes());
 }
 
-pub fn blockhash<H: Host>(interpreter: &mut Interpreter, host: &mut H) {
+pub fn blockhash<H: Host + ?Sized>(interpreter: &mut Interpreter, host: &mut H) {
     gas!(interpreter, gas::BLOCKHASH);
     pop_top!(interpreter, number);
 
@@ -135,37 +143,44 @@ pub fn blockhash<H: Host>(interpreter: &mut Interpreter, host: &mut H) {
     *number = U256::ZERO;
 }
 
-pub fn sload<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
-    pop!(interpreter, index);
+pub fn sload<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    pop_top!(interpreter, index);
 
-    let Some((value, is_cold)) = host.sload(interpreter.contract.address, index) else {
+    let Some((value, is_cold)) = host.sload(interpreter.contract.address, *index) else {
         interpreter.instruction_result = InstructionResult::FatalExternalError;
         return;
     };
-    gas!(interpreter, gas::sload_cost::<SPEC>(is_cold));
-    push!(interpreter, value);
+    gas!(interpreter, gas::sload_cost(SPEC::SPEC_ID, is_cold));
+    *index = value;
 }
 
-pub fn sstore<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+pub fn sstore<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     check_staticcall!(interpreter);
 
     pop!(interpreter, index, value);
-    let Some((original, old, new, is_cold)) =
-        host.sstore(interpreter.contract.address, index, value)
+    let Some(SStoreResult {
+        original_value: original,
+        present_value: old,
+        new_value: new,
+        is_cold,
+    }) = host.sstore(interpreter.contract.address, index, value)
     else {
         interpreter.instruction_result = InstructionResult::FatalExternalError;
         return;
     };
     gas_or_fail!(interpreter, {
         let remaining_gas = interpreter.gas.remaining();
-        gas::sstore_cost::<SPEC>(original, old, new, remaining_gas, is_cold)
+        gas::sstore_cost(SPEC::SPEC_ID, original, old, new, remaining_gas, is_cold)
     });
-    refund!(interpreter, gas::sstore_refund::<SPEC>(original, old, new));
+    refund!(
+        interpreter,
+        gas::sstore_refund(SPEC::SPEC_ID, original, old, new)
+    );
 }
 
 /// EIP-1153: Transient storage opcodes
 /// Store value to transient storage
-pub fn tstore<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+pub fn tstore<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     check!(interpreter, CANCUN);
     check_staticcall!(interpreter);
     gas!(interpreter, gas::WARM_STORAGE_READ_COST);
@@ -177,7 +192,7 @@ pub fn tstore<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) 
 
 /// EIP-1153: Transient storage opcodes
 /// Load value from transient storage
-pub fn tload<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+pub fn tload<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     check!(interpreter, CANCUN);
     gas!(interpreter, gas::WARM_STORAGE_READ_COST);
 
@@ -186,7 +201,7 @@ pub fn tload<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     *index = host.tload(interpreter.contract.address, *index);
 }
 
-pub fn log<const N: usize, H: Host>(interpreter: &mut Interpreter, host: &mut H) {
+pub fn log<const N: usize, H: Host + ?Sized>(interpreter: &mut Interpreter, host: &mut H) {
     check_staticcall!(interpreter);
 
     pop!(interpreter, offset, len);
@@ -196,7 +211,7 @@ pub fn log<const N: usize, H: Host>(interpreter: &mut Interpreter, host: &mut H)
         Bytes::new()
     } else {
         let offset = as_usize_or_fail!(interpreter, offset);
-        shared_memory_resize!(interpreter, offset, len);
+        resize_memory!(interpreter, offset, len);
         Bytes::copy_from_slice(interpreter.shared_memory.slice(offset, len))
     };
 
@@ -211,31 +226,50 @@ pub fn log<const N: usize, H: Host>(interpreter: &mut Interpreter, host: &mut H)
         topics.push(B256::from(unsafe { interpreter.stack.pop_unsafe() }));
     }
 
-    host.log(interpreter.contract.address, topics, data);
-}
-
-pub fn selfdestruct<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
-    check_staticcall!(interpreter);
-    pop_address!(interpreter, target);
-
-    let Some(res) = host.selfdestruct(interpreter.contract.address, target) else {
-        interpreter.instruction_result = InstructionResult::FatalExternalError;
-        return;
+    let log = Log {
+        address: interpreter.contract.address,
+        data: LogData::new(topics, data).expect("LogData should have <=4 topics"),
     };
 
-    // EIP-3529: Reduction in refunds
-    if !SPEC::enabled(LONDON) && !res.previously_destroyed {
-        refund!(interpreter, gas::SELFDESTRUCT)
-    }
-    gas!(interpreter, gas::selfdestruct_cost::<SPEC>(res));
-
-    interpreter.instruction_result = InstructionResult::SelfDestruct;
+    host.log(log);
 }
 
-pub fn create<const IS_CREATE2: bool, H: Host, SPEC: Spec>(
+fn pop_transferred_assets(interpreter: &mut Interpreter, transferred_assets: &mut Vec<Asset>) {
+    pop!(interpreter, nr_of_transferred_assets);
+    let nr_of_transferred_assets = as_usize_or_fail!(interpreter, nr_of_transferred_assets);
+
+    for _ in 0..nr_of_transferred_assets {
+        pop!(interpreter, asset_id, value);
+        transferred_assets.push(Asset {
+            id: asset_id,
+            amount: value,
+        });
+    }
+}
+
+pub fn create<const IS_CREATE2: bool, H: Host + ?Sized, SPEC: Spec>(
     interpreter: &mut Interpreter,
     host: &mut H,
 ) {
+    create_inner::<IS_CREATE2, H, SPEC>(interpreter, host, false);
+}
+
+pub fn mnt_create<const IS_CREATE2: bool, H: Host + ?Sized, SPEC: Spec>(
+    interpreter: &mut Interpreter,
+    host: &mut H,
+) {
+    create_inner::<IS_CREATE2, H, SPEC>(interpreter, host, true);
+}
+
+fn create_inner<const IS_CREATE2: bool, H: Host + ?Sized, SPEC: Spec>(
+    interpreter: &mut Interpreter,
+    host: &mut H,
+    is_mnt_create: bool,
+) {
+    // Dev: deploying smart contracts is not allowed for general public
+    // TODO: implement a way to allow deploying smart contracts by Sablier
+    interpreter.instruction_result = InstructionResult::NotActivated;
+
     check_staticcall!(interpreter);
 
     // EIP-1014: Skinny CREATE2
@@ -243,7 +277,21 @@ pub fn create<const IS_CREATE2: bool, H: Host, SPEC: Spec>(
         check!(interpreter, PETERSBURG);
     }
 
-    pop!(interpreter, value, code_offset, len);
+    let mut transferred_assets = Vec::<Asset>::new();
+
+    if is_mnt_create {
+        pop_transferred_assets(interpreter, transferred_assets.as_mut());
+    } else {
+        pop!(interpreter, value);
+        if value != U256::ZERO {
+            transferred_assets.push(Asset {
+                id: BASE_ASSET_ID,
+                amount: value,
+            });
+        }
+    }
+
+    pop!(interpreter, code_offset, len);
     let len = as_usize_or_fail!(interpreter, len);
 
     let mut code = Bytes::new();
@@ -258,21 +306,21 @@ pub fn create<const IS_CREATE2: bool, H: Host, SPEC: Spec>(
                 .map(|limit| limit.saturating_mul(2))
                 .unwrap_or(MAX_INITCODE_SIZE);
             if len > max_initcode_size {
-                interpreter.instruction_result = InstructionResult::CreateInitcodeSizeLimit;
+                interpreter.instruction_result = InstructionResult::CreateInitCodeSizeLimit;
                 return;
             }
             gas!(interpreter, gas::initcode_cost(len as u64));
         }
 
         let code_offset = as_usize_or_fail!(interpreter, code_offset);
-        shared_memory_resize!(interpreter, code_offset, len);
+        resize_memory!(interpreter, code_offset, len);
         code = Bytes::copy_from_slice(interpreter.shared_memory.slice(code_offset, len));
     }
 
     // EIP-1014: Skinny CREATE2
     let scheme = if IS_CREATE2 {
         pop!(interpreter, salt);
-        gas_or_fail!(interpreter, gas::create2_cost(len));
+        gas_or_fail!(interpreter, gas::create2_cost(len as u64));
         CreateScheme::Create2 { salt }
     } else {
         gas!(interpreter, gas::CREATE);
@@ -289,182 +337,342 @@ pub fn create<const IS_CREATE2: bool, H: Host, SPEC: Spec>(
     gas!(interpreter, gas_limit);
 
     // Call host to interact with target contract
-    interpreter.next_action = Some(InterpreterAction::Create {
+    interpreter.next_action = InterpreterAction::Create {
         inputs: Box::new(CreateInputs {
             caller: interpreter.contract.address,
             scheme,
-            value,
+            transferred_assets,
             init_code: code,
             gas_limit,
         }),
-    });
+    };
     interpreter.instruction_result = InstructionResult::CallOrCreate;
 }
 
-pub fn call<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
-    call_inner::<SPEC, H>(CallScheme::Call, interpreter, host);
+pub fn call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    call_inner::<H, SPEC>(interpreter, host, false);
 }
 
-pub fn call_code<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
-    call_inner::<SPEC, H>(CallScheme::CallCode, interpreter, host);
+pub fn mnt_call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    call_inner::<H, SPEC>(interpreter, host, true);
 }
 
-pub fn delegate_call<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
-    call_inner::<SPEC, H>(CallScheme::DelegateCall, interpreter, host);
-}
-
-pub fn static_call<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
-    call_inner::<SPEC, H>(CallScheme::StaticCall, interpreter, host);
-}
-
-pub fn call_inner<SPEC: Spec, H: Host>(
-    scheme: CallScheme,
+fn call_inner<H: Host + ?Sized, SPEC: Spec>(
     interpreter: &mut Interpreter,
     host: &mut H,
+    is_mnt_call: bool,
 ) {
-    match scheme {
-        // EIP-7: DELEGATECALL
-        CallScheme::DelegateCall => check!(interpreter, HOMESTEAD),
-        // EIP-214: New opcode STATICCALL
-        CallScheme::StaticCall => check!(interpreter, BYZANTIUM),
-        _ => (),
-    }
-
     pop!(interpreter, local_gas_limit);
     pop_address!(interpreter, to);
-
     // max gas limit is not possible in real ethereum situation.
-    // But for tests we would not like to fail on this.
-    // Gas limit for subcall is taken as min of this value and current gas limit.
     let local_gas_limit = u64::try_from(local_gas_limit).unwrap_or(u64::MAX);
 
-    let value = match scheme {
-        CallScheme::CallCode => {
-            pop!(interpreter, value);
-            value
-        }
-        CallScheme::Call => {
-            pop!(interpreter, value);
-            if interpreter.is_static && value != U256::ZERO {
-                interpreter.instruction_result = InstructionResult::CallNotAllowedInsideStatic;
-                return;
-            }
-            value
-        }
-        CallScheme::DelegateCall | CallScheme::StaticCall => U256::ZERO,
-    };
+    let mut transferred_assets = Vec::<Asset>::new();
 
-    pop!(interpreter, in_offset, in_len, out_offset, out_len);
-
-    let in_len = as_usize_or_fail!(interpreter, in_len);
-    let input = if in_len != 0 {
-        let in_offset = as_usize_or_fail!(interpreter, in_offset);
-        shared_memory_resize!(interpreter, in_offset, in_len);
-        Bytes::copy_from_slice(interpreter.shared_memory.slice(in_offset, in_len))
+    if is_mnt_call {
+        pop_transferred_assets(interpreter, transferred_assets.as_mut());
     } else {
-        Bytes::new()
-    };
-
-    let out_len = as_usize_or_fail!(interpreter, out_len);
-    let out_offset = if out_len != 0 {
-        let out_offset = as_usize_or_fail!(interpreter, out_offset);
-        shared_memory_resize!(interpreter, out_offset, out_len);
-        out_offset
-    } else {
-        usize::MAX //unrealistic value so we are sure it is not used
-    };
-
-    let context = match scheme {
-        CallScheme::Call | CallScheme::StaticCall => CallContext {
-            address: to,
-            caller: interpreter.contract.address,
-            code_address: to,
-            apparent_value: value,
-            scheme,
-        },
-        CallScheme::CallCode => CallContext {
-            address: interpreter.contract.address,
-            caller: interpreter.contract.address,
-            code_address: to,
-            apparent_value: value,
-            scheme,
-        },
-        CallScheme::DelegateCall => CallContext {
-            address: interpreter.contract.address,
-            caller: interpreter.contract.caller,
-            code_address: to,
-            apparent_value: interpreter.contract.value,
-            scheme,
-        },
-    };
-
-    let transfer = match scheme {
-        CallScheme::Call => Transfer {
-            source: interpreter.contract.address,
-            target: to,
-            value,
-        },
-        CallScheme::CallCode => Transfer {
-            source: interpreter.contract.address,
-            target: interpreter.contract.address,
-            value,
-        },
-        _ => {
-            //this is dummy send for StaticCall and DelegateCall, it should do nothing and dont touch anything.
-            Transfer {
-                source: interpreter.contract.address,
-                target: interpreter.contract.address,
-                value: U256::ZERO,
-            }
+        pop!(interpreter, value);
+        if value != U256::ZERO {
+            transferred_assets.push(Asset {
+                id: BASE_ASSET_ID,
+                amount: value,
+            });
         }
-    };
+    }
 
-    // load account and calculate gas cost.
-    let Some((is_cold, exist)) = host.load_account(to) else {
-        interpreter.instruction_result = InstructionResult::FatalExternalError;
+    if interpreter.is_static && !transferred_assets.is_empty() {
+        interpreter.instruction_result = InstructionResult::CallNotAllowedInsideStatic;
+        return;
+    }
+
+    let Some((input, return_memory_offset)) = get_memory_input_and_out_ranges(interpreter) else {
         return;
     };
-    let is_new = !exist;
 
-    gas!(
+    let Some(mut gas_limit) = calc_call_gas::<H, SPEC>(
         interpreter,
-        gas::call_cost::<SPEC>(
-            value != U256::ZERO,
-            is_new,
-            is_cold,
-            matches!(scheme, CallScheme::Call | CallScheme::CallCode),
-            matches!(scheme, CallScheme::Call | CallScheme::StaticCall),
-        )
-    );
-
-    // EIP-150: Gas cost changes for IO-heavy operations
-    let mut gas_limit = if SPEC::enabled(TANGERINE) {
-        let gas = interpreter.gas().remaining();
-        // take l64 part of gas_limit
-        min(gas - gas / 64, local_gas_limit)
-    } else {
-        local_gas_limit
+        host,
+        to,
+        !transferred_assets.is_empty(),
+        local_gas_limit,
+        true,
+        true,
+    ) else {
+        return;
     };
 
     gas!(interpreter, gas_limit);
 
     // add call stipend if there is value to be transferred.
-    if matches!(scheme, CallScheme::Call | CallScheme::CallCode) && transfer.value != U256::ZERO {
+    if !transferred_assets.is_empty() {
         gas_limit = gas_limit.saturating_add(gas::CALL_STIPEND);
     }
-    let is_static = matches!(scheme, CallScheme::StaticCall) || interpreter.is_static;
 
     // Call host to interact with target contract
-    interpreter.next_action = Some(InterpreterAction::SubCall {
+    interpreter.next_action = InterpreterAction::Call {
         inputs: Box::new(CallInputs {
             contract: to,
-            transfer,
+            transfer: Transfer {
+                source: interpreter.contract.address,
+                target: to,
+                assets: transferred_assets.clone(),
+            },
             input,
             gas_limit,
-            context,
-            is_static,
+            context: CallContext {
+                address: to,
+                caller: interpreter.contract.address,
+                code_address: to,
+                apparent_assets: transferred_assets.clone(),
+                scheme: CallScheme::Call,
+            },
+            is_static: interpreter.is_static,
+            return_memory_offset,
         }),
-        return_memory_offset: out_offset..out_offset + out_len,
-    });
+    };
     interpreter.instruction_result = InstructionResult::CallOrCreate;
+}
+
+pub fn call_code<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    call_code_inner::<H, SPEC>(interpreter, host, false);
+}
+
+pub fn mnt_call_code<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    call_code_inner::<H, SPEC>(interpreter, host, true);
+}
+
+fn call_code_inner<H: Host + ?Sized, SPEC: Spec>(
+    interpreter: &mut Interpreter,
+    host: &mut H,
+    is_mnt_call_code: bool,
+) {
+    pop!(interpreter, local_gas_limit);
+    pop_address!(interpreter, to);
+    // max gas limit is not possible in real ethereum situation.
+    let local_gas_limit = u64::try_from(local_gas_limit).unwrap_or(u64::MAX);
+
+    let mut transferred_assets = Vec::<Asset>::new();
+
+    if is_mnt_call_code {
+        pop_transferred_assets(interpreter, transferred_assets.as_mut());
+    } else {
+        pop!(interpreter, value);
+        if value != U256::ZERO {
+            transferred_assets.push(Asset {
+                id: BASE_ASSET_ID,
+                amount: value,
+            });
+        }
+    }
+
+    let Some((input, return_memory_offset)) = get_memory_input_and_out_ranges(interpreter) else {
+        return;
+    };
+
+    let Some(mut gas_limit) = calc_call_gas::<H, SPEC>(
+        interpreter,
+        host,
+        to,
+        !transferred_assets.is_empty(),
+        local_gas_limit,
+        true,
+        false,
+    ) else {
+        return;
+    };
+
+    gas!(interpreter, gas_limit);
+
+    // add call stipend if there is value to be transferred.
+    if !transferred_assets.is_empty() {
+        gas_limit = gas_limit.saturating_add(gas::CALL_STIPEND);
+    }
+
+    // Call host to interact with target contract
+    interpreter.next_action = InterpreterAction::Call {
+        inputs: Box::new(CallInputs {
+            contract: to,
+            transfer: Transfer {
+                source: interpreter.contract.address,
+                target: interpreter.contract.address,
+                assets: transferred_assets.clone(),
+            },
+            input,
+            gas_limit,
+            context: CallContext {
+                address: interpreter.contract.address,
+                caller: interpreter.contract.address,
+                code_address: to,
+                apparent_assets: transferred_assets.clone(),
+                scheme: CallScheme::CallCode,
+            },
+            is_static: interpreter.is_static,
+            return_memory_offset,
+        }),
+    };
+    interpreter.instruction_result = InstructionResult::CallOrCreate;
+}
+
+pub fn delegate_call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    check!(interpreter, HOMESTEAD);
+    pop!(interpreter, local_gas_limit);
+    pop_address!(interpreter, to);
+    // max gas limit is not possible in real ethereum situation.
+    let local_gas_limit = u64::try_from(local_gas_limit).unwrap_or(u64::MAX);
+
+    let Some((input, return_memory_offset)) = get_memory_input_and_out_ranges(interpreter) else {
+        return;
+    };
+
+    let Some(gas_limit) =
+        calc_call_gas::<H, SPEC>(interpreter, host, to, false, local_gas_limit, false, false)
+    else {
+        return;
+    };
+
+    gas!(interpreter, gas_limit);
+
+    // Call host to interact with target contract
+    interpreter.next_action = InterpreterAction::Call {
+        inputs: Box::new(CallInputs {
+            contract: to,
+            // This is dummy send for StaticCall and DelegateCall,
+            // it should do nothing and not touch anything.
+            transfer: Transfer {
+                source: interpreter.contract.address,
+                target: interpreter.contract.address,
+                assets: Vec::new(),
+            },
+            input,
+            gas_limit,
+            context: CallContext {
+                address: interpreter.contract.address,
+                caller: interpreter.contract.caller,
+                code_address: to,
+                apparent_assets: interpreter.contract.call_assets.clone(),
+                scheme: CallScheme::DelegateCall,
+            },
+            is_static: interpreter.is_static,
+            return_memory_offset,
+        }),
+    };
+    interpreter.instruction_result = InstructionResult::CallOrCreate;
+}
+
+pub fn static_call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    check!(interpreter, BYZANTIUM);
+    pop!(interpreter, local_gas_limit);
+    pop_address!(interpreter, to);
+    // max gas limit is not possible in real ethereum situation.
+    let local_gas_limit = u64::try_from(local_gas_limit).unwrap_or(u64::MAX);
+
+    let Some((input, return_memory_offset)) = get_memory_input_and_out_ranges(interpreter) else {
+        return;
+    };
+
+    let Some(gas_limit) =
+        calc_call_gas::<H, SPEC>(interpreter, host, to, false, local_gas_limit, false, true)
+    else {
+        return;
+    };
+    gas!(interpreter, gas_limit);
+
+    // Call host to interact with target contract
+    interpreter.next_action = InterpreterAction::Call {
+        inputs: Box::new(CallInputs {
+            contract: to,
+            // This is dummy send for StaticCall and DelegateCall,
+            // it should do nothing and not touch anything.
+            transfer: Transfer {
+                source: interpreter.contract.address,
+                target: interpreter.contract.address,
+                assets: Vec::new(),
+            },
+            input,
+            gas_limit,
+            context: CallContext {
+                address: to,
+                caller: interpreter.contract.address,
+                code_address: to,
+                apparent_assets: Vec::new(),
+                scheme: CallScheme::StaticCall,
+            },
+            is_static: true,
+            return_memory_offset,
+        }),
+    };
+    interpreter.instruction_result = InstructionResult::CallOrCreate;
+}
+
+pub fn balance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    pop_address!(interpreter, address);
+    push!(interpreter, BASE_ASSET_ID);
+    push_b256!(interpreter, address.into_word());
+
+    balance_of::<H, SPEC>(interpreter, host);
+}
+
+pub fn balance_of<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    pop_address!(interpreter, address);
+    pop!(interpreter, asset_id);
+
+    let Some((balance, is_cold)) = host.balance(asset_id, address) else {
+        interpreter.instruction_result = InstructionResult::FatalExternalError;
+        return;
+    };
+
+    gas!(
+        interpreter,
+        if SPEC::enabled(ISTANBUL) {
+            // EIP-1884: Repricing for trie-size-dependent opcodes
+            gas::account_access_gas(SPEC::SPEC_ID, is_cold)
+        } else if SPEC::enabled(TANGERINE) {
+            400
+        } else {
+            20
+        }
+    );
+
+    push!(interpreter, balance);
+}
+
+pub fn mint<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    // TODO: implement minting allowance just for Sablier
+    // Only allow minting for contracts (not EOAs)
+    if host.is_tx_sender_eoa() {
+        interpreter.instruction_result = InstructionResult::UnauthorizedCaller;
+        return;
+    }
+
+    pop_address!(interpreter, recipient);
+    pop!(interpreter, sub_id, amount);
+    if !host.mint(interpreter.contract.address, recipient, sub_id, amount) {
+        interpreter.instruction_result = InstructionResult::FatalExternalError;
+        return;
+    };
+
+    gas_or_fail!(interpreter, { gas::mint_cost() });
+}
+
+pub fn burn<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    // TODO: implement burning allowance just for Sablier
+    // Only allow burning for contracts (not EOAs)
+    if host.is_tx_sender_eoa() {
+        interpreter.instruction_result = InstructionResult::UnauthorizedCaller;
+        return;
+    }
+
+    pop!(interpreter, sub_id, amount);
+    if !host.burn(interpreter.contract.address, sub_id, amount) {
+        interpreter.instruction_result = InstructionResult::FatalExternalError;
+        return;
+    };
+
+    gas_or_fail!(interpreter, { gas::burn_cost() });
+}
+
+pub fn selfdestruct<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, _host: &mut H) {
+    // A no-op
+    interpreter.instruction_result = InstructionResult::Continue;
 }

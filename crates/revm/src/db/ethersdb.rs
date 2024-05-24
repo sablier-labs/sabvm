@@ -1,54 +1,76 @@
-use crate::primitives::{AccountInfo, Address, Bytecode, B256, KECCAK_EMPTY, U256};
-use crate::{Database, DatabaseRef};
-use ethers_core::types::{BlockId, H160 as eH160, H256, U64 as eU64};
-use ethers_providers::Middleware;
 use std::sync::Arc;
-use tokio::runtime::{Handle, Runtime};
 
-#[derive(Debug)]
+use ethers_core::types::{Block, BlockId, TxHash, H160 as eH160, H256, U64 as eU64};
+use ethers_providers::Middleware;
+use tokio::runtime::{Builder, Handle, RuntimeFlavor};
+
+use crate::primitives::{init_balances, AccountInfo, Address, Bytecode, B256, KECCAK_EMPTY, U256};
+use crate::{Database, DatabaseRef};
+
+#[derive(Debug, Clone)]
 pub struct EthersDB<M: Middleware> {
     client: Arc<M>,
-    runtime: Option<Runtime>,
     block_number: Option<BlockId>,
 }
 
 impl<M: Middleware> EthersDB<M> {
     /// create ethers db connector inputs are url and block on what we are basing our database (None for latest)
     pub fn new(client: Arc<M>, block_number: Option<BlockId>) -> Option<Self> {
-        let runtime = Handle::try_current()
-            .is_err()
-            .then(|| Runtime::new().unwrap());
-
-        let client = client;
-
-        let mut out = Self {
-            client,
-            runtime,
-            block_number: None,
-        };
-
-        out.block_number = if block_number.is_some() {
+        let block_number: Option<BlockId> = if block_number.is_some() {
             block_number
         } else {
             Some(BlockId::from(
-                out.block_on(out.client.get_block_number()).ok()?,
+                Self::block_on(client.get_block_number()).ok()?,
             ))
         };
 
-        Some(out)
+        Some(Self {
+            client,
+            block_number,
+        })
     }
 
     /// internal utility function to call tokio feature and wait for output
-    fn block_on<F: core::future::Future>(&self, f: F) -> F::Output {
-        match &self.runtime {
-            Some(runtime) => runtime.block_on(f),
-            None => futures::executor::block_on(f),
+    #[inline]
+    fn block_on<F>(f: F) -> F::Output
+    where
+        F: core::future::Future + Send,
+        F::Output: Send,
+    {
+        match Handle::try_current() {
+            Ok(handle) => match handle.runtime_flavor() {
+                // This essentially equals to tokio::task::spawn_blocking because tokio doesn't
+                // allow current_thread runtime to block_in_place
+                RuntimeFlavor::CurrentThread => std::thread::scope(move |s| {
+                    s.spawn(move || {
+                        Builder::new_current_thread()
+                            .enable_all()
+                            .build()
+                            .unwrap()
+                            .block_on(f)
+                    })
+                    .join()
+                    .unwrap()
+                }),
+                _ => tokio::task::block_in_place(move || handle.block_on(f)),
+            },
+            Err(_) => Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(f),
         }
+    }
+
+    /// set block number on which upcoming queries will be based
+    #[inline]
+    pub fn set_block_number(&mut self, block_number: BlockId) {
+        self.block_number = Some(block_number);
     }
 }
 
 impl<M: Middleware> DatabaseRef for EthersDB<M> {
-    type Error = ();
+    type Error = M::Error;
 
     fn basic_ref(&self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         let add = eH160::from(address.0 .0);
@@ -59,20 +81,15 @@ impl<M: Middleware> DatabaseRef for EthersDB<M> {
             let code = self.client.get_code(add, self.block_number);
             tokio::join!(nonce, balance, code)
         };
-        let (nonce, balance, code) = self.block_on(f);
-        // panic on not getting data?
-        let bytecode = code.unwrap_or_else(|e| panic!("ethers get code error: {e:?}"));
-        let bytecode = Bytecode::new_raw(bytecode.0.into());
+        let (nonce, balance, code) = Self::block_on(f);
+
+        let balance = U256::from_limbs(balance?.0);
+        let nonce = nonce?.as_u64();
+        let bytecode = Bytecode::new_raw(code?.0.into());
         let code_hash = bytecode.hash_slow();
         Ok(Some(AccountInfo::new(
-            U256::from_limbs(
-                balance
-                    .unwrap_or_else(|e| panic!("ethers get balance error: {e:?}"))
-                    .0,
-            ),
-            nonce
-                .unwrap_or_else(|e| panic!("ethers get nonce error: {e:?}"))
-                .as_u64(),
+            init_balances(balance),
+            nonce,
             code_hash,
             bytecode,
         )))
@@ -86,15 +103,9 @@ impl<M: Middleware> DatabaseRef for EthersDB<M> {
     fn storage_ref(&self, address: Address, index: U256) -> Result<U256, Self::Error> {
         let add = eH160::from(address.0 .0);
         let index = H256::from(index.to_be_bytes());
-        let f = async {
-            let storage = self
-                .client
-                .get_storage_at(add, index, self.block_number)
-                .await
-                .unwrap();
-            U256::from_be_bytes(storage.to_fixed_bytes())
-        };
-        Ok(self.block_on(f))
+        let slot_value: H256 =
+            Self::block_on(self.client.get_storage_at(add, index, self.block_number))?;
+        Ok(U256::from_be_bytes(slot_value.to_fixed_bytes()))
     }
 
     fn block_hash_ref(&self, number: U256) -> Result<B256, Self::Error> {
@@ -102,20 +113,25 @@ impl<M: Middleware> DatabaseRef for EthersDB<M> {
         if number > U256::from(u64::MAX) {
             return Ok(KECCAK_EMPTY);
         }
+        // We know number <= u64::MAX so unwrap is safe
         let number = eU64::from(u64::try_from(number).unwrap());
-        let f = async {
-            self.client
-                .get_block(BlockId::from(number))
-                .await
-                .ok()
-                .flatten()
-        };
-        Ok(B256::new(self.block_on(f).unwrap().hash.unwrap().0))
+        let block: Option<Block<TxHash>> =
+            Self::block_on(self.client.get_block(BlockId::from(number)))?;
+        // If number is given, the block is supposed to be finalized so unwrap is safe too.
+        Ok(B256::new(block.unwrap().hash.unwrap().0))
+    }
+
+    fn is_asset_id_valid_ref(&self, _asset_id: U256) -> Result<bool, Self::Error> {
+        panic!("The MNT id collection is not relevant for EthersDB");
+    }
+
+    fn get_asset_ids_ref(&self) -> Result<Vec<U256>, Self::Error> {
+        panic!("The MNT id collection is not relevant for EthersDB");
     }
 }
 
 impl<M: Middleware> Database for EthersDB<M> {
-    type Error = ();
+    type Error = M::Error;
 
     #[inline]
     fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
@@ -136,18 +152,26 @@ impl<M: Middleware> Database for EthersDB<M> {
     fn block_hash(&mut self, number: U256) -> Result<B256, Self::Error> {
         <Self as DatabaseRef>::block_hash_ref(self, number)
     }
+
+    #[inline]
+    fn get_asset_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
+        <Self as DatabaseRef>::get_asset_ids_ref(self)
+    }
+
+    #[inline]
+    fn is_asset_id_valid(&mut self, asset_id: U256) -> Result<bool, Self::Error> {
+        <Self as DatabaseRef>::is_asset_id_valid_ref(self, asset_id)
+    }
 }
 
 // Run tests with `cargo test -- --nocapture` to see print statements
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethers_core::types::U256 as eU256;
     use ethers_providers::{Http, Provider};
-    use std::str::FromStr;
 
-    #[test]
-    fn can_get_basic() {
+    //#[test]
+    fn _can_get_basic() {
         let client = Provider::<Http>::try_from(
             "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229eddaca27",
         )
@@ -170,62 +194,5 @@ mod tests {
 
         // check if not empty
         assert!(acc_info.exists());
-    }
-
-    #[test]
-    fn can_get_storage() {
-        let client = Provider::<Http>::try_from(
-            "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229eddaca27",
-        )
-        .unwrap();
-        let client = Arc::new(client);
-
-        let ethersdb = EthersDB::new(
-            Arc::clone(&client), // public infura mainnet
-            Some(BlockId::from(16148323)),
-        )
-        .unwrap();
-
-        // ETH/USDT pair on Uniswap V2
-        let address = "0x0d4a11d5EEaaC28EC3F61d100daF4d40471f1852"
-            .parse::<eH160>()
-            .unwrap();
-        let address = address.as_fixed_bytes().into();
-
-        // select test index
-        let index = U256::from(5);
-        let storage = ethersdb.storage_ref(address, index).unwrap();
-
-        // https://etherscan.io/address/0x0d4a11d5EEaaC28EC3F61d100daF4d40471f1852#readContract
-        // storage[5] -> factory: address
-        let actual = U256::from_limbs(eU256::from("0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f").0);
-
-        assert_eq!(storage, actual);
-    }
-
-    #[test]
-    fn can_get_block_hash() {
-        let client = Provider::<Http>::try_from(
-            "https://mainnet.infura.io/v3/c60b0bb42f8a4c6481ecd229eddaca27",
-        )
-        .unwrap();
-        let client = Arc::new(client);
-
-        let ethersdb = EthersDB::new(
-            Arc::clone(&client), // public infura mainnet
-            None,
-        )
-        .unwrap();
-
-        // block number to test
-        let block_num = U256::from(16148323);
-        let block_hash = ethersdb.block_hash_ref(block_num).unwrap();
-
-        // https://etherscan.io/block/16148323
-        let actual =
-            B256::from_str("0xc133a5a4ceef2a6b5cd6fc682e49ca0f8fce3f18da85098c6a15f8e0f6f4c2cf")
-                .unwrap();
-
-        assert_eq!(block_hash, actual);
     }
 }

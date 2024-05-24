@@ -1,11 +1,12 @@
-use crate::{Account, AccountInfo, Address, Bytecode, B256, U256};
+use crate::{AccountInfo, Address, Bytecode, B256, U256};
 use auto_impl::auto_impl;
-use hashbrown::HashMap as Map;
 
 pub mod components;
 pub use components::{
-    BlockHash, BlockHashRef, DatabaseComponentError, DatabaseComponents, State, StateRef,
+    BlockHash, BlockHashRef, DatabaseComponentError, DatabaseComponents, StateRef,
 };
+
+use crate::state::State;
 
 /// EVM database interface.
 #[auto_impl(&mut, Box)]
@@ -24,13 +25,19 @@ pub trait Database {
 
     /// Get block hash by block number.
     fn block_hash(&mut self, number: U256) -> Result<B256, Self::Error>;
+
+    /// Get the supported asset ids
+    fn get_asset_ids(&mut self) -> Result<Vec<U256>, Self::Error>;
+
+    /// Check if asset id is valid
+    fn is_asset_id_valid(&mut self, asset_id: U256) -> Result<bool, Self::Error>;
 }
 
 /// EVM database commit interface.
 #[auto_impl(&mut, Box)]
 pub trait DatabaseCommit {
     /// Commit changes to the database.
-    fn commit(&mut self, changes: Map<Address, Account>);
+    fn commit(&mut self, changes: State);
 }
 
 /// EVM database interface.
@@ -55,6 +62,12 @@ pub trait DatabaseRef {
 
     /// Get block hash by block number.
     fn block_hash_ref(&self, number: U256) -> Result<B256, Self::Error>;
+
+    /// Check if asset id is valid
+    fn is_asset_id_valid_ref(&self, asset_id: U256) -> Result<bool, Self::Error>;
+
+    /// Get the supported asset ids
+    fn get_asset_ids_ref(&self) -> Result<Vec<U256>, Self::Error>;
 }
 
 /// Wraps a [`DatabaseRef`] to provide a [`Database`] implementation.
@@ -89,6 +102,23 @@ impl<T: DatabaseRef> Database for WrapDatabaseRef<T> {
     #[inline]
     fn block_hash(&mut self, number: U256) -> Result<B256, Self::Error> {
         self.0.block_hash_ref(number)
+    }
+
+    #[inline]
+    fn is_asset_id_valid(&mut self, asset_id: U256) -> Result<bool, Self::Error> {
+        self.0.is_asset_id_valid_ref(asset_id)
+    }
+
+    #[inline]
+    fn get_asset_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
+        self.0.get_asset_ids_ref()
+    }
+}
+
+impl<T: DatabaseRef + DatabaseCommit> DatabaseCommit for WrapDatabaseRef<T> {
+    #[inline]
+    fn commit(&mut self, changes: State) {
+        self.0.commit(changes)
     }
 }
 
@@ -129,5 +159,15 @@ impl<'a, E> Database for RefDBWrapper<'a, E> {
     #[inline]
     fn block_hash(&mut self, number: U256) -> Result<B256, Self::Error> {
         self.db.block_hash_ref(number)
+    }
+
+    #[inline]
+    fn is_asset_id_valid(&mut self, asset_id: U256) -> Result<bool, Self::Error> {
+        self.db.is_asset_id_valid_ref(asset_id)
+    }
+
+    #[inline]
+    fn get_asset_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
+        self.db.get_asset_ids_ref()
     }
 }

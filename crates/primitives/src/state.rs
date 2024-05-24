@@ -1,10 +1,16 @@
-use crate::{Address, Bytecode, B256, KECCAK_EMPTY, U256};
+use crate::{Address, Bytecode, HashMap, B256, BASE_ASSET_ID, KECCAK_EMPTY, U256};
 use bitflags::bitflags;
 use core::hash::{Hash, Hasher};
-use hashbrown::HashMap;
 
-/// EVM State is a mapping from addresses to accounts.
-pub type State = HashMap<Address, Account>;
+/// EVM State contains a mapping from addresses to accounts, as well as the collection of supported MNT ids.
+// pub type State = HashMap<Address, Account>;
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct State {
+    pub accounts: HashMap<Address, Account>,
+    // the ids of the assets recognized by the VM
+    pub asset_ids: Vec<U256>,
+}
 
 /// Structure used for EIP-1153 transient storage.
 pub type TransientStorage = HashMap<(Address, U256), U256>;
@@ -15,7 +21,7 @@ pub type Storage = HashMap<U256, StorageSlot>;
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Account {
-    /// Balance, nonce, and code.
+    /// Balances, nonce, and code.
     pub info: AccountInfo,
     /// Storage cache
     pub storage: Storage,
@@ -35,13 +41,11 @@ bitflags! {
         /// When account is newly created we will not access database
         /// to fetch storage values
         const Created = 0b00000001;
-        /// If account is marked for self destruction.
-        const SelfDestructed = 0b00000010;
         /// Only when account is marked as touched we will save it to database.
-        const Touched = 0b00000100;
+        const Touched = 0b00000010;
         /// used only for pre spurious dragon hardforks where existing and empty were two separate states.
         /// it became same state after EIP-161: State trie clearing
-        const LoadedAsNotExisting = 0b0001000;
+        const LoadedAsNotExisting = 0b00000100;
     }
 }
 
@@ -59,21 +63,6 @@ impl Account {
             storage: HashMap::new(),
             status: AccountStatus::LoadedAsNotExisting,
         }
-    }
-
-    /// Mark account as self destructed.
-    pub fn mark_selfdestruct(&mut self) {
-        self.status |= AccountStatus::SelfDestructed;
-    }
-
-    /// Unmark account as self destructed.
-    pub fn unmark_selfdestruct(&mut self) {
-        self.status -= AccountStatus::SelfDestructed;
-    }
-
-    /// Is account marked for self destruct.
-    pub fn is_selfdestructed(&self) -> bool {
-        self.status.contains(AccountStatus::SelfDestructed)
     }
 
     /// Mark account as touched
@@ -113,7 +102,7 @@ impl Account {
         self.status.contains(AccountStatus::Created)
     }
 
-    /// Is account empty, check if nonce and balance are zero and code is empty.
+    /// Is account empty.
     pub fn is_empty(&self) -> bool {
         self.info.is_empty()
     }
@@ -131,20 +120,27 @@ impl From<AccountInfo> for Account {
         Self {
             info,
             storage: HashMap::new(),
-            status: AccountStatus::Loaded,
+            status: Default::default(),
         }
     }
 }
 
+/// This type keeps track of the current value of a storage slot.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct StorageSlot {
+    /// The value of the storage slot before it was changed.
+    ///
+    /// When the slot is first loaded, this is the original value.
+    ///
+    /// If the slot was not changed, this is equal to the present value.
     pub previous_or_original_value: U256,
     /// When loaded with sload present value is set to original value
     pub present_value: U256,
 }
 
 impl StorageSlot {
+    /// Creates a new _unchanged_ `StorageSlot` for the given value.
     pub fn new(original: U256) -> Self {
         Self {
             previous_or_original_value: original,
@@ -152,6 +148,7 @@ impl StorageSlot {
         }
     }
 
+    /// Creates a new _changed_ `StorageSlot`.
     pub fn new_changed(previous_or_original_value: U256, present_value: U256) -> Self {
         Self {
             previous_or_original_value,
@@ -164,21 +161,25 @@ impl StorageSlot {
         self.previous_or_original_value != self.present_value
     }
 
+    /// Returns the original value of the storage slot.
     pub fn original_value(&self) -> U256 {
         self.previous_or_original_value
     }
 
+    /// Returns the current value of the storage slot.
     pub fn present_value(&self) -> U256 {
         self.present_value
     }
 }
 
-/// AccountInfo account information.
+pub type Balances = HashMap<U256, U256>; //TODO: create a custom type w/ a suggestive name for the (U256, U256) tuple. This will make the code more readable - especially in places where the tuple members are currently accessed via `.0` and `.1`.
+
+/// The account information.
 #[derive(Clone, Debug, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AccountInfo {
-    /// Account balance.
-    pub balance: U256,
+    /// Asset balances.
+    pub balances: Balances,
     /// Account nonce.
     pub nonce: u64,
     /// code hash,
@@ -191,7 +192,7 @@ pub struct AccountInfo {
 impl Default for AccountInfo {
     fn default() -> Self {
         Self {
-            balance: U256::ZERO,
+            balances: HashMap::new(),
             code_hash: KECCAK_EMPTY,
             code: Some(Bytecode::new()),
             nonce: 0,
@@ -199,29 +200,49 @@ impl Default for AccountInfo {
     }
 }
 
+//TODO: shouldn't it be enough to just compare the hashes of the 2 accounts?
 impl PartialEq for AccountInfo {
     fn eq(&self, other: &Self) -> bool {
-        self.balance == other.balance
-            && self.nonce == other.nonce
-            && self.code_hash == other.code_hash
+        if self.nonce != other.nonce
+            || self.code_hash != other.code_hash
+            || self.balances.len() != other.balances.len()
+        {
+            return false;
+        }
+
+        // Check whether the balances of the accounts are the same.
+        self.balances == other.balances
     }
 }
 
 impl Hash for AccountInfo {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.balance.hash(state);
+        //Hash the (asset_id, balance) tuples in a deterministic-order
+        let mut balances: Vec<_> = self.balances.iter().collect();
+        balances.sort_by(|a, b| a.0.cmp(b.0));
+        balances
+            .iter()
+            .for_each(|(id, balance)| (id, balance).hash(state)); //TODO: does this way of hashing distinguish between, say, (id: 1, balance: 25) and (id: 12, balance: 5)? Maybe, we should rather create a custom aggregate object from the tuple values (e.g. stringify [id] + [separator] + [balance]) - and hash the resulting string?
+
         self.nonce.hash(state);
         self.code_hash.hash(state);
     }
 }
 
 impl AccountInfo {
-    pub fn new(balance: U256, nonce: u64, code_hash: B256, code: Bytecode) -> Self {
+    pub fn new(balances: Balances, nonce: u64, code_hash: B256, code: Bytecode) -> Self {
         Self {
-            balance,
+            balances,
             nonce,
             code: Some(code),
             code_hash,
+        }
+    }
+
+    pub fn from_balances(balances: Balances) -> Self {
+        AccountInfo {
+            balances,
+            ..Default::default()
         }
     }
 
@@ -235,11 +256,11 @@ impl AccountInfo {
     ///
     /// An account is empty if the following conditions are met.
     /// - code hash is zero or set to the Keccak256 hash of the empty string `""`
-    /// - balance is zero
+    /// - the balances of the Account haven't been set
     /// - nonce is zero
     pub fn is_empty(&self) -> bool {
         let code_empty = self.is_empty_code_hash() || self.code_hash == B256::ZERO;
-        self.balance == U256::ZERO && self.nonce == 0 && code_empty
+        code_empty && self.balances.len() == 0 && self.nonce == 0
     }
 
     /// Returns `true` if the account is not empty.
@@ -253,7 +274,6 @@ impl AccountInfo {
     }
 
     /// Return bytecode hash associated with this account.
-    /// If account does not have code, it return's `KECCAK_EMPTY` hash.
     pub fn code_hash(&self) -> B256 {
         self.code_hash
     }
@@ -264,16 +284,75 @@ impl AccountInfo {
         self.code_hash == KECCAK_EMPTY
     }
 
+    /// Decreases the asset balance of the account, wrapping around `0` on underflow.
+    pub fn decrease_balance(&mut self, asset_id: U256, balance: U256) -> Option<U256> {
+        let current_balance = self.get_balance(asset_id);
+        self.balances
+            .insert(asset_id, current_balance.wrapping_sub(balance))
+    }
+
+    /// Decreases the asset balance of the account, saturating at zero.
+    pub fn decrease_balance_saturating(&mut self, asset_id: U256, balance: U256) -> Option<U256> {
+        let current_balance = self.get_balance(asset_id);
+        self.balances
+            .insert(asset_id, current_balance.saturating_sub(balance))
+    }
+
+    /// Decreases the base asset balance of the account, wrapping around `0` on underflow.
+    pub fn decrease_base_balance(&mut self, balance: U256) -> Option<U256> {
+        self.decrease_balance(BASE_ASSET_ID, balance)
+    }
+
+    /// Decreases the base asset balance of the account, saturating at zero.
+    pub fn decrease_base_balance_saturating(&mut self, balance: U256) -> Option<U256> {
+        self.decrease_balance_saturating(BASE_ASSET_ID, balance)
+    }
+
+    /// Returns the balance of `asset_id`, defaulting to zero if none is set.
+    pub fn get_balance(&self, asset_id: U256) -> U256 {
+        self.balances.get(&asset_id).copied().unwrap_or_default()
+    }
+
+    /// Returns the balance of the base asset, defaulting to zero if none is set.
+    pub fn get_base_balance(&self) -> U256 {
+        self.get_balance(BASE_ASSET_ID)
+    }
+
+    /// Increases the `asset_id` balance of the account, wrapping around `U256::MAX` on overflow.
+    pub fn increase_balance(&mut self, asset_id: U256, value: U256) -> Option<U256> {
+        let current_balance = self.get_balance(asset_id);
+        self.balances
+            .insert(asset_id, current_balance.wrapping_add(value))
+    }
+
+    /// Increases the `asset_id` balance of the account, saturating at `U256::MAX`.
+    pub fn increase_balance_saturating(&mut self, asset_id: U256, value: U256) -> Option<U256> {
+        let current_balance = self.get_balance(asset_id);
+        self.balances
+            .insert(asset_id, current_balance.saturating_add(value))
+    }
+
+    /// Increases the base asset balance of the account, wrapping around `U256::MAX` on overflow.
+    pub fn increase_base_balance(&mut self, value: U256) -> Option<U256> {
+        self.increase_balance(BASE_ASSET_ID, value)
+    }
+
+    /// Increases the base asset balance of the account, saturating at `U256::MAX`.
+    pub fn increase_base_balance_saturating(&mut self, value: U256) -> Option<U256> {
+        self.increase_balance_saturating(BASE_ASSET_ID, value)
+    }
+
+    pub fn set_balance(&mut self, asset_id: U256, balance: U256) -> Option<U256> {
+        self.balances.insert(asset_id, balance)
+    }
+
+    pub fn set_base_balance(&mut self, balance: U256) -> Option<U256> {
+        self.set_balance(BASE_ASSET_ID, balance)
+    }
+
     /// Take bytecode from account. Code will be set to None.
     pub fn take_bytecode(&mut self) -> Option<Bytecode> {
         self.code.take()
-    }
-
-    pub fn from_balance(balance: U256) -> Self {
-        AccountInfo {
-            balance,
-            ..Default::default()
-        }
     }
 }
 
@@ -286,11 +365,8 @@ mod tests {
         let mut account = Account::default();
         assert!(account.is_empty());
 
-        account.info.balance = U256::from(1);
+        account.info.set_base_balance(U256::from(1));
         assert!(!account.is_empty());
-
-        account.info.balance = U256::ZERO;
-        assert!(account.is_empty());
     }
 
     #[test]
@@ -325,18 +401,8 @@ mod tests {
         let mut account = Account::default();
 
         assert!(!account.is_touched());
-        assert!(!account.is_selfdestructed());
 
         account.mark_touch();
         assert!(account.is_touched());
-        assert!(!account.is_selfdestructed());
-
-        account.mark_selfdestruct();
-        assert!(account.is_touched());
-        assert!(account.is_selfdestructed());
-
-        account.unmark_selfdestruct();
-        assert!(account.is_touched());
-        assert!(!account.is_selfdestructed());
     }
 }

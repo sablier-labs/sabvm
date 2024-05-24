@@ -27,6 +27,8 @@ pub fn state_merkle_trie_root<'a>(
 #[derive(RlpEncodable, RlpMaxEncodedLen)]
 struct TrieAccount {
     nonce: u64,
+
+    //TODO: keep track of all of the NA balances here, instead?
     balance: U256,
     root_hash: B256,
     code_hash: B256,
@@ -36,7 +38,7 @@ impl TrieAccount {
     fn new(acc: &PlainAccount) -> Self {
         Self {
             nonce: acc.info.nonce,
-            balance: acc.info.balance,
+            balance: acc.info.get_base_balance(),
             root_hash: sec_trie_root::<KeccakHasher, _, _, _>(
                 acc.storage
                     .iter()

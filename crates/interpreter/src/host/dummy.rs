@@ -1,9 +1,8 @@
-use crate::primitives::{hash_map::Entry, Bytecode, Bytes, HashMap, U256};
+use crate::primitives::{hash_map::Entry, Bytecode, HashMap, U256};
 use crate::{
     primitives::{Address, Env, Log, B256, KECCAK_EMPTY},
-    Host, SelfDestructResult,
+    Host, SStoreResult,
 };
-use alloc::vec::Vec;
 
 /// A dummy [Host] implementation.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -34,7 +33,12 @@ impl DummyHost {
 
 impl Host for DummyHost {
     #[inline]
-    fn env(&mut self) -> &mut Env {
+    fn env(&self) -> &Env {
+        &self.env
+    }
+
+    #[inline]
+    fn env_mut(&mut self) -> &mut Env {
         &mut self.env
     }
 
@@ -49,11 +53,6 @@ impl Host for DummyHost {
     }
 
     #[inline]
-    fn balance(&mut self, _address: Address) -> Option<(U256, bool)> {
-        Some((U256::ZERO, false))
-    }
-
-    #[inline]
     fn code(&mut self, _address: Address) -> Option<(Bytecode, bool)> {
         Some((Bytecode::default(), false))
     }
@@ -61,6 +60,11 @@ impl Host for DummyHost {
     #[inline]
     fn code_hash(&mut self, __address: Address) -> Option<(B256, bool)> {
         Some((KECCAK_EMPTY, false))
+    }
+
+    #[inline]
+    fn is_tx_sender_eoa(&mut self) -> bool {
+        false
     }
 
     #[inline]
@@ -75,12 +79,7 @@ impl Host for DummyHost {
     }
 
     #[inline]
-    fn sstore(
-        &mut self,
-        _address: Address,
-        index: U256,
-        value: U256,
-    ) -> Option<(U256, U256, U256, bool)> {
+    fn sstore(&mut self, _address: Address, index: U256, value: U256) -> Option<SStoreResult> {
         let (present, is_cold) = match self.storage.entry(index) {
             Entry::Occupied(mut entry) => (entry.insert(value), false),
             Entry::Vacant(entry) => {
@@ -89,7 +88,12 @@ impl Host for DummyHost {
             }
         };
 
-        Some((U256::ZERO, present, value, is_cold))
+        Some(SStoreResult {
+            original_value: U256::ZERO,
+            present_value: present,
+            new_value: value,
+            is_cold,
+        })
     }
 
     #[inline]
@@ -106,16 +110,28 @@ impl Host for DummyHost {
     }
 
     #[inline]
-    fn log(&mut self, address: Address, topics: Vec<B256>, data: Bytes) {
-        self.log.push(Log {
-            address,
-            topics,
-            data,
-        })
+    fn log(&mut self, log: Log) {
+        self.log.push(log)
     }
 
     #[inline]
-    fn selfdestruct(&mut self, _address: Address, _target: Address) -> Option<SelfDestructResult> {
-        panic!("Selfdestruct is not supported for this host")
+    fn balance(&mut self, _asset_id: U256, _address: Address) -> Option<(U256, bool)> {
+        Some((U256::ZERO, false))
+    }
+
+    #[inline]
+    fn mint(
+        &mut self,
+        _minter: Address,
+        _recipient: Address,
+        _sub_id: U256,
+        _amount: U256,
+    ) -> bool {
+        panic!("Mint is not supported for this host")
+    }
+
+    #[inline]
+    fn burn(&mut self, _burner: Address, _sub_id: U256, _amount: U256) -> bool {
+        panic!("Burn is not supported for this host")
     }
 }

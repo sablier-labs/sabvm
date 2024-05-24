@@ -12,8 +12,6 @@ use revm_precompile::HashMap;
 ///
 /// Original account info is needed to know if there was a change.
 /// Same thing for storage with original value.
-///
-/// On selfdestruct storage original value is ignored.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BundleAccount {
     pub info: Option<AccountInfo>,
@@ -69,11 +67,6 @@ impl BundleAccount {
         self.info.clone()
     }
 
-    /// Was this account destroyed.
-    pub fn was_destroyed(&self) -> bool {
-        self.status.was_destroyed()
-    }
-
     /// Return true of account info was changed.
     pub fn is_info_changed(&self) -> bool {
         self.info != self.original_info
@@ -92,8 +85,16 @@ impl BundleAccount {
             AccountInfoRevert::DoNothing => (),
             AccountInfoRevert::DeleteIt => {
                 self.info = None;
-                self.storage = HashMap::new();
-                return true;
+                if self.original_info.is_none() {
+                    self.storage = HashMap::new();
+                    return true;
+                } else {
+                    // set all storage to zero but preserve original values.
+                    self.storage.iter_mut().for_each(|(_, v)| {
+                        v.present_value = U256::ZERO;
+                    });
+                    return false;
+                }
             }
             AccountInfoRevert::RevertTo(info) => self.info = Some(info),
         };
@@ -102,10 +103,10 @@ impl BundleAccount {
             match slot {
                 RevertToSlot::Some(value) => {
                     // Don't overwrite original values if present
-                    // if storage is not present set original values as current value.
+                    // if storage is not present set original value as current value.
                     self.storage
                         .entry(key)
-                        .or_insert(StorageSlot::new_changed(value, U256::ZERO))
+                        .or_insert(StorageSlot::new(value))
                         .present_value = value;
                 }
                 RevertToSlot::Destroyed => {
@@ -140,7 +141,7 @@ impl BundleAccount {
             |updated_storage: &StorageWithOriginalValues| -> HashMap<U256, RevertToSlot> {
                 updated_storage
                     .iter()
-                    .filter(|s| s.1.previous_or_original_value != s.1.present_value)
+                    .filter(|s| s.1.is_changed())
                     .map(|(key, value)| {
                         (*key, RevertToSlot::Some(value.previous_or_original_value))
                     })
@@ -214,145 +215,6 @@ impl BundleAccount {
                 // No changeset, maybe just update data
                 // Do nothing for now.
                 None
-            }
-            AccountStatus::Destroyed => {
-                // clear this storage and move it to the Revert.
-                let this_storage = self.storage.drain().collect();
-                let ret = match self.status {
-                    AccountStatus::InMemoryChange | AccountStatus::Changed | AccountStatus::Loaded | AccountStatus::LoadedEmptyEIP161 => {
-                        Some(AccountRevert::new_selfdestructed(self.status, info_revert, this_storage))
-                    }
-                    AccountStatus::LoadedNotExisting => {
-                        // Do nothing as we have LoadedNotExisting -> Destroyed (It is noop)
-                        None
-                    }
-                    _ => unreachable!("Invalid transition to Destroyed account from: {self:?} to {updated_info:?} {updated_status:?}"),
-                };
-
-                if ret.is_some() {
-                    self.status = AccountStatus::Destroyed;
-                    self.info = None;
-                }
-
-                // set present to destroyed.
-                ret
-            }
-            AccountStatus::DestroyedChanged => {
-                // Previous block created account or changed.
-                // (It was destroyed on previous block or one before).
-
-                // check common pre destroy paths.
-                // If common path is there it will drain the storage.
-                if let Some(revert_state) = AccountRevert::new_selfdestructed_from_bundle(
-                    info_revert.clone(),
-                    self,
-                    &updated_storage,
-                ) {
-                    // set to destroyed and revert state.
-                    self.status = AccountStatus::DestroyedChanged;
-                    self.info = updated_info;
-                    self.storage = updated_storage;
-
-                    Some(revert_state)
-                } else {
-                    let ret = match self.status {
-                        AccountStatus::Destroyed | AccountStatus::LoadedNotExisting => {
-                            // from destroyed state new account is made
-                            Some(AccountRevert {
-                                account: AccountInfoRevert::DeleteIt,
-                                storage: previous_storage_from_update(&updated_storage),
-                                previous_status: self.status,
-                                wipe_storage: false,
-                            })
-                        }
-                        AccountStatus::DestroyedChanged => {
-                            // Account was destroyed in this transition. So we should clear present storage
-                            // and insert it inside revert.
-
-                            let previous_storage = if transition.storage_was_destroyed {
-                                let mut storage = core::mem::take(&mut self.storage)
-                                    .into_iter()
-                                    .map(|t| (t.0, RevertToSlot::Some(t.1.present_value)))
-                                    .collect::<HashMap<_, _>>();
-                                for (key, _) in &updated_storage {
-                                    // as it is not existing inside Destroyed storage this means
-                                    // that previous values must be zero
-                                    storage.entry(*key).or_insert(RevertToSlot::Destroyed);
-                                }
-                                storage
-                            } else {
-                                previous_storage_from_update(&updated_storage)
-                            };
-
-                            Some(AccountRevert {
-                                account: info_revert,
-                                storage: previous_storage,
-                                previous_status: AccountStatus::DestroyedChanged,
-                                wipe_storage: false,
-                            })
-                        }
-                        AccountStatus::DestroyedAgain => {
-                            Some(AccountRevert::new_selfdestructed_again(
-                                // destroyed again will set empty account.
-                                AccountStatus::DestroyedAgain,
-                                AccountInfoRevert::DeleteIt,
-                                HashMap::default(),
-                                updated_storage.clone(),
-                            ))
-                        }
-                        _ => unreachable!("Invalid state transfer to DestroyedNew from {self:?}"),
-                    };
-                    self.status = AccountStatus::DestroyedChanged;
-                    self.info = updated_info;
-                    // extends current storage.
-                    extend_storage(&mut self.storage, updated_storage);
-
-                    ret
-                }
-            }
-            AccountStatus::DestroyedAgain => {
-                // Previous block created account
-                // (It was destroyed on previous block or one before).
-
-                // check common pre destroy paths.
-                // This will drain the storage if it is common transition.
-                let ret = if let Some(revert_state) = AccountRevert::new_selfdestructed_from_bundle(
-                    info_revert,
-                    self,
-                    &HashMap::default(),
-                ) {
-                    Some(revert_state)
-                } else {
-                    match self.status {
-                        AccountStatus::Destroyed
-                        | AccountStatus::DestroyedAgain
-                        | AccountStatus::LoadedNotExisting => {
-                            // From destroyed to destroyed again. is noop
-                            //
-                            // DestroyedAgain to DestroyedAgain is noop
-                            //
-                            // From LoadedNotExisting to DestroyedAgain
-                            // is noop as account is destroyed again
-                            None
-                        }
-                        AccountStatus::DestroyedChanged => {
-                            // From destroyed changed to destroyed again.
-                            Some(AccountRevert::new_selfdestructed_again(
-                                // destroyed again will set empty account.
-                                AccountStatus::DestroyedChanged,
-                                AccountInfoRevert::RevertTo(self.info.clone().unwrap_or_default()),
-                                self.storage.drain().collect(),
-                                HashMap::default(),
-                            ))
-                        }
-                        _ => unreachable!("Invalid state to DestroyedAgain from {self:?}"),
-                    }
-                };
-                // set to destroyed and revert state.
-                self.status = AccountStatus::DestroyedAgain;
-                self.info = None;
-                self.storage.clear();
-                ret
             }
         };
 

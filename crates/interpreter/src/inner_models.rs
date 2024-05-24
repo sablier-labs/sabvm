@@ -1,5 +1,6 @@
 pub use crate::primitives::CreateScheme;
-use crate::primitives::{Address, Bytes, B256, U256};
+use crate::primitives::{Address, Asset, Bytes, TransactTo, TxEnv};
+use core::ops::Range;
 
 /// Inputs for a call.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -17,6 +18,8 @@ pub struct CallInputs {
     pub context: CallContext,
     /// Whether this is a static call.
     pub is_static: bool,
+    /// The return memory offset where the output of the call is written.
+    pub return_memory_offset: Range<usize>,
 }
 
 /// Inputs for a create call.
@@ -27,15 +30,69 @@ pub struct CreateInputs {
     pub caller: Address,
     /// The create scheme.
     pub scheme: CreateScheme,
-    /// The value to transfer.
-    pub value: U256,
+    /// The assets to transfer to the contract.
+    pub transferred_assets: Vec<Asset>,
     /// The init code of the contract.
     pub init_code: Bytes,
     /// The gas limit of the call.
     pub gas_limit: u64,
 }
 
+impl CallInputs {
+    /// Creates new call inputs.
+    pub fn new(tx_env: &TxEnv, gas_limit: u64) -> Option<Self> {
+        let TransactTo::Call(address) = tx_env.transact_to else {
+            return None;
+        };
+
+        Some(CallInputs {
+            contract: address,
+            transfer: Transfer {
+                source: tx_env.caller,
+                target: address,
+                assets: tx_env.transferred_assets.clone(),
+            },
+            input: tx_env.data.clone(),
+            gas_limit,
+            context: CallContext {
+                caller: tx_env.caller,
+                address,
+                code_address: address,
+                apparent_assets: tx_env.transferred_assets.clone(),
+                scheme: CallScheme::Call,
+            },
+            is_static: false,
+            return_memory_offset: 0..0,
+        })
+    }
+
+    /// Returns boxed call inputs.
+    pub fn new_boxed(tx_env: &TxEnv, gas_limit: u64) -> Option<Box<Self>> {
+        Self::new(tx_env, gas_limit).map(Box::new)
+    }
+}
+
 impl CreateInputs {
+    /// Creates new create inputs.
+    pub fn new(tx_env: &TxEnv, gas_limit: u64) -> Option<Self> {
+        let TransactTo::Create(scheme) = tx_env.transact_to else {
+            return None;
+        };
+
+        Some(CreateInputs {
+            caller: tx_env.caller,
+            scheme,
+            transferred_assets: tx_env.transferred_assets.clone(),
+            init_code: tx_env.data.clone(),
+            gas_limit,
+        })
+    }
+
+    /// Returns boxed create inputs.
+    pub fn new_boxed(tx_env: &TxEnv, gas_limit: u64) -> Option<Box<Self>> {
+        Self::new(tx_env, gas_limit).map(Box::new)
+    }
+
     /// Returns the address that this create call will create.
     pub fn created_address(&self, nonce: u64) -> Address {
         match self.scheme {
@@ -45,23 +102,13 @@ impl CreateInputs {
                 .create2_from_code(salt.to_be_bytes(), &self.init_code),
         }
     }
-
-    /// Returns the address that this create call will create, without calculating the init code hash.
-    ///
-    /// Note: `hash` must be `keccak256(&self.init_code)`.
-    pub fn created_address_with_hash(&self, nonce: u64, hash: &B256) -> Address {
-        match self.scheme {
-            CreateScheme::Create => self.caller.create(nonce),
-            CreateScheme::Create2 { salt } => self.caller.create2(salt.to_be_bytes(), hash),
-        }
-    }
 }
 
 /// Call schemes.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum CallScheme {
-    /// `CALL`
+    /// `CALL`.
     Call,
     /// `CALLCODE`
     CallCode,
@@ -81,8 +128,8 @@ pub struct CallContext {
     pub caller: Address,
     /// The address the contract code was loaded from, if any.
     pub code_address: Address,
-    /// Apparent value of the EVM.
-    pub apparent_value: U256,
+    /// Apparent assets of the EVM.
+    pub apparent_assets: Vec<Asset>,
     /// The scheme used for the call.
     pub scheme: CallScheme,
 }
@@ -93,13 +140,13 @@ impl Default for CallContext {
             address: Address::default(),
             caller: Address::default(),
             code_address: Address::default(),
-            apparent_value: U256::default(),
+            apparent_assets: Vec::new(),
             scheme: CallScheme::Call,
         }
     }
 }
 
-/// Transfer from source to target, with given value.
+/// Transfer assets from source to target.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Transfer {
@@ -107,16 +154,6 @@ pub struct Transfer {
     pub source: Address,
     /// The target address.
     pub target: Address,
-    /// The transfer value.
-    pub value: U256,
-}
-
-/// Result of a call that resulted in a self destruct.
-#[derive(Default, Clone, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct SelfDestructResult {
-    pub had_value: bool,
-    pub target_exists: bool,
-    pub is_cold: bool,
-    pub previously_destroyed: bool,
+    /// The transferred assets.
+    pub assets: Vec<Asset>,
 }

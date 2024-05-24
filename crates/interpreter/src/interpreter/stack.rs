@@ -2,7 +2,6 @@ use crate::{
     primitives::{B256, U256},
     InstructionResult,
 };
-use alloc::vec::Vec;
 use core::fmt;
 
 /// EVM interpreter stack limit.
@@ -58,13 +57,19 @@ impl Stack {
         self.data.is_empty()
     }
 
-    /// Returns the underlying data of the stack.
+    /// Returns a reference to the underlying data buffer.
     #[inline]
     pub fn data(&self) -> &Vec<U256> {
         &self.data
     }
 
-    /// Consumes the stack and returns the underlying data.
+    /// Returns a mutable reference to the underlying data buffer.
+    #[inline]
+    pub fn data_mut(&mut self) -> &mut Vec<U256> {
+        &mut self.data
+    }
+
+    /// Consumes the stack and returns the underlying data buffer.
     #[inline]
     pub fn into_data(self) -> Vec<U256> {
         self.data
@@ -178,7 +183,7 @@ impl Stack {
     /// unchanged.
     #[inline]
     pub fn push(&mut self, value: U256) -> Result<(), InstructionResult> {
-        // allows the compiler to optimize out the `Vec::push` capacity check
+        // Allows the compiler to optimize out the `Vec::push` capacity check.
         assume!(self.data.capacity() == STACK_LIMIT);
         if self.data.len() == STACK_LIMIT {
             return Err(InstructionResult::StackOverflow);
@@ -318,7 +323,7 @@ impl<'de> serde::Deserialize<'de> for Stack {
     {
         let mut data = Vec::<U256>::deserialize(deserializer)?;
         if data.len() > STACK_LIMIT {
-            return Err(serde::de::Error::custom(alloc::format!(
+            return Err(serde::de::Error::custom(std::format!(
                 "stack size exceeds limit: {} > {}",
                 data.len(),
                 STACK_LIMIT

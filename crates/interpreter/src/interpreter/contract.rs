@@ -1,5 +1,5 @@
 use super::analysis::{to_analysed, BytecodeLocked};
-use crate::primitives::{Address, Bytecode, Bytes, Env, TransactTo, B256, U256};
+use crate::primitives::{Address, Asset, Bytecode, Bytes, Env, TransactTo, B256};
 use crate::CallContext;
 
 /// EVM contract information.
@@ -16,8 +16,8 @@ pub struct Contract {
     pub address: Address,
     /// Caller of the EVM.
     pub caller: Address,
-    /// Value send to contract.
-    pub value: U256,
+    /// Assets sent to the contract in the current call.
+    pub call_assets: Vec<Asset>,
 }
 
 impl Contract {
@@ -29,7 +29,7 @@ impl Contract {
         hash: B256,
         address: Address,
         caller: Address,
-        value: U256,
+        assets: Vec<Asset>,
     ) -> Self {
         let bytecode = to_analysed(bytecode).try_into().expect("it is analyzed");
 
@@ -39,7 +39,7 @@ impl Contract {
             hash,
             address,
             caller,
-            value,
+            call_assets: assets,
         }
     }
 
@@ -56,7 +56,7 @@ impl Contract {
             hash,
             contract_address,
             env.tx.caller,
-            env.tx.value,
+            env.tx.transferred_assets.clone(),
         )
     }
 
@@ -74,7 +74,7 @@ impl Contract {
             hash,
             call_context.address,
             call_context.caller,
-            call_context.apparent_value,
+            call_context.apparent_assets.clone(),
         )
     }
 

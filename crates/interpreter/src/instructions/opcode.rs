@@ -6,8 +6,6 @@ use crate::{
     primitives::{Spec, SpecId},
     Host, Interpreter,
 };
-use alloc::boxed::Box;
-use alloc::sync::Arc;
 use core::fmt;
 
 /// EVM opcode function signature.
@@ -17,17 +15,11 @@ pub type Instruction<H> = fn(&mut Interpreter, &mut H);
 /// 256 EVM opcodes.
 pub type InstructionTable<H> = [Instruction<H>; 256];
 
-/// Arc over plain instruction table
-pub type InstructionTableArc<H> = Arc<InstructionTable<H>>;
-
 /// EVM opcode function signature.
 pub type BoxedInstruction<'a, H> = Box<dyn Fn(&mut Interpreter, &mut H) + 'a>;
 
 /// A table of instructions.
 pub type BoxedInstructionTable<'a, H> = [BoxedInstruction<'a, H>; 256];
-
-/// Arc over instruction table
-pub type BoxedInstructionTableArc<'a, H> = Arc<BoxedInstructionTable<'a, H>>;
 
 /// Instruction set that contains plain instruction table that contains simple `fn` function pointer.
 /// and Boxed `Fn` variant that contains `Box<dyn Fn()>` function pointer that can be used with closured.
@@ -35,18 +27,104 @@ pub type BoxedInstructionTableArc<'a, H> = Arc<BoxedInstructionTable<'a, H>>;
 /// Note that `Plain` variant gives us 10-20% faster Interpreter execution.
 ///
 /// Boxed variant can be used to wrap plain function pointer with closure.
-pub enum InstructionTables<'a, H> {
-    Plain(InstructionTableArc<H>),
-    Boxed(BoxedInstructionTableArc<'a, H>),
+pub enum InstructionTables<'a, H: ?Sized> {
+    Plain(InstructionTable<H>),
+    Boxed(BoxedInstructionTable<'a, H>),
 }
 
-impl<'a, H> Clone for InstructionTables<'a, H> {
-    fn clone(&self) -> Self {
+impl<H: Host + ?Sized> InstructionTables<'_, H> {
+    /// Creates a plain instruction table for the given spec.
+    #[inline]
+    pub const fn new_plain<SPEC: Spec>() -> Self {
+        Self::Plain(make_instruction_table::<H, SPEC>())
+    }
+}
+
+impl<'a, H: Host + ?Sized + 'a> InstructionTables<'a, H> {
+    /// Inserts a boxed instruction into the table with the specified index.
+    ///
+    /// This will convert the table into the [BoxedInstructionTable] variant if it is currently a
+    /// plain instruction table, before inserting the instruction.
+    #[inline]
+    pub fn insert_boxed(&mut self, opcode: u8, instruction: BoxedInstruction<'a, H>) {
+        // first convert the table to boxed variant
+        self.convert_boxed();
+
+        // now we can insert the instruction
         match self {
-            Self::Plain(table) => Self::Plain(table.clone()),
-            Self::Boxed(table) => Self::Boxed(table.clone()),
+            Self::Plain(_) => {
+                unreachable!("we already converted the table to boxed variant");
+            }
+            Self::Boxed(table) => {
+                table[opcode as usize] = Box::new(instruction);
+            }
         }
     }
+
+    /// Inserts the instruction into the table with the specified index.
+    #[inline]
+    pub fn insert(&mut self, opcode: u8, instruction: Instruction<H>) {
+        match self {
+            Self::Plain(table) => {
+                table[opcode as usize] = instruction;
+            }
+            Self::Boxed(table) => {
+                table[opcode as usize] = Box::new(instruction);
+            }
+        }
+    }
+
+    /// Converts the current instruction table to a boxed variant. If the table is already boxed,
+    /// this is a no-op.
+    #[inline]
+    pub fn convert_boxed(&mut self) {
+        match self {
+            Self::Plain(table) => {
+                *self = Self::Boxed(core::array::from_fn(|i| {
+                    let instruction: BoxedInstruction<'a, H> = Box::new(table[i]);
+                    instruction
+                }));
+            }
+            Self::Boxed(_) => {}
+        };
+    }
+}
+
+/// Make instruction table.
+#[inline]
+pub const fn make_instruction_table<H: Host + ?Sized, SPEC: Spec>() -> InstructionTable<H> {
+    // Force const-eval of the table creation, making this function trivial.
+    // TODO: Replace this with a `const {}` block once it is stable.
+    struct ConstTable<H: Host + ?Sized, SPEC: Spec> {
+        _host: core::marker::PhantomData<H>,
+        _spec: core::marker::PhantomData<SPEC>,
+    }
+    impl<H: Host + ?Sized, SPEC: Spec> ConstTable<H, SPEC> {
+        const NEW: InstructionTable<H> = {
+            let mut tables: InstructionTable<H> = [control::unknown; 256];
+            let mut i = 0;
+            while i < 256 {
+                tables[i] = instruction::<H, SPEC>(i as u8);
+                i += 1;
+            }
+            tables
+        };
+    }
+    ConstTable::<H, SPEC>::NEW
+}
+
+/// Make boxed instruction table that calls `outer` closure for every instruction.
+#[inline]
+pub fn make_boxed_instruction_table<'a, H, SPEC, FN>(
+    table: InstructionTable<H>,
+    mut outer: FN,
+) -> BoxedInstructionTable<'a, H>
+where
+    H: Host + ?Sized,
+    SPEC: Spec + 'a,
+    FN: FnMut(Instruction<H>) -> BoxedInstruction<'a, H>,
+{
+    core::array::from_fn(|i| outer(table[i]))
 }
 
 macro_rules! opcodes {
@@ -56,6 +134,10 @@ macro_rules! opcodes {
             #[doc = concat!("The `", stringify!($val), "` (\"", stringify!($name),"\") opcode.")]
             pub const $name: u8 = $val;
         )*
+        impl OpCode {$(
+            #[doc = concat!("The `", stringify!($val), "` (\"", stringify!($name),"\") opcode.")]
+            pub const $name: Self = Self($val);
+        )*}
 
         /// Maps each opcode to its name.
         pub const OPCODE_JUMPMAP: [Option<&'static str>; 256] = {
@@ -72,34 +154,13 @@ macro_rules! opcodes {
         };
 
         /// Returns the instruction function for the given opcode and spec.
-        pub fn instruction<H: Host, SPEC: Spec>(opcode: u8) -> Instruction<H> {
+        pub const fn instruction<H: Host + ?Sized, SPEC: Spec>(opcode: u8) -> Instruction<H> {
             match opcode {
                 $($name => $f,)*
                 _ => control::unknown,
             }
         }
     };
-}
-
-/// Make instruction table.
-pub fn make_instruction_table<H: Host, SPEC: Spec>() -> InstructionTable<H> {
-    core::array::from_fn(|i| {
-        debug_assert!(i <= u8::MAX as usize);
-        instruction::<H, SPEC>(i as u8)
-    })
-}
-
-/// Make boxed instruction table that calls `outer` closure for every instruction.
-pub fn make_boxed_instruction_table<'a, H, SPEC, FN>(
-    table: InstructionTable<H>,
-    outer: FN,
-) -> BoxedInstructionTable<'a, H>
-where
-    H: Host + 'a,
-    SPEC: Spec + 'static,
-    FN: Fn(Instruction<H>) -> BoxedInstruction<'a, H>,
-{
-    core::array::from_fn(|i| outer(table[i]))
 }
 
 // When adding new opcodes:
@@ -110,7 +171,7 @@ where
 opcodes! {
     0x00 => STOP => control::stop,
 
-    0x01 => ADD        => arithmetic::wrapped_add,
+    0x01 => ADD        => arithmetic::wrapping_add,
     0x02 => MUL        => arithmetic::wrapping_mul,
     0x03 => SUB        => arithmetic::wrapping_sub,
     0x04 => DIV        => arithmetic::div,
@@ -155,18 +216,18 @@ opcodes! {
     // 0x2B
     // 0x2C
     // 0x2D
-    // 0x2E
-    // 0x2F
-    0x30 => ADDRESS   => system::address,
-    0x31 => BALANCE   => host::balance::<H, SPEC>,
-    0x32 => ORIGIN    => host_env::origin,
-    0x33 => CALLER    => system::caller,
-    0x34 => CALLVALUE => system::callvalue,
-    0x35 => CALLDATALOAD => system::calldataload,
-    0x36 => CALLDATASIZE => system::calldatasize,
-    0x37 => CALLDATACOPY => system::calldatacopy,
-    0x38 => CODESIZE     => system::codesize,
-    0x39 => CODECOPY     => system::codecopy,
+    0x2E => BALANCEOF    => host::balance_of::<H, SPEC>,
+    0x2F => MNTCALLVALUES => system::mnt_callvalues,
+    0x30 => ADDRESS       => system::address,
+    0x31 => BALANCE       => host::balance::<H, SPEC>,
+    0x32 => ORIGIN        => host_env::origin,
+    0x33 => CALLER        => system::caller,
+    0x34 => CALLVALUE     => system::callvalue,
+    0x35 => CALLDATALOAD  => system::calldataload,
+    0x36 => CALLDATASIZE  => system::calldatasize,
+    0x37 => CALLDATACOPY  => system::calldatacopy,
+    0x38 => CODESIZE      => system::codesize,
+    0x39 => CODECOPY      => system::codecopy,
 
     0x3A => GASPRICE       => host_env::gasprice,
     0x3B => EXTCODESIZE    => host::extcodesize::<H, SPEC>,
@@ -306,8 +367,8 @@ opcodes! {
     // 0xBD
     // 0xBE
     // 0xBF
-    // 0xC0
-    // 0xC1
+    0xC0 => MINT => host::mint::<H, SPEC>,
+    0xC1 => BURN => host::burn::<H, SPEC>,
     // 0xC2
     // 0xC3
     // 0xC4
@@ -352,15 +413,15 @@ opcodes! {
     // 0xEB
     // 0xEC
     // 0xED
-    // 0xEE
-    // 0xEF
+    0xEE => MNTCALL      => host::mnt_call::<H, SPEC>,
+    0xEF => MNTCALLCODE  => host::mnt_call_code::<H, SPEC>,
     0xF0 => CREATE       => host::create::<false, H, SPEC>,
     0xF1 => CALL         => host::call::<H, SPEC>,
     0xF2 => CALLCODE     => host::call_code::<H, SPEC>,
     0xF3 => RETURN       => control::ret,
     0xF4 => DELEGATECALL => host::delegate_call::<H, SPEC>,
     0xF5 => CREATE2      => host::create::<true, H, SPEC>,
-    // 0xF6
+    0xF6 => MNTCREATE    => host::mnt_create::<true, H, SPEC>,
     // 0xF7
     // 0xF8
     // 0xF9
@@ -376,9 +437,16 @@ opcodes! {
 ///
 /// This is always a valid opcode, as declared in the [`opcode`][self] module or the
 /// [`OPCODE_JUMPMAP`] constant.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct OpCode(u8);
+
+impl fmt::Debug for OpCode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "OpCode::{self}")
+    }
+}
 
 impl fmt::Display for OpCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -428,18 +496,28 @@ impl OpCode {
         self.0
     }
 
+    /// Returns true if the opcode modifies memory.
+    /// <https://bluealloy.github.io/revm/crates/interpreter/memory.html#opcodes>
+    /// <https://github.com/crytic/evm-opcodes>
     #[inline]
-    #[deprecated(note = "use `new` instead")]
-    #[doc(hidden)]
-    pub const fn try_from_u8(opcode: u8) -> Option<Self> {
-        Self::new(opcode)
-    }
-
-    #[inline]
-    #[deprecated(note = "use `get` instead")]
-    #[doc(hidden)]
-    pub const fn u8(self) -> u8 {
-        self.get()
+    pub const fn modifies_memory(&self) -> bool {
+        matches!(
+            *self,
+            OpCode::EXTCODECOPY
+                | OpCode::MLOAD
+                | OpCode::MSTORE
+                | OpCode::MSTORE8
+                | OpCode::MCOPY
+                | OpCode::CODECOPY
+                | OpCode::CALLDATACOPY
+                | OpCode::RETURNDATACOPY
+                | OpCode::CALL
+                | OpCode::MNTCALL
+                | OpCode::CALLCODE
+                | OpCode::MNTCALLCODE
+                | OpCode::DELEGATECALL
+                | OpCode::STATICCALL
+        )
     }
 }
 
@@ -577,8 +655,8 @@ const fn opcode_gas_info(opcode: u8, spec: SpecId) -> OpInfo {
         0x2B => OpInfo::none(),
         0x2C => OpInfo::none(),
         0x2D => OpInfo::none(),
-        0x2E => OpInfo::none(),
-        0x2F => OpInfo::none(),
+        BALANCEOF => OpInfo::dynamic_gas(),
+        MNTCALLVALUES => OpInfo::gas(gas::BASE),
         ADDRESS => OpInfo::gas(gas::BASE),
         BALANCE => OpInfo::dynamic_gas(),
         ORIGIN => OpInfo::gas(gas::BASE),
@@ -784,8 +862,8 @@ const fn opcode_gas_info(opcode: u8, spec: SpecId) -> OpInfo {
         0xBD => OpInfo::none(),
         0xBE => OpInfo::none(),
         0xBF => OpInfo::none(),
-        0xC0 => OpInfo::none(),
-        0xC1 => OpInfo::none(),
+        MINT => OpInfo::dynamic_gas(),
+        BURN => OpInfo::dynamic_gas(),
         0xC2 => OpInfo::none(),
         0xC3 => OpInfo::none(),
         0xC4 => OpInfo::none(),
@@ -830,15 +908,15 @@ const fn opcode_gas_info(opcode: u8, spec: SpecId) -> OpInfo {
         0xEB => OpInfo::none(),
         0xEC => OpInfo::none(),
         0xED => OpInfo::none(),
-        0xEE => OpInfo::none(),
-        0xEF => OpInfo::none(),
+        MNTCALL => OpInfo::gas_block_end(0),
+        MNTCALLCODE => OpInfo::gas_block_end(0),
         CREATE => OpInfo::gas_block_end(0),
         CALL => OpInfo::gas_block_end(0),
         CALLCODE => OpInfo::gas_block_end(0),
         RETURN => OpInfo::gas_block_end(0),
         DELEGATECALL => OpInfo::gas_block_end(0),
         CREATE2 => OpInfo::gas_block_end(0),
-        0xF6 => OpInfo::none(),
+        MNTCREATE => OpInfo::gas_block_end(0),
         0xF7 => OpInfo::none(),
         0xF8 => OpInfo::none(),
         0xF9 => OpInfo::none(),
@@ -847,7 +925,7 @@ const fn opcode_gas_info(opcode: u8, spec: SpecId) -> OpInfo {
         0xFC => OpInfo::none(),
         REVERT => OpInfo::gas_block_end(0),
         INVALID => OpInfo::gas_block_end(0),
-        SELFDESTRUCT => OpInfo::gas_block_end(0),
+        0xFF => OpInfo::none(),
     }
 }
 
@@ -886,6 +964,11 @@ pub const fn spec_opcode_gas(spec_id: SpecId) -> &'static [OpInfo; 256] {
                 #[cfg(feature = "optimism")]
                 SpecId::CANYON => {
                     const TABLE: &[OpInfo;256] = &make_gas_table(SpecId::CANYON);
+                    TABLE
+                }
+                #[cfg(feature = "optimism")]
+                SpecId::ECOTONE => {
+                    const TABLE: &[OpInfo;256] = &make_gas_table(SpecId::ECOTONE);
                     TABLE
                 }
             }

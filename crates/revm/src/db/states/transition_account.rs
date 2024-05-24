@@ -57,7 +57,7 @@ impl TransitionAccount {
     pub fn previous_balance(&self) -> U256 {
         self.previous_info
             .as_ref()
-            .map(|info| info.balance)
+            .map(|info| info.get_base_balance()) //TODO: also take into account the other Native Asset Balances
             .unwrap_or_default()
     }
 
@@ -65,7 +65,7 @@ impl TransitionAccount {
     pub fn current_balance(&self) -> U256 {
         self.info
             .as_ref()
-            .map(|info| info.balance)
+            .map(|info| info.get_base_balance()) //TODO: also take into account the other Native Asset Balances
             .unwrap_or_default()
     }
 
@@ -85,33 +85,23 @@ impl TransitionAccount {
     /// Update new values of transition. Don't override old values.
     /// Both account info and old storages need to be left intact.
     pub fn update(&mut self, other: Self) {
-        self.info = other.info.clone();
+        self.info.clone_from(&other.info);
         self.status = other.status;
 
-        // if transition is from some to destroyed drop the storage.
-        // This need to be done here as it is one increment of the state.
-        if matches!(
-            other.status,
-            AccountStatus::Destroyed | AccountStatus::DestroyedAgain
-        ) {
-            self.storage = other.storage;
-            self.storage_was_destroyed = true;
-        } else {
-            // update changed values to this transition.
-            for (key, slot) in other.storage.into_iter() {
-                match self.storage.entry(key) {
-                    hash_map::Entry::Vacant(entry) => {
-                        entry.insert(slot);
-                    }
-                    hash_map::Entry::Occupied(mut entry) => {
-                        let value = entry.get_mut();
-                        // if new value is same as original value. Remove storage entry.
-                        if value.original_value() == slot.present_value() {
-                            entry.remove();
-                        } else {
-                            // is value is different, update transition present value;
-                            value.present_value = slot.present_value;
-                        }
+        // Update changed values to this transition.
+        for (key, slot) in other.storage.into_iter() {
+            match self.storage.entry(key) {
+                hash_map::Entry::Vacant(entry) => {
+                    entry.insert(slot);
+                }
+                hash_map::Entry::Occupied(mut entry) => {
+                    let value = entry.get_mut();
+                    // if new value is same as original value. Remove storage entry.
+                    if value.original_value() == slot.present_value() {
+                        entry.remove();
+                    } else {
+                        // if value is different, update transition present value;
+                        value.present_value = slot.present_value;
                     }
                 }
             }

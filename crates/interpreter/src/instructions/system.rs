@@ -1,40 +1,40 @@
 use crate::{
     gas,
-    primitives::{Spec, B256, KECCAK_EMPTY, U256},
+    primitives::{Spec, B256, BASE_ASSET_ID, KECCAK_EMPTY, U256},
     Host, InstructionResult, Interpreter,
 };
+use core::ptr;
 
-pub fn keccak256<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
-    pop!(interpreter, from, len);
-    let len = as_usize_or_fail!(interpreter, len);
+pub fn keccak256<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
+    pop_top!(interpreter, offset, len_ptr);
+    let len = as_usize_or_fail!(interpreter, len_ptr);
     gas_or_fail!(interpreter, gas::keccak256_cost(len as u64));
     let hash = if len == 0 {
         KECCAK_EMPTY
     } else {
-        let from = as_usize_or_fail!(interpreter, from);
-        shared_memory_resize!(interpreter, from, len);
+        let from = as_usize_or_fail!(interpreter, offset);
+        resize_memory!(interpreter, from, len);
         crate::primitives::keccak256(interpreter.shared_memory.slice(from, len))
     };
-
-    push_b256!(interpreter, hash);
+    *len_ptr = hash.into();
 }
 
-pub fn address<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn address<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     gas!(interpreter, gas::BASE);
     push_b256!(interpreter, interpreter.contract.address.into_word());
 }
 
-pub fn caller<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn caller<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     gas!(interpreter, gas::BASE);
     push_b256!(interpreter, interpreter.contract.caller.into_word());
 }
 
-pub fn codesize<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn codesize<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     gas!(interpreter, gas::BASE);
     push!(interpreter, U256::from(interpreter.contract.bytecode.len()));
 }
 
-pub fn codecopy<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn codecopy<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     pop!(interpreter, memory_offset, code_offset, len);
     let len = as_usize_or_fail!(interpreter, len);
     gas_or_fail!(interpreter, gas::verylowcopy_cost(len as u64));
@@ -43,7 +43,7 @@ pub fn codecopy<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
     }
     let memory_offset = as_usize_or_fail!(interpreter, memory_offset);
     let code_offset = as_usize_saturated!(code_offset);
-    shared_memory_resize!(interpreter, memory_offset, len);
+    resize_memory!(interpreter, memory_offset, len);
 
     // Note: this can't panic because we resized memory to fit.
     interpreter.shared_memory.set_data(
@@ -54,33 +54,63 @@ pub fn codecopy<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
     );
 }
 
-pub fn calldataload<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn calldataload<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     gas!(interpreter, gas::VERYLOW);
-    pop!(interpreter, index);
-    let index = as_usize_saturated!(index);
-    let load = if index < interpreter.contract.input.len() {
-        let have_bytes = 32.min(interpreter.contract.input.len() - index);
-        let mut bytes = [0u8; 32];
-        bytes[..have_bytes].copy_from_slice(&interpreter.contract.input[index..index + have_bytes]);
-        B256::new(bytes)
-    } else {
-        B256::ZERO
-    };
-
-    push_b256!(interpreter, load);
+    pop_top!(interpreter, offset_ptr);
+    let mut word = B256::ZERO;
+    let offset = as_usize_saturated!(offset_ptr);
+    if offset < interpreter.contract.input.len() {
+        let count = 32.min(interpreter.contract.input.len() - offset);
+        // SAFETY: count is bounded by the calldata length.
+        // This is `word[..count].copy_from_slice(input[offset..offset + count])`, written using
+        // raw pointers as apparently the compiler cannot optimize the slice version, and using
+        // `get_unchecked` twice is uglier.
+        debug_assert!(count <= 32 && offset + count <= interpreter.contract.input.len());
+        unsafe {
+            ptr::copy_nonoverlapping(
+                interpreter.contract.input.as_ptr().add(offset),
+                word.as_mut_ptr(),
+                count,
+            )
+        };
+    }
+    *offset_ptr = word.into();
 }
 
-pub fn calldatasize<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn calldatasize<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     gas!(interpreter, gas::BASE);
     push!(interpreter, U256::from(interpreter.contract.input.len()));
 }
 
-pub fn callvalue<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn callvalue<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     gas!(interpreter, gas::BASE);
-    push!(interpreter, interpreter.contract.value);
+
+    let base_asset_amount = interpreter
+        .contract
+        .call_assets
+        .iter()
+        .find(|asset| asset.id == BASE_ASSET_ID)
+        .map(|asset| asset.amount)
+        .unwrap_or(U256::ZERO);
+    push!(interpreter, base_asset_amount);
 }
 
-pub fn calldatacopy<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn mnt_callvalues<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
+    // TODO: make the gas cost proportional to the MNTs number
+    gas!(interpreter, gas::BASE);
+
+    for asset in &interpreter.contract.call_assets {
+        push!(interpreter, asset.amount);
+        push!(interpreter, asset.id);
+    }
+
+    push!(
+        interpreter,
+        U256::from(interpreter.contract.call_assets.len())
+    );
+}
+
+pub fn calldatacopy<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     pop!(interpreter, memory_offset, data_offset, len);
     let len = as_usize_or_fail!(interpreter, len);
     gas_or_fail!(interpreter, gas::verylowcopy_cost(len as u64));
@@ -89,7 +119,7 @@ pub fn calldatacopy<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
     }
     let memory_offset = as_usize_or_fail!(interpreter, memory_offset);
     let data_offset = as_usize_saturated!(data_offset);
-    shared_memory_resize!(interpreter, memory_offset, len);
+    resize_memory!(interpreter, memory_offset, len);
 
     // Note: this can't panic because we resized memory to fit.
     interpreter.shared_memory.set_data(
@@ -101,7 +131,7 @@ pub fn calldatacopy<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
 }
 
 /// EIP-211: New opcodes: RETURNDATASIZE and RETURNDATACOPY
-pub fn returndatasize<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn returndatasize<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, _host: &mut H) {
     check!(interpreter, BYZANTIUM);
     gas!(interpreter, gas::BASE);
     push!(
@@ -111,7 +141,7 @@ pub fn returndatasize<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, _host:
 }
 
 /// EIP-211: New opcodes: RETURNDATASIZE and RETURNDATACOPY
-pub fn returndatacopy<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn returndatacopy<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, _host: &mut H) {
     check!(interpreter, BYZANTIUM);
     pop!(interpreter, memory_offset, offset, len);
     let len = as_usize_or_fail!(interpreter, len);
@@ -124,7 +154,7 @@ pub fn returndatacopy<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, _host:
     }
     if len != 0 {
         let memory_offset = as_usize_or_fail!(interpreter, memory_offset);
-        shared_memory_resize!(interpreter, memory_offset, len);
+        resize_memory!(interpreter, memory_offset, len);
         interpreter.shared_memory.set(
             memory_offset,
             &interpreter.return_data_buffer[data_offset..data_end],
@@ -132,7 +162,7 @@ pub fn returndatacopy<H: Host, SPEC: Spec>(interpreter: &mut Interpreter, _host:
     }
 }
 
-pub fn gas<H: Host>(interpreter: &mut Interpreter, _host: &mut H) {
+pub fn gas<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     gas!(interpreter, gas::BASE);
     push!(interpreter, U256::from(interpreter.gas.remaining()));
 }

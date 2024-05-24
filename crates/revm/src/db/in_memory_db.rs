@@ -1,10 +1,10 @@
 use super::{DatabaseCommit, DatabaseRef, EmptyDB};
+use crate::primitives::state::State;
 use crate::primitives::{
-    hash_map::Entry, Account, AccountInfo, Address, Bytecode, HashMap, Log, B256, KECCAK_EMPTY,
-    U256,
+    hash_map::Entry, init_balances, AccountInfo, Address, Bytecode, HashMap, Log, B256,
+    BASE_ASSET_ID, KECCAK_EMPTY, U256,
 };
 use crate::Database;
-use alloc::vec::Vec;
 use core::convert::Infallible;
 
 /// A [Database] implementation that stores all state changes in memory.
@@ -18,10 +18,13 @@ pub type InMemoryDB = CacheDB<EmptyDB>;
 /// whereas contracts are identified by their code hash, and are stored in the `contracts` map.
 /// The [DbAccount] holds the code hash of the contract, which is used to look up the contract in the `contracts` map.
 #[derive(Debug, Clone)]
-pub struct CacheDB<ExtDB: DatabaseRef> {
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CacheDB<ExtDB> {
     /// Account info where None means it is not existing. Not existing state is needed for Pre TANGERINE forks.
     /// `code` is always `None`, and bytecode can be found in `contracts`.
     pub accounts: HashMap<Address, DbAccount>,
+    // the ids of the assets recognized by the VM
+    pub asset_ids: Vec<U256>,
     /// Tracks all contracts by their code hash.
     pub contracts: HashMap<B256, Bytecode>,
     /// All logs that were committed via [DatabaseCommit::commit].
@@ -34,19 +37,21 @@ pub struct CacheDB<ExtDB: DatabaseRef> {
     pub db: ExtDB,
 }
 
-impl<ExtDB: DatabaseRef + Default> Default for CacheDB<ExtDB> {
+impl<ExtDB: Default> Default for CacheDB<ExtDB> {
     fn default() -> Self {
         Self::new(ExtDB::default())
     }
 }
 
-impl<ExtDB: DatabaseRef> CacheDB<ExtDB> {
+impl<ExtDB> CacheDB<ExtDB> {
     pub fn new(db: ExtDB) -> Self {
         let mut contracts = HashMap::new();
         contracts.insert(KECCAK_EMPTY, Bytecode::new());
         contracts.insert(B256::ZERO, Bytecode::new());
+
         Self {
             accounts: HashMap::new(),
+            asset_ids: vec![BASE_ASSET_ID],
             contracts,
             logs: Vec::default(),
             block_hashes: HashMap::new(),
@@ -80,7 +85,9 @@ impl<ExtDB: DatabaseRef> CacheDB<ExtDB> {
         self.insert_contract(&mut info);
         self.accounts.entry(address).or_default().info = info;
     }
+}
 
+impl<ExtDB: DatabaseRef> CacheDB<ExtDB> {
     /// Returns the account for the given address.
     ///
     /// If the account was not found in the cache, it will be loaded from the underlying database.
@@ -124,17 +131,10 @@ impl<ExtDB: DatabaseRef> CacheDB<ExtDB> {
     }
 }
 
-impl<ExtDB: DatabaseRef> DatabaseCommit for CacheDB<ExtDB> {
-    fn commit(&mut self, changes: HashMap<Address, Account>) {
-        for (address, mut account) in changes {
+impl<ExtDB> DatabaseCommit for CacheDB<ExtDB> {
+    fn commit(&mut self, changes: State) {
+        for (address, mut account) in changes.accounts {
             if !account.is_touched() {
-                continue;
-            }
-            if account.is_selfdestructed() {
-                let db_account = self.accounts.entry(address).or_default();
-                db_account.storage.clear();
-                db_account.account_state = AccountState::NotExisting;
-                db_account.info = AccountInfo::default();
                 continue;
             }
             let is_newly_created = account.is_created();
@@ -159,6 +159,8 @@ impl<ExtDB: DatabaseRef> DatabaseCommit for CacheDB<ExtDB> {
                     .map(|(key, value)| (key, value.present_value())),
             );
         }
+
+        self.asset_ids = changes.asset_ids;
     }
 }
 
@@ -241,6 +243,18 @@ impl<ExtDB: DatabaseRef> Database for CacheDB<ExtDB> {
             }
         }
     }
+
+    fn is_asset_id_valid(&mut self, asset_id: U256) -> Result<bool, Self::Error> {
+        if self.asset_ids.contains(&asset_id) {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+
+    fn get_asset_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
+        Ok(self.asset_ids.clone())
+    }
 }
 
 impl<ExtDB: DatabaseRef> DatabaseRef for CacheDB<ExtDB> {
@@ -285,12 +299,21 @@ impl<ExtDB: DatabaseRef> DatabaseRef for CacheDB<ExtDB> {
             None => self.db.block_hash_ref(number),
         }
     }
+
+    fn is_asset_id_valid_ref(&self, asset_id: U256) -> Result<bool, Self::Error> {
+        self.db.is_asset_id_valid_ref(asset_id)
+    }
+
+    fn get_asset_ids_ref(&self) -> Result<Vec<U256>, Self::Error> {
+        self.db.get_asset_ids_ref()
+    }
 }
 
 #[derive(Debug, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DbAccount {
     pub info: AccountInfo,
-    /// If account is selfdestructed or newly created, storage will be cleared.
+    /// If account is newly created, storage will be cleared.
     pub account_state: AccountState,
     /// storage slots
     pub storage: HashMap<U256, U256>,
@@ -330,13 +353,14 @@ impl From<AccountInfo> for DbAccount {
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum AccountState {
     /// Before Spurious Dragon hardfork there was a difference between empty and not existing.
     /// And we are flagging it here.
     NotExisting,
     /// EVM touched this account. For newer hardfork this means it can be cleared/removed from state.
     Touched,
-    /// EVM cleared storage of this account, mostly by selfdestruct, we don't ask database for storage slots
+    /// EVM cleared storage of this account, we don't ask database for storage slots
     /// and assume they are U256::ZERO
     StorageCleared,
     /// EVM didn't interacted with this account
@@ -371,7 +395,7 @@ impl Database for BenchmarkDB {
         if address == Address::ZERO {
             return Ok(Some(AccountInfo {
                 nonce: 1,
-                balance: U256::from(10000000),
+                balances: init_balances(U256::from(10000000)),
                 code: Some(self.0.clone()),
                 code_hash: self.1,
             }));
@@ -379,7 +403,7 @@ impl Database for BenchmarkDB {
         if address == Address::with_last_byte(1) {
             return Ok(Some(AccountInfo {
                 nonce: 0,
-                balance: U256::from(10000000),
+                balances: init_balances(U256::from(10000000)),
                 code: None,
                 code_hash: KECCAK_EMPTY,
             }));
@@ -400,6 +424,16 @@ impl Database for BenchmarkDB {
     // History related
     fn block_hash(&mut self, _number: U256) -> Result<B256, Self::Error> {
         Ok(B256::default())
+    }
+
+    // Check if asset id is valid
+    fn is_asset_id_valid(&mut self, _asset_id: U256) -> Result<bool, Self::Error> {
+        Ok(false)
+    }
+
+    // Get the supported asset ids
+    fn get_asset_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
+        Ok(vec![BASE_ASSET_ID])
     }
 }
 
@@ -423,7 +457,9 @@ mod tests {
 
         let (key, value) = (U256::from(123), U256::from(456));
         let mut new_state = CacheDB::new(init_state);
-        let _ = new_state.insert_account_storage(account, key, value);
+        new_state
+            .insert_account_storage(account, key, value)
+            .unwrap();
 
         assert_eq!(new_state.basic(account).unwrap().unwrap().nonce, nonce);
         assert_eq!(new_state.storage(account, key), Ok(value));
@@ -444,13 +480,41 @@ mod tests {
 
         let (key0, value0) = (U256::from(123), U256::from(456));
         let (key1, value1) = (U256::from(789), U256::from(999));
-        let _ = init_state.insert_account_storage(account, key0, value0);
+        init_state
+            .insert_account_storage(account, key0, value0)
+            .unwrap();
 
         let mut new_state = CacheDB::new(init_state);
-        let _ = new_state.replace_account_storage(account, [(key1, value1)].into());
+        new_state
+            .replace_account_storage(account, [(key1, value1)].into())
+            .unwrap();
 
         assert_eq!(new_state.basic(account).unwrap().unwrap().nonce, nonce);
         assert_eq!(new_state.storage(account, key0), Ok(U256::ZERO));
         assert_eq!(new_state.storage(account, key1), Ok(value1));
+    }
+
+    #[cfg(feature = "serde-json")]
+    #[test]
+    fn test_serialize_deserialize_cachedb() {
+        let account = Address::with_last_byte(69);
+        let nonce = 420;
+        let mut init_state = CacheDB::new(EmptyDB::default());
+        init_state.insert_account_info(
+            account,
+            AccountInfo {
+                nonce,
+                ..Default::default()
+            },
+        );
+
+        let serialized = serde_json::to_string(&init_state).unwrap();
+        let deserialized: CacheDB<EmptyDB> = serde_json::from_str(&serialized).unwrap();
+
+        assert!(deserialized.accounts.get(&account).is_some());
+        assert_eq!(
+            deserialized.accounts.get(&account).unwrap().info.nonce,
+            nonce
+        );
     }
 }

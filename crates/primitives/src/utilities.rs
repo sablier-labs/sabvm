@@ -1,11 +1,21 @@
 use crate::{
-    b256, B256, BLOB_GASPRICE_UPDATE_FRACTION, MIN_BLOB_GASPRICE, TARGET_BLOB_GAS_PER_BLOCK,
+    b256, Address, Balances, B256, BASE_ASSET_ID, BLOB_GASPRICE_UPDATE_FRACTION, MIN_BLOB_GASPRICE,
+    TARGET_BLOB_GAS_PER_BLOCK, U256,
 };
+pub use alloy_primitives::aliases::{B160, U160};
 pub use alloy_primitives::keccak256;
 
 /// The Keccak-256 hash of the empty string `""`.
 pub const KECCAK_EMPTY: B256 =
     b256!("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470");
+
+// Returns the asset ID by hashing the address and sub ID.
+pub fn asset_id_address(address: Address, sub_id: U256) -> U256 {
+    let first = &address[..];
+    let second_bytes = B256::from(sub_id);
+    let second = &second_bytes[..];
+    keccak256([first, second].concat()).into()
+}
 
 /// Calculates the `excess_blob_gas` from the parent header's `blob_gas_used` and `excess_blob_gas`.
 ///
@@ -57,6 +67,13 @@ pub fn fake_exponential(factor: u64, numerator: u64, denominator: u64) -> u128 {
         i += 1;
     }
     output / denominator
+}
+
+/// Creates a simple balances map with the given balance for the base asset.
+pub fn init_balances(base_asset_balance: U256) -> Balances {
+    let mut balances = Balances::new();
+    balances.insert(BASE_ASSET_ID, base_asset_balance);
+    balances
 }
 
 #[cfg(test)]

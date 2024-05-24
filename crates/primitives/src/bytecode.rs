@@ -1,10 +1,10 @@
 use crate::{hex, keccak256, Bytes, B256, KECCAK_EMPTY};
-use alloc::{sync::Arc, vec::Vec};
 use bitvec::{
     prelude::{bitvec, Lsb0},
     vec::BitVec,
 };
 use core::fmt::Debug;
+use std::sync::Arc;
 
 /// A map of valid `jump` destinations.
 #[derive(Clone, Default, PartialEq, Eq, Hash)]
@@ -46,7 +46,7 @@ pub enum BytecodeState {
     /// No analysis has been performed.
     Raw,
     /// The bytecode has been checked for validity.
-    Checked { len: usize },
+    Checked { len: usize }, //TODO: How is it assured that `len` isn't past the max length of the bytecode Bytes?
     /// The bytecode has been analyzed for valid jump destinations.
     Analysed { len: usize, jump_map: JumpMap },
 }
@@ -105,12 +105,12 @@ impl Bytecode {
         }
     }
 
-    /// Create new checked bytecode
+    /// Create new checked bytecode.
     ///
     /// # Safety
     ///
-    /// Bytecode need to end with STOP (0x00) opcode as checked bytecode assumes
-    /// that it is safe to iterate over bytecode without checking lengths
+    /// Bytecode needs to end with STOP (0x00) opcode as checked bytecode assumes
+    /// that it is safe to iterate over bytecode without checking lengths.
     pub unsafe fn new_checked(bytecode: Bytes, len: usize) -> Self {
         Self {
             bytecode,

@@ -1,6 +1,5 @@
 use revm_primitives::{B256, U256};
 
-use crate::alloc::vec::Vec;
 use core::{
     cmp::min,
     fmt,
@@ -21,7 +20,7 @@ pub struct SharedMemory {
     checkpoints: Vec<usize>,
     /// Invariant: equals `self.checkpoints.last()`
     last_checkpoint: usize,
-    /// Memory limit. See [`crate::CfgEnv`].
+    /// Memory limit. See [`CfgEnv`](revm_primitives::CfgEnv).
     #[cfg(feature = "memory_limit")]
     memory_limit: u64,
 }
@@ -119,7 +118,7 @@ impl SharedMemory {
     /// Returns the length of the current memory range.
     #[inline]
     pub fn len(&self) -> usize {
-        self.buffer.len() - self.last_checkpoint
+        self.buffer.len() - self.last_checkpoint // TODO: why is this not just `self.buffer.len()`?
     }
 
     /// Returns `true` if the current memory range is empty.
@@ -296,14 +295,15 @@ impl SharedMemory {
 
     /// Returns a mutable reference to the memory of the current context.
     #[inline]
-    fn context_memory_mut(&mut self) -> &mut [u8] {
+    pub fn context_memory_mut(&mut self) -> &mut [u8] {
         let buf_len = self.buffer.len();
         // SAFETY: access bounded by buffer length
         unsafe { self.buffer.get_unchecked_mut(self.last_checkpoint..buf_len) }
     }
 }
 
-/// Rounds up `x` to the closest multiple of 32. If `x % 32 == 0` then `x` is returned.
+/// Rounds up `x` to the closest multiple of 32. If `x % 32 == 0` then `x` is returned. Note, if `x`
+/// is greater than `usize::MAX - 31` this will return `usize::MAX` which isn't a multiple of 32.
 #[inline]
 pub fn next_multiple_of_32(x: usize) -> usize {
     let r = x.bitand(31).not().wrapping_add(1).bitand(31);
@@ -330,6 +330,9 @@ mod tests {
             let next_multiple = x + 32 - (x % 32);
             assert_eq!(next_multiple, next_multiple_of_32(x));
         }
+
+        // We expect large values to saturate and not overflow.
+        assert_eq!(usize::MAX, next_multiple_of_32(usize::MAX));
     }
 
     #[test]
