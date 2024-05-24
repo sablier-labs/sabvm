@@ -102,6 +102,25 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for SabVMContextPrecompile {
                 }
             }
 
+            // BURN
+            0xC1 => {
+                // Extract the sub_id from the input
+                let sub_id = consume_u256_from(&mut input)?;
+
+                // Extract the amount from the input
+                let amount = consume_u256_from(&mut input)?;
+
+                let burner = evmctx.env().tx.caller;
+                if evmctx
+                    .journaled_state
+                    .burn(burner, sub_id, amount, &mut evmctx.db)
+                {
+                    Ok((gas_used, Bytes::new()))
+                } else {
+                    Err(Error::Other(String::from("Burn failed")))
+                }
+            }
+
             _ => Err(Error::SabVMInvalidInput),
         }
     }
