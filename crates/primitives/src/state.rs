@@ -1,9 +1,16 @@
-use crate::{Address, Bytecode, HashMap, B256, KECCAK_EMPTY, U256};
+use crate::{Address, Bytecode, HashMap, B256, BASE_TOKEN_ID, KECCAK_EMPTY, U256};
 use bitflags::bitflags;
 use core::hash::{Hash, Hasher};
+use std::vec::Vec;
 
-/// EVM State is a mapping from addresses to accounts.
-pub type EvmState = HashMap<Address, Account>;
+/// EVM State contains a mapping from addresses to accounts, as well as the collection of supported Native Tokens.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct EvmState {
+    pub accounts: HashMap<Address, Account>,
+    // The ids of all tokens minted in the VM.
+    pub token_ids: Vec<U256>,
+}
 
 /// Structure used for EIP-1153 transient storage.
 pub type TransientStorage = HashMap<(Address, U256), U256>;
@@ -14,7 +21,7 @@ pub type EvmStorage = HashMap<U256, EvmStorageSlot>;
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Account {
-    /// Balance, nonce, and code.
+    /// Balances, nonce, and code.
     pub info: AccountInfo,
     /// Storage cache
     pub storage: EvmStorage,
@@ -112,7 +119,7 @@ impl Account {
         self.status.contains(AccountStatus::Created)
     }
 
-    /// Is account empty, check if nonce and balance are zero and code is empty.
+    /// Is account empty.
     pub fn is_empty(&self) -> bool {
         self.info.is_empty()
     }
@@ -130,7 +137,7 @@ impl From<AccountInfo> for Account {
         Self {
             info,
             storage: HashMap::new(),
-            status: AccountStatus::Loaded,
+            status: Default::default(),
         }
     }
 }
@@ -177,12 +184,17 @@ impl EvmStorageSlot {
     }
 }
 
-/// AccountInfo account information.
+// TODO: create a custom type with a suggestive name for the (U256, U256) tuple. This will make
+/// the code more readable - especially in places where the tuple members are currently accessed
+/// via `.0` and `.1`.
+pub type Balances = HashMap<U256, U256>;
+
+/// The account information.
 #[derive(Clone, Debug, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AccountInfo {
-    /// Account balance.
-    pub balance: U256,
+    /// Token balances.
+    pub balances: Balances,
     /// Account nonce.
     pub nonce: u64,
     /// code hash,
@@ -195,37 +207,60 @@ pub struct AccountInfo {
 impl Default for AccountInfo {
     fn default() -> Self {
         Self {
-            balance: U256::ZERO,
+            balances: HashMap::new(),
             code_hash: KECCAK_EMPTY,
-            code: Some(Bytecode::default()),
+            code: Some(Bytecode::new()),
             nonce: 0,
         }
     }
 }
 
+// TODO: wouldn't it be enough to compare the hashes of the 2 accounts?
 impl PartialEq for AccountInfo {
     fn eq(&self, other: &Self) -> bool {
-        self.balance == other.balance
-            && self.nonce == other.nonce
-            && self.code_hash == other.code_hash
+        if self.nonce != other.nonce
+            || self.code_hash != other.code_hash
+            || self.balances.len() != other.balances.len()
+        {
+            return false;
+        }
+
+        // Check whether the balances of the accounts are the same.
+        self.balances == other.balances
     }
 }
 
 impl Hash for AccountInfo {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        self.balance.hash(state);
+        //Hash the (token_id, balance) tuples in a deterministic-order
+        let mut balances: Vec<_> = self.balances.iter().collect();
+        balances.sort_by(|a, b| a.0.cmp(b.0));
+        // TODO: check if this distinguish between `(id: 1, balance: 25)` and `(id: 12, balance: 5)`. Maybe we should create
+        // a custom aggregate object from the tuple values (e.g. stringify [id] + [separator] + [balance]), and hash the
+        // resulting string?
+        balances
+            .iter()
+            .for_each(|(id, balance)| (id, balance).hash(state));
+
         self.nonce.hash(state);
         self.code_hash.hash(state);
     }
 }
 
 impl AccountInfo {
-    pub fn new(balance: U256, nonce: u64, code_hash: B256, code: Bytecode) -> Self {
+    pub fn new(balances: Balances, nonce: u64, code_hash: B256, code: Bytecode) -> Self {
         Self {
-            balance,
+            balances,
             nonce,
             code: Some(code),
             code_hash,
+        }
+    }
+
+    pub fn from_balances(balances: Balances) -> Self {
+        AccountInfo {
+            balances,
+            ..Default::default()
         }
     }
 
@@ -239,11 +274,11 @@ impl AccountInfo {
     ///
     /// An account is empty if the following conditions are met.
     /// - code hash is zero or set to the Keccak256 hash of the empty string `""`
-    /// - balance is zero
+    /// - the balances of the Account haven't been set
     /// - nonce is zero
     pub fn is_empty(&self) -> bool {
         let code_empty = self.is_empty_code_hash() || self.code_hash == B256::ZERO;
-        code_empty && self.balance == U256::ZERO && self.nonce == 0
+        code_empty && self.balances.len() == 0 && self.nonce == 0
     }
 
     /// Returns `true` if the account is not empty.
@@ -268,16 +303,75 @@ impl AccountInfo {
         self.code_hash == KECCAK_EMPTY
     }
 
+    /// Decreases the token balance of the account, wrapping around `0` on underflow.
+    pub fn decrease_balance(&mut self, token_id: U256, balance: U256) -> Option<U256> {
+        let current_balance = self.get_balance(token_id);
+        self.balances
+            .insert(token_id, current_balance.wrapping_sub(balance))
+    }
+
+    /// Decreases the token balance of the account, saturating at zero.
+    pub fn decrease_balance_saturating(&mut self, token_id: U256, balance: U256) -> Option<U256> {
+        let current_balance = self.get_balance(token_id);
+        self.balances
+            .insert(token_id, current_balance.saturating_sub(balance))
+    }
+
+    /// Decreases the base token balance of the account, wrapping around `0` on underflow.
+    pub fn decrease_base_balance(&mut self, balance: U256) -> Option<U256> {
+        self.decrease_balance(BASE_TOKEN_ID, balance)
+    }
+
+    /// Decreases the base token balance of the account, saturating at zero.
+    pub fn decrease_base_balance_saturating(&mut self, balance: U256) -> Option<U256> {
+        self.decrease_balance_saturating(BASE_TOKEN_ID, balance)
+    }
+
+    /// Returns the balance of `token_id`, defaulting to zero if none is set.
+    pub fn get_balance(&self, token_id: U256) -> U256 {
+        self.balances.get(&token_id).copied().unwrap_or_default()
+    }
+
+    /// Returns the balance of the base token, defaulting to zero if none is set.
+    pub fn get_base_balance(&self) -> U256 {
+        self.get_balance(BASE_TOKEN_ID)
+    }
+
+    /// Increases the `token_id` balance of the account, wrapping around `U256::MAX` on overflow.
+    pub fn increase_balance(&mut self, token_id: U256, value: U256) -> Option<U256> {
+        let current_balance = self.get_balance(token_id);
+        self.balances
+            .insert(token_id, current_balance.wrapping_add(value))
+    }
+
+    /// Increases the `token_id` balance of the account, saturating at `U256::MAX`.
+    pub fn increase_balance_saturating(&mut self, token_id: U256, value: U256) -> Option<U256> {
+        let current_balance = self.get_balance(token_id);
+        self.balances
+            .insert(token_id, current_balance.saturating_add(value))
+    }
+
+    /// Increases the base token balance of the account, wrapping around `U256::MAX` on overflow.
+    pub fn increase_base_balance(&mut self, value: U256) -> Option<U256> {
+        self.increase_balance(BASE_TOKEN_ID, value)
+    }
+
+    /// Increases the base token balance of the account, saturating at `U256::MAX`.
+    pub fn increase_base_balance_saturating(&mut self, value: U256) -> Option<U256> {
+        self.increase_balance_saturating(BASE_TOKEN_ID, value)
+    }
+
+    pub fn set_balance(&mut self, token_id: U256, balance: U256) -> Option<U256> {
+        self.balances.insert(token_id, balance)
+    }
+
+    pub fn set_base_balance(&mut self, balance: U256) -> Option<U256> {
+        self.set_balance(BASE_TOKEN_ID, balance)
+    }
+
     /// Take bytecode from account. Code will be set to None.
     pub fn take_bytecode(&mut self) -> Option<Bytecode> {
         self.code.take()
-    }
-
-    pub fn from_balance(balance: U256) -> Self {
-        AccountInfo {
-            balance,
-            ..Default::default()
-        }
     }
 }
 
@@ -290,11 +384,8 @@ mod tests {
         let mut account = Account::default();
         assert!(account.is_empty());
 
-        account.info.balance = U256::from(1);
+        account.info.set_base_balance(U256::from(1));
         assert!(!account.is_empty());
-
-        account.info.balance = U256::ZERO;
-        assert!(account.is_empty());
     }
 
     #[test]

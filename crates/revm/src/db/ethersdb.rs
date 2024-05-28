@@ -4,7 +4,9 @@ use ethers_core::types::{Block, BlockId, TxHash, H160 as eH160, H256, U64 as eU6
 use ethers_providers::Middleware;
 use tokio::runtime::{Builder, Handle, RuntimeFlavor};
 
-use crate::primitives::{AccountInfo, Address, Bytecode, B256, KECCAK_EMPTY, U256};
+use crate::primitives::{
+    utilities::init_balances, AccountInfo, Address, Bytecode, B256, KECCAK_EMPTY, U256,
+};
 use crate::{Database, DatabaseRef};
 
 #[derive(Debug, Clone)]
@@ -87,7 +89,12 @@ impl<M: Middleware> DatabaseRef for EthersDB<M> {
         let nonce = nonce?.as_u64();
         let bytecode = Bytecode::new_raw(code?.0.into());
         let code_hash = bytecode.hash_slow();
-        Ok(Some(AccountInfo::new(balance, nonce, code_hash, bytecode)))
+        Ok(Some(AccountInfo::new(
+            init_balances(balance),
+            nonce,
+            code_hash,
+            bytecode,
+        )))
     }
 
     fn code_by_hash_ref(&self, _code_hash: B256) -> Result<Bytecode, Self::Error> {
@@ -115,6 +122,14 @@ impl<M: Middleware> DatabaseRef for EthersDB<M> {
         // If number is given, the block is supposed to be finalized so unwrap is safe too.
         Ok(B256::new(block.unwrap().hash.unwrap().0))
     }
+
+    fn get_token_ids_ref(&self) -> Result<Vec<U256>, Self::Error> {
+        panic!("The token id is not relevant for EthersDB");
+    }
+
+    fn is_token_id_valid_ref(&self, _token_id: U256) -> Result<bool, Self::Error> {
+        panic!("The token id is not relevant for EthersDB");
+    }
 }
 
 impl<M: Middleware> Database for EthersDB<M> {
@@ -138,6 +153,16 @@ impl<M: Middleware> Database for EthersDB<M> {
     #[inline]
     fn block_hash(&mut self, number: U256) -> Result<B256, Self::Error> {
         <Self as DatabaseRef>::block_hash_ref(self, number)
+    }
+
+    #[inline]
+    fn get_token_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
+        <Self as DatabaseRef>::get_token_ids_ref(self)
+    }
+
+    #[inline]
+    fn is_token_id_valid(&mut self, token_id: U256) -> Result<bool, Self::Error> {
+        <Self as DatabaseRef>::is_token_id_valid_ref(self, token_id)
     }
 }
 

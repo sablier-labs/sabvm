@@ -8,8 +8,13 @@ use crate::{
     interpreter::{return_ok, return_revert, Gas, InstructionResult},
     optimism,
     primitives::{
-        db::Database, spec_to_generic, Account, EVMError, Env, ExecutionResult, HaltReason,
-        HashMap, InvalidTransaction, ResultAndState, Spec, SpecId, SpecId::REGOLITH, U256,
+        db::Database,
+        spec_to_generic,
+        state::EvmState,
+        Account, EVMError, Env, ExecutionResult, HaltReason, HashMap, InvalidTransaction,
+        ResultAndState, Spec,
+        SpecId::{self, REGOLITH},
+        U256,
     },
     Context, ContextPrecompiles, FrameResult,
 };
@@ -190,7 +195,7 @@ pub fn deduct_caller<SPEC: Spec, EXT, DB: Database>(
     // in wei to the caller's balance. This should be persisted to the database
     // prior to the rest of execution.
     if let Some(mint) = context.evm.inner.env.tx.optimism.mint {
-        caller_account.info.balance += U256::from(mint);
+        caller_account.info.increase_base_balance(U256::from(mint));
     }
 
     // We deduct caller max balance after minting and before deducing the
@@ -214,15 +219,17 @@ pub fn deduct_caller<SPEC: Spec, EXT, DB: Database>(
             .as_ref()
             .expect("L1BlockInfo should be loaded")
             .calculate_tx_l1_cost(enveloped_tx, SPEC::SPEC_ID);
-        if tx_l1_cost.gt(&caller_account.info.balance) {
+        if tx_l1_cost.gt(&caller_account.info.get_base_balance()) {
             return Err(EVMError::Transaction(
                 InvalidTransaction::LackOfFundForMaxFee {
                     fee: tx_l1_cost.into(),
-                    balance: caller_account.info.balance.into(),
+                    balance: caller_account.info.get_base_balance().into(),
                 },
             ));
         }
-        caller_account.info.balance = caller_account.info.balance.saturating_sub(tx_l1_cost);
+        caller_account
+            .info
+            .decrease_base_balance_saturating(tx_l1_cost);
     }
     Ok(())
 }
@@ -264,7 +271,7 @@ pub fn reward_beneficiary<SPEC: Spec, EXT, DB: Database>(
             .journaled_state
             .load_account(optimism::L1_FEE_RECIPIENT, &mut context.evm.inner.db)?;
         l1_fee_vault_account.mark_touch();
-        l1_fee_vault_account.info.balance += l1_cost;
+        l1_fee_vault_account.info.increase_base_balance(l1_cost);
 
         // Send the base fee of the transaction to the Base Fee Vault.
         let (base_fee_vault_account, _) = context
@@ -273,13 +280,14 @@ pub fn reward_beneficiary<SPEC: Spec, EXT, DB: Database>(
             .journaled_state
             .load_account(optimism::BASE_FEE_RECIPIENT, &mut context.evm.inner.db)?;
         base_fee_vault_account.mark_touch();
-        base_fee_vault_account.info.balance += context
+        let new_balance = context
             .evm
             .inner
             .env
             .block
             .basefee
             .mul(U256::from(gas.spent() - gas.refunded() as u64));
+        base_fee_vault_account.info.set_base_balance(new_balance);
     }
     Ok(())
 }
@@ -336,13 +344,16 @@ pub fn end<SPEC: Spec, EXT, DB: Database>(
                         .unwrap_or_default(),
                 );
                 acc.info.nonce = acc.info.nonce.saturating_add(1);
-                acc.info.balance = acc.info.balance.saturating_add(U256::from(
+                acc.info.increase_base_balance_saturating(U256::from(
                     context.evm.inner.env().tx.optimism.mint.unwrap_or(0),
                 ));
                 acc.mark_touch();
                 acc
             };
-            let state = HashMap::from([(caller, account)]);
+            let state = EvmState {
+                accounts: HashMap::from([(caller, account)]),
+                token_ids: Vec::new(),
+            };
 
             // The gas used of a failed deposit post-regolith is the gas
             // limit of the transaction. pre-regolith, it is the gas limit
@@ -376,7 +387,7 @@ pub fn end<SPEC: Spec, EXT, DB: Database>(
 
 #[cfg(test)]
 mod tests {
-    use revm_interpreter::{CallOutcome, InterpreterResult};
+    use revm_interpreter::{primitives::utilities::init_balances, CallOutcome, InterpreterResult};
 
     use super::*;
     use crate::{
@@ -474,7 +485,7 @@ mod tests {
         db.insert_account_info(
             caller,
             AccountInfo {
-                balance: U256::from(1000),
+                balances: init_balances(U256::from(1000)),
                 ..Default::default()
             },
         );
@@ -499,7 +510,7 @@ mod tests {
             .journaled_state
             .load_account(caller, &mut context.evm.inner.db)
             .unwrap();
-        assert_eq!(account.info.balance, U256::from(1010));
+        assert_eq!(account.info.get_base_balance(), U256::from(1010));
     }
 
     #[test]
@@ -509,7 +520,7 @@ mod tests {
         db.insert_account_info(
             caller,
             AccountInfo {
-                balance: U256::from(1000),
+                balances: init_balances(U256::from(1000)),
                 ..Default::default()
             },
         );
@@ -537,7 +548,7 @@ mod tests {
             .journaled_state
             .load_account(caller, &mut context.evm.inner.db)
             .unwrap();
-        assert_eq!(account.info.balance, U256::from(1010));
+        assert_eq!(account.info.get_base_balance(), U256::from(1010));
     }
 
     #[test]
@@ -547,7 +558,7 @@ mod tests {
         db.insert_account_info(
             caller,
             AccountInfo {
-                balance: U256::from(1049),
+                balances: init_balances(U256::from(1049)),
                 ..Default::default()
             },
         );
@@ -569,7 +580,7 @@ mod tests {
             .journaled_state
             .load_account(caller, &mut context.evm.inner.db)
             .unwrap();
-        assert_eq!(account.info.balance, U256::from(1));
+        assert_eq!(account.info.get_base_balance(), U256::from(1));
     }
 
     #[test]
@@ -579,7 +590,7 @@ mod tests {
         db.insert_account_info(
             caller,
             AccountInfo {
-                balance: U256::from(48),
+                balances: init_balances(U256::from(48)),
                 ..Default::default()
             },
         );

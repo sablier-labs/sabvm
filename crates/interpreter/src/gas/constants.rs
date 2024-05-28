@@ -51,3 +51,8 @@ pub const WARM_SSTORE_RESET: u64 = SSTORE_RESET - COLD_SLOAD_COST;
 pub const INITCODE_WORD_COST: u64 = 2;
 
 pub const CALL_STIPEND: u64 = 2300;
+
+/// Sablier
+pub const BURN_TOKENS: u64 = 10000;
+pub const MINT_TOKENS: u64 = 10000;
+pub const TRANSFERRED_TOKEN: u64 = 50;

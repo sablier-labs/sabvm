@@ -1,4 +1,4 @@
-use alloy_primitives::{address, Address};
+use alloy_primitives::{address, Address, U256};
 
 /// EIP-170: Contract code size limit
 ///
@@ -60,3 +60,6 @@ pub const BLOB_GASPRICE_UPDATE_FRACTION: u64 = 3338477;
 
 /// First version of the blob.
 pub const VERSIONED_HASH_VERSION_KZG: u8 = 0x01;
+
+// ID of base token
+pub const BASE_TOKEN_ID: U256 = U256::ZERO;

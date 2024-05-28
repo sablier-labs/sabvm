@@ -125,6 +125,8 @@ pub enum PrecompileError {
     BlobMismatchedVersion,
     /// The proof verification failed.
     BlobVerifyKzgProofFailed,
+    // The submitted input is invalid.
+    InvalidInput,
     /// Catch-all variant for other errors.
     Other(String),
 }
@@ -153,6 +155,7 @@ impl fmt::Display for PrecompileError {
             Self::BlobInvalidInputLength => "invalid blob input length",
             Self::BlobMismatchedVersion => "mismatched blob version",
             Self::BlobVerifyKzgProofFailed => "verifying blob kzg proof failed",
+            Self::InvalidInput => "invalid input to the precompile",
             Self::Other(s) => s,
         };
         f.write_str(s)

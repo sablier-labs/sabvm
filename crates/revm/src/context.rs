@@ -137,13 +137,6 @@ impl<EXT, DB: Database> Host for Context<EXT, DB> {
             .ok()
     }
 
-    fn balance(&mut self, address: Address) -> Option<(U256, bool)> {
-        self.evm
-            .balance(address)
-            .map_err(|e| self.evm.error = Err(e))
-            .ok()
-    }
-
     fn code(&mut self, address: Address) -> Option<(Bytecode, bool)> {
         self.evm
             .code(address)
@@ -191,5 +184,45 @@ impl<EXT, DB: Database> Host for Context<EXT, DB> {
             .selfdestruct(address, target, &mut self.evm.inner.db)
             .map_err(|e| self.evm.error = Err(e))
             .ok()
+    }
+
+    fn balance(&mut self, token_id: U256, address: Address) -> Option<(U256, bool)> {
+        self.evm
+            .balance(token_id, address)
+            .map_err(|e| self.evm.error = Err(e))
+            .ok()
+    }
+
+    fn base_balance(&mut self, address: Address) -> Option<(U256, bool)> {
+        self.evm
+            .base_balance(address)
+            .map_err(|e| self.evm.error = Err(e))
+            .ok()
+    }
+
+    fn burn(&mut self, burner: Address, sub_id: U256, amount: U256) -> bool {
+        if amount == U256::ZERO {
+            return false;
+        }
+
+        self.evm
+            .inner
+            .journaled_state
+            .burn(burner, sub_id, amount, &mut self.evm.inner.db)
+    }
+    fn mint(&mut self, minter: Address, recipient: Address, sub_id: U256, amount: U256) -> bool {
+        // TODO: also return the generated Token Id from this function
+
+        if amount == U256::ZERO {
+            return false;
+        }
+
+        self.evm.inner.journaled_state.mint(
+            minter,
+            recipient,
+            sub_id,
+            amount,
+            &mut self.evm.inner.db,
+        )
     }
 }

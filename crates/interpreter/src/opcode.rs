@@ -736,13 +736,14 @@ opcodes! {
     // 0xBD
     // 0xBE
     // 0xBF
-    // 0xC0
-    // 0xC1
-    // 0xC2
-    // 0xC3
-    // 0xC4
-    // 0xC5
-    // 0xC6
+    0xC0 => BALANCEOF => host::balance_of::<H, SPEC>         => stack_io(2, 1);
+    0xC1 => MINT => host::mint::<H, SPEC>                    => stack_io(3, 0);
+    0xC2 => BURN => host::burn::<H, SPEC>                    => stack_io(3, 0);
+    // TODO: implement these opcodes
+    // 0xC3 => NTCALL => host::nt_call::<H, SPEC>            => stack_io(7, 1), not_eof;
+    // 0xC4 => NTCALLVALUES => system::nt_callvalues         => stack_io(0, 1), not_eof;
+    // 0xC5 => NTDELEGATECALL => host::nt_delegatecall::<H, SPEC>   => stack_io(7, 1), not_eof;
+    // 0xC6 => NTCREATE => host::nt_create::<H, SPEC>        => stack_io(3, 1), not_eof;
     // 0xC7
     // 0xC8
     // 0xC9

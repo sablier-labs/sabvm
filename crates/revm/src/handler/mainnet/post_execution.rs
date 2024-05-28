@@ -47,10 +47,9 @@ pub fn reward_beneficiary<SPEC: Spec, EXT, DB: Database>(
         .load_account(beneficiary, &mut context.evm.inner.db)?;
 
     coinbase_account.mark_touch();
-    coinbase_account.info.balance = coinbase_account
-        .info
-        .balance
-        .saturating_add(coinbase_gas_price * U256::from(gas.spent() - gas.refunded() as u64));
+    coinbase_account.info.increase_base_balance_saturating(
+        coinbase_gas_price * U256::from(gas.spent() - gas.refunded() as u64),
+    );
 
     Ok(())
 }
@@ -70,10 +69,9 @@ pub fn reimburse_caller<SPEC: Spec, EXT, DB: Database>(
         .journaled_state
         .load_account(caller, &mut context.evm.inner.db)?;
 
-    caller_account.info.balance = caller_account
-        .info
-        .balance
-        .saturating_add(effective_gas_price * U256::from(gas.remaining() + gas.refunded() as u64));
+    caller_account.info.increase_base_balance_saturating(
+        effective_gas_price * U256::from(gas.remaining() + gas.refunded() as u64),
+    );
 
     Ok(())
 }

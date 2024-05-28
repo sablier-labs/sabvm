@@ -4,7 +4,10 @@ use criterion::{
 use revm::{
     db::BenchmarkDB,
     interpreter::{analysis::to_analysed, Contract, DummyHost, Interpreter},
-    primitives::{address, bytes, hex, BerlinSpec, Bytecode, Bytes, TransactTo, U256},
+    primitives::{
+        address, bytes, hex, BerlinSpec, Bytecode, Bytes, TokenTransfer, TransactTo, BASE_TOKEN_ID,
+        U256,
+    },
     Evm,
 };
 use revm_interpreter::{opcode::make_instruction_table, SharedMemory, EMPTY_SHARED_MEMORY};
@@ -71,6 +74,10 @@ fn transfer(c: &mut Criterion) {
         .modify_tx_env(|tx| {
             tx.caller = address!("0000000000000000000000000000000000000001");
             tx.transact_to = TransactTo::Call(address!("0000000000000000000000000000000000000000"));
+            tx.transferred_tokens = vec![TokenTransfer {
+                id: BASE_TOKEN_ID,
+                amount: U256::from(10),
+            }];
             tx.value = U256::from(10);
         })
         .build();

@@ -3,7 +3,9 @@ use alloy_sol_types::SolCall;
 use ethers_providers::{Http, Provider};
 use revm::{
     db::{CacheDB, EmptyDB, EthersDB},
-    primitives::{address, ExecutionResult, Output, TransactTo, U256},
+    primitives::{
+        address, ExecutionResult, Output, TokenTransfer, TransactTo, BASE_TOKEN_ID, U256,
+    },
     Database, Evm,
 };
 use std::sync::Arc;
@@ -73,8 +75,11 @@ async fn main() -> anyhow::Result<()> {
             tx.transact_to = TransactTo::Call(pool_address);
             // calldata formed via abigen
             tx.data = encoded.into();
-            // transaction value in wei
-            tx.value = U256::from(0);
+            // transferred tokens
+            tx.transferred_tokens = vec![TokenTransfer {
+                id: BASE_TOKEN_ID,
+                amount: U256::from(0),
+            }];
         })
         .build();
 

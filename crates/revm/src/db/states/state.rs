@@ -5,7 +5,9 @@ use super::{
 use crate::db::EmptyDB;
 use revm_interpreter::primitives::{
     db::{Database, DatabaseCommit},
-    hash_map, Account, AccountInfo, Address, Bytecode, HashMap, B256, BLOCK_HASH_HISTORY, U256,
+    hash_map,
+    state::EvmState,
+    AccountInfo, Address, Bytecode, HashMap, B256, BLOCK_HASH_HISTORY, U256,
 };
 use std::{
     boxed::Box,
@@ -95,7 +97,7 @@ impl<DB: Database> State<DB> {
             transitions.push((
                 address,
                 original_account
-                    .increment_balance(balance)
+                    .increment_base_balance(balance)
                     .expect("Balance is not zero"),
             ))
         }
@@ -118,7 +120,7 @@ impl<DB: Database> State<DB> {
         let mut balances = Vec::new();
         for address in addresses {
             let original_account = self.load_cache_account(address)?;
-            let (balance, transition) = original_account.drain_balance();
+            let (balance, transition) = original_account.drain_base_balance();
             balances.push(balance);
             transitions.push((address, transition))
         }
@@ -290,10 +292,18 @@ impl<DB: Database> Database for State<DB> {
             }
         }
     }
+
+    fn is_token_id_valid(&mut self, token_id: U256) -> Result<bool, Self::Error> {
+        self.database.is_token_id_valid(token_id)
+    }
+
+    fn get_token_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
+        self.database.get_token_ids()
+    }
 }
 
 impl<DB: Database> DatabaseCommit for State<DB> {
-    fn commit(&mut self, evm_state: HashMap<Address, Account>) {
+    fn commit(&mut self, evm_state: EvmState) {
         let transitions = self.cache.apply_evm_state(evm_state);
         self.apply_transition(transitions);
     }
@@ -306,7 +316,7 @@ mod tests {
         states::{reverts::AccountInfoRevert, StorageSlot},
         AccountRevert, AccountStatus, BundleAccount, RevertToSlot,
     };
-    use revm_interpreter::primitives::keccak256;
+    use revm_interpreter::primitives::{keccak256, utilities::init_balances};
 
     #[test]
     fn block_hash_cache() {
@@ -349,7 +359,7 @@ mod tests {
         let new_account_address = Address::from_slice(&[0x1; 20]);
         let new_account_created_info = AccountInfo {
             nonce: 1,
-            balance: U256::from(1),
+            balances: init_balances(U256::from(1)),
             ..Default::default()
         };
         let new_account_changed_info = AccountInfo {
@@ -570,7 +580,7 @@ mod tests {
         let new_account_address = Address::from_slice(&[0x1; 20]);
         let new_account_created_info = AccountInfo {
             nonce: 1,
-            balance: U256::from(1),
+            balances: init_balances(U256::from(1)),
             ..Default::default()
         };
 
@@ -582,7 +592,7 @@ mod tests {
         };
         let existing_account_updated_info = AccountInfo {
             nonce: 1,
-            balance: U256::from(1),
+            balances: init_balances(U256::from(1)),
             ..Default::default()
         };
 

@@ -6,7 +6,7 @@ use crate::{
     interpreter::{
         return_ok, CallInputs, Contract, Gas, InstructionResult, Interpreter, InterpreterResult,
     },
-    primitives::{Address, Bytes, EVMError, Env, HashSet, U256},
+    primitives::{Address, Bytes, EVMError, Env, HashSet, TokenTransfer, BASE_TOKEN_ID, U256},
     ContextPrecompiles, FrameOrResult, CALL_STACK_LIMIT,
 };
 use core::{
@@ -184,7 +184,10 @@ impl<DB: Database> EvmContext<DB> {
                 if let Some(result) = self.inner.journaled_state.transfer(
                     &inputs.caller,
                     &inputs.target_address,
-                    value,
+                    &vec![TokenTransfer {
+                        id: BASE_TOKEN_ID,
+                        amount: value,
+                    }],
                     &mut self.inner.db,
                 )? {
                     self.journaled_state.checkpoint_revert(checkpoint);
@@ -227,7 +230,7 @@ pub(crate) mod test_utils {
     use crate::{
         db::{CacheDB, EmptyDB},
         journaled_state::JournaledState,
-        primitives::{address, SpecId, B256},
+        primitives::{address, Balances, SpecId, B256},
     };
 
     /// Mock caller address.
@@ -251,17 +254,17 @@ pub(crate) mod test_utils {
 
     /// Creates an evm context with a cache db backend.
     /// Additionally loads the mock caller account into the db,
-    /// and sets the balance to the provided U256 value.
-    pub fn create_cache_db_evm_context_with_balance(
+    /// and sets the balances to the provided value.
+    pub fn create_cache_db_evm_context_with_balances(
         env: Box<Env>,
         mut db: CacheDB<EmptyDB>,
-        balance: U256,
+        balances: Balances,
     ) -> EvmContext<CacheDB<EmptyDB>> {
         db.insert_account_info(
             test_utils::MOCK_CALLER,
             crate::primitives::AccountInfo {
                 nonce: 0,
-                balance,
+                balances,
                 code_hash: B256::default(),
                 code: None,
             },
@@ -308,7 +311,7 @@ mod tests {
     use super::*;
     use crate::{
         db::{CacheDB, EmptyDB},
-        primitives::{address, Bytecode},
+        primitives::{address, utilities::init_balances, AccountInfo, Bytecode},
         Frame, JournalEntry,
     };
     use std::boxed::Box;
@@ -362,8 +365,8 @@ mod tests {
     fn test_make_call_frame_missing_code_context() {
         let env = Env::default();
         let cdb = CacheDB::new(EmptyDB::default());
-        let bal = U256::from(3_000_000_000_u128);
-        let mut context = create_cache_db_evm_context_with_balance(Box::new(env), cdb, bal);
+        let balances = init_balances(U256::from(3_000_000_000_u128));
+        let mut context = create_cache_db_evm_context_with_balances(Box::new(env), cdb, balances);
         let contract = address!("dead10000000000000000000000000000001dead");
         let call_inputs = test_utils::create_mock_call_inputs(contract);
         let res = context.make_call_frame(&call_inputs);
@@ -377,19 +380,20 @@ mod tests {
     fn test_make_call_frame_succeeds() {
         let env = Env::default();
         let mut cdb = CacheDB::new(EmptyDB::default());
-        let bal = U256::from(3_000_000_000_u128);
+        let balances = init_balances(U256::from(3_000_000_000_u128));
         let by = Bytecode::new_raw(Bytes::from(vec![0x60, 0x00, 0x60, 0x00]));
         let contract = address!("dead10000000000000000000000000000001dead");
         cdb.insert_account_info(
             contract,
-            crate::primitives::AccountInfo {
+            AccountInfo {
                 nonce: 0,
-                balance: bal,
+                balances: balances.clone(),
                 code_hash: by.clone().hash_slow(),
                 code: Some(by),
             },
         );
-        let mut evm_context = create_cache_db_evm_context_with_balance(Box::new(env), cdb, bal);
+        let mut evm_context =
+            create_cache_db_evm_context_with_balances(Box::new(env), cdb, balances);
         let call_inputs = test_utils::create_mock_call_inputs(contract);
         let res = evm_context.make_call_frame(&call_inputs);
         let Ok(FrameOrResult::Frame(Frame::Call(call_frame))) = res else {

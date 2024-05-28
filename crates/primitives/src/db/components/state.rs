@@ -4,7 +4,7 @@
 use crate::{AccountInfo, Address, Bytecode, B256, U256};
 use auto_impl::auto_impl;
 use core::ops::Deref;
-use std::sync::Arc;
+use std::{sync::Arc, vec::Vec};
 
 #[auto_impl(&mut, Box)]
 pub trait State {
@@ -18,6 +18,12 @@ pub trait State {
 
     /// Get storage value of address at index.
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error>;
+
+    /// Get the supported token ids
+    fn get_token_ids(&mut self) -> Result<Vec<U256>, Self::Error>;
+
+    /// Check if token id is valid
+    fn is_token_id_valid(&mut self, token_id: U256) -> Result<bool, Self::Error>;
 }
 
 #[auto_impl(&, &mut, Box, Rc, Arc)]
@@ -32,6 +38,12 @@ pub trait StateRef {
 
     /// Get storage value of address at index.
     fn storage(&self, address: Address, index: U256) -> Result<U256, Self::Error>;
+
+    /// Get the supported token ids
+    fn get_token_ids(&self) -> Result<Vec<U256>, Self::Error>;
+
+    /// Check if token id is valid
+    fn is_token_id_valid(&self, token_id: U256) -> Result<bool, Self::Error>;
 }
 
 impl<T> State for &T
@@ -51,6 +63,16 @@ where
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
         StateRef::storage(*self, address, index)
     }
+
+    /// Get the supported token ids
+    fn get_token_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
+        StateRef::get_token_ids(*self)
+    }
+
+    /// Check if token id is valid
+    fn is_token_id_valid(&mut self, token_id: U256) -> Result<bool, Self::Error> {
+        StateRef::is_token_id_valid(*self, token_id)
+    }
 }
 
 impl<T> State for Arc<T>
@@ -69,5 +91,13 @@ where
 
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
         self.deref().storage(address, index)
+    }
+
+    fn get_token_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
+        self.deref().get_token_ids()
+    }
+
+    fn is_token_id_valid(&mut self, token_id: U256) -> Result<bool, Self::Error> {
+        self.deref().is_token_id_valid(token_id)
     }
 }

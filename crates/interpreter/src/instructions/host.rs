@@ -1,7 +1,7 @@
 use crate::{
     gas::{self, warm_cold_cost},
     interpreter::Interpreter,
-    primitives::{Bytes, Log, LogData, Spec, SpecId::*, B256, U256},
+    primitives::{Bytes, Log, LogData, Spec, SpecId::*, B256, BASE_TOKEN_ID, U256},
     Host, InstructionResult, SStoreResult,
 };
 use core::cmp::min;
@@ -9,31 +9,17 @@ use std::vec::Vec;
 
 pub fn balance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     pop_address!(interpreter, address);
-    let Some((balance, is_cold)) = host.balance(address) else {
-        interpreter.instruction_result = InstructionResult::FatalExternalError;
-        return;
-    };
-    gas!(
-        interpreter,
-        if SPEC::enabled(BERLIN) {
-            warm_cold_cost(is_cold)
-        } else if SPEC::enabled(ISTANBUL) {
-            // EIP-1884: Repricing for trie-size-dependent opcodes
-            700
-        } else if SPEC::enabled(TANGERINE) {
-            400
-        } else {
-            20
-        }
-    );
-    push!(interpreter, balance);
+    push!(interpreter, BASE_TOKEN_ID);
+    push_b256!(interpreter, address.into_word());
+
+    balance_of::<H, SPEC>(interpreter, host);
 }
 
 /// EIP-1884: Repricing for trie-size-dependent opcodes
 pub fn selfbalance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     check!(interpreter, ISTANBUL);
     gas!(interpreter, gas::LOW);
-    let Some((balance, _)) = host.balance(interpreter.contract.target_address) else {
+    let Some((balance, _)) = host.base_balance(interpreter.contract.target_address) else {
         interpreter.instruction_result = InstructionResult::FatalExternalError;
         return;
     };
@@ -219,4 +205,73 @@ pub fn selfdestruct<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter,
     gas!(interpreter, gas::selfdestruct_cost(SPEC::SPEC_ID, res));
 
     interpreter.instruction_result = InstructionResult::SelfDestruct;
+}
+
+pub fn balance_of<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    pop!(interpreter, token_id);
+    pop_address!(interpreter, address);
+
+    let Some((balance, is_cold)) = host.balance(token_id, address) else {
+        interpreter.instruction_result = InstructionResult::FatalExternalError;
+        return;
+    };
+
+    // TODO: adjust the gas prices in light of NTs
+    gas!(
+        interpreter,
+        if SPEC::enabled(BERLIN) {
+            warm_cold_cost(is_cold)
+        } else if SPEC::enabled(ISTANBUL) {
+            // EIP-1884: Repricing for trie-size-dependent opcodes
+            700
+        } else if SPEC::enabled(TANGERINE) {
+            400
+        } else {
+            20
+        }
+    );
+
+    push!(interpreter, balance);
+}
+
+/// TODO: implement burning allowance just for Sablier
+/// Only allow burning for contracts (not EOAs)
+pub fn burn<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    // TODO: implement burning allowance just for Sablier
+    // Only allow burning for contracts (not EOAs)
+    if host.is_tx_sender_eoa() {
+        interpreter.instruction_result = InstructionResult::UnauthorizedCaller;
+        return;
+    }
+
+    pop!(interpreter, sub_id, amount);
+    if !host.burn(interpreter.contract.target_address, sub_id, amount) {
+        interpreter.instruction_result = InstructionResult::FatalExternalError;
+        return;
+    };
+
+    gas_or_fail!(interpreter, { gas::burn_cost() });
+}
+
+/// TODO: implement minting allowance just for Sablier
+/// Only allow minting for contracts (not EOAs)
+pub fn mint<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
+    if host.is_tx_sender_eoa() {
+        interpreter.instruction_result = InstructionResult::UnauthorizedCaller;
+        return;
+    }
+
+    pop_address!(interpreter, recipient);
+    pop!(interpreter, sub_id, amount);
+    if !host.mint(
+        interpreter.contract.target_address,
+        recipient,
+        sub_id,
+        amount,
+    ) {
+        interpreter.instruction_result = InstructionResult::FatalExternalError;
+        return;
+    };
+
+    gas_or_fail!(interpreter, { gas::mint_cost() });
 }

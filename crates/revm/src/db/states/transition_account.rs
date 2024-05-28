@@ -54,18 +54,20 @@ impl TransitionAccount {
     }
 
     /// Return the balance of account before transition.
+    /// TODO: take into account the other Native Token balances.
     pub fn previous_balance(&self) -> U256 {
         self.previous_info
             .as_ref()
-            .map(|info| info.balance)
+            .map(|info| info.get_base_balance())
             .unwrap_or_default()
     }
 
     /// Return the balance of account after transition.
+    /// TODO: take into account the other Native Token balances.
     pub fn current_balance(&self) -> U256 {
         self.info
             .as_ref()
-            .map(|info| info.balance)
+            .map(|info| info.get_base_balance())
             .unwrap_or_default()
     }
 

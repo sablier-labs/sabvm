@@ -36,7 +36,8 @@ impl TrieAccount {
     fn new(acc: &PlainAccount) -> Self {
         Self {
             nonce: acc.info.nonce,
-            balance: acc.info.balance,
+            // TODO: keep track of all of the NT balances here, instead?
+            balance: acc.info.get_base_balance(),
             root_hash: sec_trie_root::<KeccakHasher, _, _, _>(
                 acc.storage
                     .iter()

@@ -9,8 +9,8 @@ use revm::{
     inspector_handle_register,
     inspectors::TracerEip3155,
     primitives::{
-        calc_excess_blob_gas, keccak256, Bytecode, Bytes, EVMResultGeneric, Env, ExecutionResult,
-        SpecId, TransactTo, B256, U256,
+        calc_excess_blob_gas, init_balances, keccak256, Bytecode, Bytes, EVMResultGeneric, Env,
+        ExecutionResult, SpecId, TokenTransfer, TransactTo, B256, BASE_TOKEN_ID, U256,
     },
     Evm, State,
 };
@@ -258,7 +258,7 @@ pub fn execute_test_suite(
         let mut cache_state = revm::CacheState::new(false);
         for (address, info) in unit.pre {
             let acc_info = revm::primitives::AccountInfo {
-                balance: info.balance,
+                balances: init_balances(info.balance),
                 code_hash: keccak256(&info.code),
                 code: Some(Bytecode::new_raw(info.code)),
                 nonce: info.nonce,
@@ -336,7 +336,11 @@ pub fn execute_test_suite(
                     .get(test.indexes.data)
                     .unwrap()
                     .clone();
-                env.tx.value = unit.transaction.value[test.indexes.value];
+                let token_transfer = TokenTransfer {
+                    id: BASE_TOKEN_ID,
+                    amount: U256::from(unit.transaction.value[test.indexes.value]),
+                };
+                env.tx.transferred_tokens = vec![token_transfer];
 
                 env.tx.access_list = unit
                     .transaction

@@ -1,3 +1,5 @@
+use revm_primitives::TokenTransfer;
+
 use super::constants::*;
 use crate::{
     num_words,
@@ -358,6 +360,7 @@ pub fn validate_initial_tx_gas(
     input: &[u8],
     is_create: bool,
     access_list: &[(Address, Vec<U256>)],
+    transferred_tokens: &[TokenTransfer],
 ) -> u64 {
     let mut initial_gas = 0;
     let zero_data_len = input.iter().filter(|v| **v == 0).count() as u64;
@@ -400,5 +403,20 @@ pub fn validate_initial_tx_gas(
         initial_gas += initcode_cost(input.len() as u64)
     }
 
+    // gas cost of transferring the Native Tokens
+    if !transferred_tokens.is_empty() {
+        initial_gas += transferred_tokens.len() as u64 * TRANSFERRED_TOKEN;
+    }
+
     initial_gas
+}
+
+#[inline]
+pub fn burn_cost() -> Option<u64> {
+    Some(BURN_TOKENS)
+}
+
+#[inline]
+pub fn mint_cost() -> Option<u64> {
+    Some(MINT_TOKENS)
 }

@@ -115,6 +115,7 @@ impl Gas {
     #[inline]
     pub fn set_refund(&mut self, refund: i64) {
         self.refunded = refund;
+        // TODO: how is it made sure that by the end of the tx, self.refunded is positive?
     }
 
     /// Records an explicit cost.

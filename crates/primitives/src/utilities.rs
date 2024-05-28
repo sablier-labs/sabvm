@@ -1,7 +1,9 @@
 use crate::{
-    b256, B256, BLOB_GASPRICE_UPDATE_FRACTION, MIN_BLOB_GASPRICE, TARGET_BLOB_GAS_PER_BLOCK,
+    b256, Balances, B256, BASE_TOKEN_ID, BLOB_GASPRICE_UPDATE_FRACTION, MIN_BLOB_GASPRICE,
+    TARGET_BLOB_GAS_PER_BLOCK,
 };
 pub use alloy_primitives::keccak256;
+use alloy_primitives::{Address, U256};
 
 /// The Keccak-256 hash of the empty string `""`.
 pub const KECCAK_EMPTY: B256 =
@@ -27,6 +29,13 @@ pub fn calc_blob_gasprice(excess_blob_gas: u64) -> u128 {
         excess_blob_gas,
         BLOB_GASPRICE_UPDATE_FRACTION,
     )
+}
+
+/// Creates a simple balances map with the given balance for the base token.
+pub fn init_balances(base_balance: U256) -> Balances {
+    let mut balances = Balances::new();
+    balances.insert(BASE_TOKEN_ID, base_balance);
+    balances
 }
 
 /// Approximates `factor * e ** (numerator / denominator)` using Taylor expansion.
@@ -57,6 +66,14 @@ pub fn fake_exponential(factor: u64, numerator: u64, denominator: u64) -> u128 {
         i += 1;
     }
     output / denominator
+}
+
+/// Returns the token ID by hashing the address and sub ID.
+pub fn token_id_address(address: Address, sub_id: U256) -> U256 {
+    let first = &address[..];
+    let second_bytes = B256::from(sub_id);
+    let second = &second_bytes[..];
+    keccak256([first, second].concat()).into()
 }
 
 #[cfg(test)]

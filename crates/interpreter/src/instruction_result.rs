@@ -53,6 +53,7 @@ pub enum InstructionResult {
     EOFOpcodeDisabledInLegacy,
     /// EOF function stack overflow
     EOFFunctionStackOverflow,
+    UnauthorizedCaller,
 }
 
 impl From<SuccessReason> for InstructionResult {
@@ -95,6 +96,7 @@ impl From<HaltReason> for InstructionResult {
             HaltReason::CallTooDeep => Self::CallTooDeep,
             #[cfg(feature = "optimism")]
             HaltReason::FailedDeposit => Self::FatalExternalError,
+            HaltReason::UnauthorizedCaller => Self::UnauthorizedCaller,
         }
     }
 }
@@ -272,6 +274,7 @@ impl From<InstructionResult> for SuccessOrHalt {
             InstructionResult::ReturnContract => {
                 panic!("Unexpected EOF internal Return Contract")
             }
+            InstructionResult::UnauthorizedCaller => Self::Halt(HaltReason::UnauthorizedCaller),
         }
     }
 }
@@ -287,6 +290,7 @@ mod tests {
             return_revert!() => {}
             return_ok!() => {}
             InstructionResult::CallOrCreate => {}
+            InstructionResult::UnauthorizedCaller => {}
         }
     }
 

@@ -2,7 +2,7 @@ use super::{
     plain_account::PlainStorage, AccountStatus, BundleAccount, PlainAccount,
     StorageWithOriginalValues, TransitionAccount,
 };
-use revm_interpreter::primitives::{AccountInfo, U256};
+use revm_interpreter::primitives::{AccountInfo, BASE_TOKEN_ID, U256};
 use revm_precompile::HashMap;
 
 /// Cache account contains plain state that gets updated
@@ -222,16 +222,24 @@ impl CacheAccount {
         transition_account
     }
 
-    /// Increment balance by `balance` amount. Assume that balance will not
-    /// overflow or be zero.
+    /// Increment balance of base token by `value` amount. Assume that balance will not overflow or be zero.
     ///
     /// Note: only if balance is zero we would return None as no transition would be made.
-    pub fn increment_balance(&mut self, balance: u128) -> Option<TransitionAccount> {
-        if balance == 0 {
+    pub fn increment_base_balance(&mut self, value: u128) -> Option<TransitionAccount> {
+        self.increment_balance(BASE_TOKEN_ID, value)
+    }
+
+    /// Increment balance of `token_id` by `value` amount. Assume that balance will not overflow or be zero.
+    ///
+    /// Note: to skip some edge cases we assume that additional balance is never zero.
+    /// And as increment is always related to block fee/reward and withdrawals this is correct.
+    pub fn increment_balance(&mut self, token_id: U256, value: u128) -> Option<TransitionAccount> {
+        if value == 0 {
             return None;
         }
+
         let (_, transition) = self.account_info_change(|info| {
-            info.balance = info.balance.saturating_add(U256::from(balance));
+            info.increase_balance(token_id, U256::from(value));
         });
         Some(transition)
     }
@@ -265,13 +273,24 @@ impl CacheAccount {
         )
     }
 
-    /// Drain balance from account and return drained amount and transition.
+    /// Drain balance of `token_id` from account and return drained amount and transition.
     ///
-    /// Used for DAO hardfork transition.
-    pub fn drain_balance(&mut self) -> (u128, TransitionAccount) {
+    /// Used for hardfork transitions.
+    pub fn drain_balance(&mut self, token_id: U256) -> (u128, TransitionAccount) {
         self.account_info_change(|info| {
-            let output = info.balance;
-            info.balance = U256::ZERO;
+            let output = info.get_balance(token_id);
+            info.set_balance(token_id, U256::ZERO);
+            output.try_into().unwrap()
+        })
+    }
+
+    /// Drain balance of base token from account and return drained amount and transition.
+    ///
+    /// Used for hardfork transitions.
+    pub fn drain_base_balance(&mut self) -> (u128, TransitionAccount) {
+        self.account_info_change(|info| {
+            let output = info.get_base_balance();
+            info.set_base_balance(U256::ZERO);
             output.try_into().unwrap()
         })
     }

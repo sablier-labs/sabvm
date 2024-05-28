@@ -2,6 +2,7 @@ use crate::primitives::{Address, Bytecode, Env, Log, B256, U256};
 
 mod dummy;
 pub use dummy::DummyHost;
+use revm_primitives::BASE_TOKEN_ID;
 
 /// EVM context host.
 pub trait Host {
@@ -18,9 +19,6 @@ pub trait Host {
 
     /// Get the block hash of the given block `number`.
     fn block_hash(&mut self, number: U256) -> Option<B256>;
-
-    /// Get balance of `address` and if the account is cold.
-    fn balance(&mut self, address: Address) -> Option<(U256, bool)>;
 
     /// Get code of `address` and if the account is cold.
     fn code(&mut self, address: Address) -> Option<(Bytecode, bool)>;
@@ -47,6 +45,29 @@ pub trait Host {
 
     /// Mark `address` to be deleted, with funds transferred to `target`.
     fn selfdestruct(&mut self, address: Address, target: Address) -> Option<SelfDestructResult>;
+
+    /// Get token balance of address and if account is cold loaded.
+    fn balance(&mut self, token_id: U256, address: Address) -> Option<(U256, bool)>;
+
+    /// Get the base token balance of `address` and if the account is cold.
+    fn base_balance(&mut self, address: Address) -> Option<(U256, bool)> {
+        self.balance(BASE_TOKEN_ID, address)
+    }
+
+    /// Burn a Native Token.
+    fn burn(&mut self, burner: Address, sub_id: U256, amount: U256) -> bool;
+
+    /// Check whether the sender of the current tx is an EOA.
+    fn is_tx_sender_eoa(&mut self) -> bool {
+        // TODO: tx.caller == tx.origin => it will always be an EOA
+        // at the same time, the address actually calling the MINT
+        // opcode will always be a contract
+        let caller = self.env().tx.caller;
+        self.code(caller).is_none()
+    }
+
+    /// Mint a Native Token.
+    fn mint(&mut self, minter: Address, recipient: Address, sub_id: U256, amount: U256) -> bool;
 }
 
 /// Represents the result of an `sstore` operation.

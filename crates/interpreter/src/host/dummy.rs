@@ -56,11 +56,6 @@ impl Host for DummyHost {
     }
 
     #[inline]
-    fn balance(&mut self, _address: Address) -> Option<(U256, bool)> {
-        Some((U256::ZERO, false))
-    }
-
-    #[inline]
     fn code(&mut self, _address: Address) -> Option<(Bytecode, bool)> {
         Some((Bytecode::default(), false))
     }
@@ -120,5 +115,31 @@ impl Host for DummyHost {
     #[inline]
     fn selfdestruct(&mut self, _address: Address, _target: Address) -> Option<SelfDestructResult> {
         panic!("Selfdestruct is not supported for this host")
+    }
+
+    #[inline]
+    fn balance(&mut self, _token_id: U256, _address: Address) -> Option<(U256, bool)> {
+        Some((U256::ZERO, false))
+    }
+
+    #[inline]
+    fn burn(&mut self, _burner: Address, _sub_id: U256, _amount: U256) -> bool {
+        panic!("Burn is not supported for this host")
+    }
+
+    #[inline]
+    fn is_tx_sender_eoa(&mut self) -> bool {
+        false
+    }
+
+    #[inline]
+    fn mint(
+        &mut self,
+        _minter: Address,
+        _recipient: Address,
+        _sub_id: U256,
+        _amount: U256,
+    ) -> bool {
+        panic!("Mint is not supported for this host")
     }
 }
