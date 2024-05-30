@@ -127,6 +127,8 @@ pub enum PrecompileError {
     BlobVerifyKzgProofFailed,
     // The submitted input is invalid.
     InvalidInput,
+    // The caller is not authorized to call the Precompile.
+    UnauthorizedCaller,
     /// Catch-all variant for other errors.
     Other(String),
 }
@@ -156,6 +158,7 @@ impl fmt::Display for PrecompileError {
             Self::BlobMismatchedVersion => "mismatched blob version",
             Self::BlobVerifyKzgProofFailed => "verifying blob kzg proof failed",
             Self::InvalidInput => "invalid input to the precompile",
+            Self::UnauthorizedCaller => "unauthorized caller for the precompile",
             Self::Other(s) => s,
         };
         f.write_str(s)

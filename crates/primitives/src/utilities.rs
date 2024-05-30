@@ -185,3 +185,60 @@ mod tests {
         }
     }
 }
+
+#[cfg(feature = "std")]
+pub mod bytes_parsing {
+    use crate::{Address, U256};
+
+    use alloy_primitives::{aliases::U160, Bytes};
+    use std::{mem::size_of, vec::Vec};
+
+    #[derive(Debug)]
+    pub enum BytesParsingError {
+        InvalidInput,
+    }
+
+    impl std::error::Error for BytesParsingError {}
+
+    impl std::fmt::Display for BytesParsingError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                BytesParsingError::InvalidInput => write!(f, "Invalid input"),
+            }
+        }
+    }
+
+    pub fn consume_bytes_from(
+        input: &mut Bytes,
+        no_bytes: usize,
+    ) -> Result<Vec<u8>, BytesParsingError> {
+        if input.len() < no_bytes {
+            return Err(BytesParsingError::InvalidInput);
+        }
+        Ok(input.split_to(no_bytes).to_vec())
+    }
+
+    pub fn consume_u8(input: &mut Bytes) -> Result<u8, BytesParsingError> {
+        const U8_LEN: usize = size_of::<u8>();
+        let bytes = consume_bytes_from(input, U8_LEN)?;
+        Ok(u8::from_be_bytes(bytes.try_into().unwrap()))
+    }
+
+    pub fn consume_u256_from(input: &mut Bytes) -> Result<U256, BytesParsingError> {
+        const U256_LEN: usize = U256::BYTES;
+        let bytes = consume_bytes_from(input, U256_LEN)?;
+        Ok(U256::from_be_bytes::<U256_LEN>(bytes.try_into().unwrap()))
+    }
+
+    pub fn consume_usize_from(input: &mut Bytes) -> Result<usize, BytesParsingError> {
+        const USIZE_LEN: usize = size_of::<usize>();
+        let bytes = consume_bytes_from(input, USIZE_LEN)?;
+        Ok(usize::from_be_bytes(bytes.try_into().unwrap()))
+    }
+
+    pub fn consume_address_from(input: &mut Bytes) -> Result<Address, BytesParsingError> {
+        const ADDRESS_LEN: usize = U160::BYTES;
+        let bytes = consume_bytes_from(input, ADDRESS_LEN)?;
+        Ok(U160::from_be_bytes::<ADDRESS_LEN>(bytes.try_into().unwrap()).into())
+    }
+}

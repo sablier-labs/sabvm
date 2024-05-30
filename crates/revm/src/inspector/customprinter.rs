@@ -174,9 +174,9 @@ mod test {
     /// TODO: use a bytecode that includes the BURN opcode
     #[test]
     fn burn_opcode() {
-        let caller_contract = address!("5fdcca53617f4d2b9134b29090c87d01058e27e9");
+        let caller = address!("5fdcca53617f4d2b9134b29090c87d01058e27e9");
         let sub_id = U256::from(2);
-        let minted_token_id = token_id_address(caller_contract, sub_id);
+        let minted_token_id = token_id_address(caller, sub_id);
         let caller_initial_balance = U256::from(1000);
 
         let mut evm = Evm::builder()
@@ -187,19 +187,19 @@ mod test {
                     balances: HashMap::from([(minted_token_id, caller_initial_balance)]),
                     code_hash: B256::default(),
                     code: None,
-                    nonce: 1,
+                    nonce: 0,
                 };
-                db.insert_account_info(caller_contract, caller_info);
+                db.insert_account_info(caller, caller_info);
             })
             .build();
 
         // Test the burning of the native token
         let amount_to_burn = U256::from(500);
-        assert!(evm.context.burn(caller_contract, sub_id, amount_to_burn));
+        assert!(evm.context.burn(caller, sub_id, amount_to_burn));
 
         let journaled_state = evm.context.evm.inner.journaled_state.clone();
         let caller_minted_token_balance = *journaled_state
-            .account(caller_contract)
+            .account(caller)
             .info
             .balances
             .get(&minted_token_id)
@@ -212,9 +212,9 @@ mod test {
     /// TODO: add EOA check in precompile and route call via SRF-20
     #[test]
     fn burn_precompile() {
-        let caller_contract = address!("5fdcca53617f4d2b9134b29090c87d01058e27e9");
+        let caller = address!("5fdcca53617f4d2b9134b29090c87d01058e27e9");
         let sub_id = U256::from(2);
-        let minted_token_id = token_id_address(caller_contract, sub_id);
+        let minted_token_id = token_id_address(caller, sub_id);
         let caller_initial_balance = U256::from(1000);
         let amount_to_burn = U256::from(500);
 
@@ -226,12 +226,12 @@ mod test {
                     balances: HashMap::from([(minted_token_id, caller_initial_balance)]),
                     code_hash: B256::default(),
                     code: None,
-                    nonce: 1,
+                    nonce: 0,
                 };
-                db.insert_account_info(caller_contract, caller_info);
+                db.insert_account_info(caller, caller_info);
             })
             .modify_tx_env(|tx| {
-                tx.caller = caller_contract;
+                tx.caller = caller;
                 tx.transact_to = TransactTo::Call(NATIVE_TOKENS_PRECOMPILE_ADDRESS);
 
                 // Compose the Tx Data, as follows: the BURN id + sub_id + amount
@@ -249,11 +249,7 @@ mod test {
         let execution_result = tx_result.unwrap();
         assert!(execution_result.is_success());
 
-        let caller_minted_token_balance = evm
-            .context
-            .balance(minted_token_id, caller_contract)
-            .unwrap()
-            .0;
+        let caller_minted_token_balance = evm.context.balance(minted_token_id, caller).unwrap().0;
         assert_eq!(
             caller_minted_token_balance,
             caller_initial_balance - amount_to_burn
@@ -263,7 +259,7 @@ mod test {
     /// TODO: use a bytecode that includes the MINT opcode
     #[test]
     fn mint_opcode() {
-        let caller_contract = address!("5fdcca53617f4d2b9134b29090c87d01058e27e9");
+        let caller = address!("5fdcca53617f4d2b9134b29090c87d01058e27e9");
 
         let mut evm = Evm::builder()
             .with_db(InMemoryDB::default())
@@ -272,24 +268,22 @@ mod test {
                     balances: HashMap::new(),
                     code_hash: B256::default(),
                     code: None,
-                    nonce: 1,
+                    nonce: 0,
                 };
-                db.insert_account_info(caller_contract, caller_info);
+                db.insert_account_info(caller, caller_info);
             })
             .build();
 
         // Test the minting of a native token
         let sub_id = U256::from(2);
         let amount_to_mint = U256::from(1000);
-        assert!(evm
-            .context
-            .mint(caller_contract, caller_contract, sub_id, amount_to_mint));
+        assert!(evm.context.mint(caller, caller, sub_id, amount_to_mint));
 
-        let minted_token_id = token_id_address(caller_contract, sub_id);
+        let minted_token_id = token_id_address(caller, sub_id);
 
         let journaled_state = evm.context.evm.inner.journaled_state.clone();
         let caller_minted_token_balance = *journaled_state
-            .account(caller_contract)
+            .account(caller)
             .info
             .balances
             .get(&minted_token_id)
@@ -301,7 +295,7 @@ mod test {
     /// TODO: add EOA check in precompile and route call via SRF-20
     #[test]
     fn mint_precompile() {
-        let caller_contract = address!("5fdcca53617f4d2b9134b29090c87d01058e27e9");
+        let caller = address!("5fdcca53617f4d2b9134b29090c87d01058e27e9");
         let sub_id = U256::from(2);
         let amount_to_mint = U256::from(1000);
 
@@ -312,18 +306,18 @@ mod test {
                     balances: HashMap::new(),
                     code_hash: B256::default(),
                     code: None,
-                    nonce: 1,
+                    nonce: 0,
                 };
-                db.insert_account_info(caller_contract, caller_info);
+                db.insert_account_info(caller, caller_info);
             })
             .modify_tx_env(|tx| {
-                tx.caller = caller_contract; // tx.origin == msg.sender
-                                             // EOA => SRF20 => Precompile
+                tx.caller = caller; // tx.origin == msg.sender
+                                    // EOA => SRF20 => Precompile
                 tx.transact_to = TransactTo::Call(NATIVE_TOKENS_PRECOMPILE_ADDRESS);
 
                 // Compose the Tx Data, as follows: the MINT id + recipient + sub_id + amount
                 const MINT_ID: u8 = 0xC1;
-                let recipient = caller_contract;
+                let recipient = caller;
 
                 let mut concatenated = vec![MINT_ID];
                 concatenated.append(recipient.to_vec().as_mut());
@@ -339,13 +333,123 @@ mod test {
         let execution_result = tx_result.unwrap();
         assert!(execution_result.is_success());
 
-        let minted_token_id = token_id_address(caller_contract, sub_id);
-        let caller_minted_token_balance = evm
-            .context
-            .balance(minted_token_id, caller_contract)
-            .unwrap()
-            .0;
+        let minted_token_id = token_id_address(caller, sub_id);
+        let caller_minted_token_balance = evm.context.balance(minted_token_id, caller).unwrap().0;
         assert_eq!(caller_minted_token_balance, amount_to_mint);
+    }
+
+    #[test]
+    fn mntcallvalues_precompile() {
+        use crate::primitives::{
+            address, token_id_address, utilities::bytes_parsing::*, AccountInfo, Bytes,
+            TokenTransfer, TransactTo, B256, BASE_TOKEN_ID, U256,
+        };
+
+        let caller = address!("5fdcca53617f4d2b9134b29090c87d01058e27e0");
+        let caller_token1_balance = U256::from(10);
+
+        let sub_id2 = U256::from(2);
+        let token2_id = token_id_address(NATIVE_TOKENS_PRECOMPILE_ADDRESS, sub_id2);
+        let caller_token2_balance = U256::from(100);
+
+        let sub_id3 = U256::from(3);
+        let token3_id = token_id_address(NATIVE_TOKENS_PRECOMPILE_ADDRESS, sub_id3);
+        let caller_token3_balance = U256::from(1000);
+
+        let tokens_to_be_transferred = vec![
+            TokenTransfer {
+                id: BASE_TOKEN_ID,
+                amount: caller_token1_balance,
+            },
+            TokenTransfer {
+                id: token2_id,
+                amount: caller_token2_balance,
+            },
+            TokenTransfer {
+                id: token3_id,
+                amount: caller_token3_balance,
+            },
+        ];
+
+        let db = InMemoryDB::default();
+        let mut evm = Evm::builder()
+            .with_db(db)
+            .modify_db(|db| {
+                db.token_ids.extend(vec![token2_id, token3_id]);
+
+                let callee_info = AccountInfo {
+                    balances: HashMap::default(),
+                    code_hash: B256::default(),
+                    code: None,
+                    nonce: 0,
+                };
+                db.insert_account_info(NATIVE_TOKENS_PRECOMPILE_ADDRESS, callee_info);
+
+                let caller_info = AccountInfo {
+                    balances: HashMap::from([
+                        (BASE_TOKEN_ID, caller_token1_balance),
+                        (token2_id, caller_token2_balance),
+                        (token3_id, caller_token3_balance),
+                    ]),
+                    code_hash: B256::default(),
+                    code: None,
+                    nonce: 0,
+                };
+                db.insert_account_info(caller, caller_info);
+            })
+            .modify_tx_env(|tx| {
+                tx.caller = caller;
+                tx.transact_to = TransactTo::Call(NATIVE_TOKENS_PRECOMPILE_ADDRESS);
+
+                //Compose the Tx Data, as follows: the BALANCEOF id + address + token_id
+                const MNTCALLVALUES_ID: u8 = 0x2F;
+                tx.data = Bytes::from(MNTCALLVALUES_ID.to_be_bytes());
+                tx.transferred_tokens.clone_from(&tokens_to_be_transferred);
+            })
+            .with_external_context(CustomPrintTracer::default())
+            .with_spec_id(SpecId::LATEST)
+            .append_handler_register(inspector_handle_register)
+            .build();
+
+        let tx_result = evm.transact_commit();
+        assert!(tx_result.is_ok());
+
+        let execution_result = tx_result.unwrap();
+        assert!(execution_result.is_success());
+
+        let mut tx_output = Bytes::copy_from_slice(execution_result.output().unwrap());
+        let transferred_tokens_no = match consume_usize_from(&mut tx_output) {
+            Ok(value) => value,
+            Err(_) => panic!("Failed to consume usize from output"),
+        };
+
+        assert_eq!(transferred_tokens_no, 3);
+
+        let mut transferred_tokens = Vec::new();
+
+        for _ in 0..transferred_tokens_no {
+            let token_id = match consume_u256_from(&mut tx_output) {
+                Ok(value) => value,
+                Err(_) => panic!("Failed to consume token id from output"),
+            };
+
+            let token_amount = match consume_u256_from(&mut tx_output) {
+                Ok(value) => value,
+                Err(_) => panic!("Failed to consume token amount from output"),
+            };
+
+            transferred_tokens.push(TokenTransfer {
+                id: token_id,
+                amount: token_amount,
+            });
+        }
+
+        let mut sorted_vec1 = tokens_to_be_transferred.clone();
+        sorted_vec1.sort();
+        let mut sorted_vec2 = transferred_tokens.clone();
+        sorted_vec2.sort();
+
+        assert_eq!(sorted_vec1, sorted_vec2);
     }
 
     #[test]
@@ -390,7 +494,7 @@ mod test {
             .with_db(db)
             .modify_db(|db| {
                 let callee_info = AccountInfo {
-                    balances: HashMap::from([(BASE_TOKEN_ID, U256::ZERO)]),
+                    balances: HashMap::default(),
                     code_hash: B256::default(),
                     code: None,
                     nonce: 0,

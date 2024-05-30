@@ -1,7 +1,7 @@
 //! Stateful precompile to implement Native Tokens.
 use crate::{
     precompile::{Error, PrecompileResult},
-    primitives::{Address, Bytes, U160, U256},
+    primitives::{utilities::bytes_parsing::*, Address, Bytes, U256},
     ContextStatefulPrecompileMut, Database, InnerEvmContext,
 };
 use std::{string::String, vec::Vec};
@@ -19,30 +19,13 @@ impl Clone for NativeTokensContextPrecompile {
     }
 }
 
-fn consume_address_from(input: &mut Bytes) -> Result<Address, Error> {
-    const ADDRESS_LEN: usize = U160::BYTES;
-    let bytes = consume_bytes_from(input, ADDRESS_LEN)?;
-    Ok(U160::from_be_bytes::<ADDRESS_LEN>(bytes.try_into().unwrap()).into())
-}
-
-fn consume_bytes_from(input: &mut Bytes, no_bytes: usize) -> Result<Vec<u8>, Error> {
-    if input.len() < no_bytes {
-        return Err(Error::InvalidInput);
-    }
-    Ok(input.split_to(no_bytes).to_vec())
-}
-
-fn consume_u8(input: &mut Bytes) -> Result<u8, Error> {
-    const U8_LEN: usize = 1;
-    let bytes = consume_bytes_from(input, U8_LEN)?;
-    Ok(u8::from_be_bytes([bytes[0]]))
-}
-
-fn consume_u256_from(input: &mut Bytes) -> Result<U256, Error> {
-    const U256_LEN: usize = U256::BYTES;
-    let bytes = consume_bytes_from(input, U256_LEN)?;
-    Ok(U256::from_be_bytes::<U256_LEN>(bytes.try_into().unwrap()))
-}
+// TODO: uncomment the verification below when smart contracts are allowed to be deployed on the Mainnet
+// fn is_caller_eoa<DB: Database>(
+//     evmctx: &mut InnerEvmContext<DB>,
+// ) -> Result<bool, EVMError<DB::Error>> {
+//     let caller = evmctx.env.tx.caller;
+//     evmctx.code(caller).map(|(bytecode, _)| bytecode.is_empty())
+// }
 
 impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPrecompile {
     fn call_mut(
@@ -56,11 +39,23 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
             return Err(Error::OutOfGas);
         }
 
+        // TODO: uncomment the verification below when smart contracts are allowed to be deployed on the Mainnet
+        // match is_caller_eoa(evmctx) {
+        //     Ok(is_eoa) => {
+        //         if is_eoa {
+        //             return Err(Error::SabVMUnauthorizedCaller);
+        //         }
+        //     }
+        //     Err(_) => {
+        //         return Err(Error::SabVMUnauthorizedCaller);
+        //     }
+        // }
+
         // Create a local mutable copy of the input bytes
         let mut input = input.clone();
 
         // Parse the input bytes, to figure out what opcode to execute
-        let opcode_id = consume_u8(&mut input)?;
+        let opcode_id = consume_u8(&mut input).map_err(|_| Error::InvalidInput)?;
 
         // TODO: instead of opcode ids, operate based on function selectors from the INativeTokens interface
 
@@ -69,10 +64,10 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
             // BALANCEOF
             0xC0 => {
                 // Extract the token id from the input
-                let token_id = consume_u256_from(&mut input)?;
+                let token_id = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
                 // Extract the address from the input
-                let address = consume_address_from(&mut input)?;
+                let address = consume_address_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
                 match evmctx.balance(token_id, address) {
                     Ok(balance) => {
@@ -85,13 +80,14 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
             // MINT
             0xC1 => {
                 // Extract the recipient's address from the input
-                let recipient = consume_address_from(&mut input)?;
+                let recipient =
+                    consume_address_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
                 // Extract the sub_id from the input
-                let sub_id = consume_u256_from(&mut input)?;
+                let sub_id = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
                 // Extract the amount from the input
-                let amount = consume_u256_from(&mut input)?;
+                let amount = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
                 let minter = evmctx.env().tx.caller;
                 if evmctx
@@ -107,10 +103,10 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
             // BURN
             0xC2 => {
                 // Extract the sub_id from the input
-                let sub_id = consume_u256_from(&mut input)?;
+                let sub_id = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
                 // Extract the amount from the input
-                let amount = consume_u256_from(&mut input)?;
+                let amount = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
                 let burner = evmctx.env().tx.caller;
                 if evmctx
@@ -123,6 +119,25 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                 }
             }
 
+            // MNTCALLVALUES
+            0x2F => {
+                let mut call_values: Vec<u8> = evmctx
+                    .env
+                    .tx
+                    .transferred_tokens
+                    .len()
+                    .to_be_bytes()
+                    .to_vec();
+                for token in evmctx.env.tx.transferred_tokens.iter() {
+                    call_values.append(token.id.to_be_bytes_vec().as_mut());
+                    call_values.append(token.amount.to_be_bytes_vec().as_mut());
+                }
+
+                Ok((gas_used, Bytes::from(call_values)))
+            }
+
+            // 0xEE => MNTCALL
+            // 0xF6 => MNTCREATE
             _ => Err(Error::InvalidInput),
         }
     }

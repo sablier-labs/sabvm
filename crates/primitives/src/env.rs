@@ -535,14 +535,6 @@ impl Default for BlockEnv {
     }
 }
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct TokenTransfer {
-    pub id: U256,
-    // TODO: should we rename this to `value` for more clarity?
-    pub amount: U256,
-}
-
 /// The transaction environment.
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -811,5 +803,25 @@ mod tests {
             env.validate_tx::<crate::FrontierSpec>(),
             Err(InvalidTransaction::AccessListNotSupported)
         );
+    }
+}
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct TokenTransfer {
+    pub id: U256,
+    // TODO: should we rename this to `value` for more clarity?
+    pub amount: U256,
+}
+
+impl Ord for TokenTransfer {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.amount.cmp(&other.amount)
+    }
+}
+
+impl PartialOrd for TokenTransfer {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }

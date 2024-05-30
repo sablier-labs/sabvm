@@ -10,10 +10,12 @@ use crate::{
         SpecId::{CANCUN, PRAGUE, SHANGHAI},
         TransactTo, BLOCKHASH_STORAGE_ADDRESS, U256,
     },
-    sablier::{native_tokens, native_tokens::NativeTokensContextPrecompile},
     Context, ContextPrecompile, ContextPrecompiles,
 };
 use std::boxed::Box;
+
+#[cfg(feature = "std")]
+use crate::sablier::{native_tokens, native_tokens::NativeTokensContextPrecompile};
 
 /// Main precompile load
 #[inline]
@@ -24,6 +26,7 @@ pub fn load_precompiles<SPEC: Spec, DB: Database>() -> ContextPrecompiles<DB> {
             .clone()
             .into();
 
+    #[cfg(feature = "std")]
     // Add the SabVM precompiles.
     precompiles.extend([(
         native_tokens::ADDRESS,

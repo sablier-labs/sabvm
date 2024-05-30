@@ -9,8 +9,8 @@ use std::vec::Vec;
 
 pub fn balance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     pop_address!(interpreter, address);
-    push!(interpreter, BASE_TOKEN_ID);
     push_b256!(interpreter, address.into_word());
+    push!(interpreter, BASE_TOKEN_ID);
 
     balance_of::<H, SPEC>(interpreter, host);
 }
