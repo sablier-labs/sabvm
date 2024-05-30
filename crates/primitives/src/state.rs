@@ -257,13 +257,6 @@ impl AccountInfo {
         }
     }
 
-    pub fn from_balances(balances: Balances) -> Self {
-        AccountInfo {
-            balances,
-            ..Default::default()
-        }
-    }
-
     /// Returns account info without the code.
     pub fn without_code(mut self) -> Self {
         self.take_bytecode();
@@ -372,6 +365,15 @@ impl AccountInfo {
     /// Take bytecode from account. Code will be set to None.
     pub fn take_bytecode(&mut self) -> Option<Bytecode> {
         self.code.take()
+    }
+}
+
+impl From<Balances> for AccountInfo {
+    fn from(balances: Balances) -> Self {
+        AccountInfo {
+            balances,
+            ..Default::default()
+        }
     }
 }
 

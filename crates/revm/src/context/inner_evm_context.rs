@@ -152,6 +152,17 @@ impl<DB: Database> InnerEvmContext<DB> {
             .load_account_exist(address, &mut self.db)
     }
 
+    /// Return the base token balance and the is_cold flag of the account.
+    pub fn balance(
+        &mut self,
+        token_id: U256,
+        address: Address,
+    ) -> Result<(U256, bool), EVMError<DB::Error>> {
+        self.journaled_state
+            .load_account(address, &mut self.db)
+            .map(|(acc, is_cold)| (acc.info.get_balance(token_id), is_cold))
+    }
+
     /// Return account code and if address is cold loaded.
     #[inline]
     pub fn code(&mut self, address: Address) -> Result<(Bytecode, bool), EVMError<DB::Error>> {
@@ -495,17 +506,6 @@ impl<DB: Database> InnerEvmContext<DB> {
         self.journaled_state.set_code(address, bytecode);
 
         interpreter_result.result = InstructionResult::Return;
-    }
-
-    /// Return the base token balance and the is_cold flag of the account.
-    pub fn balance(
-        &mut self,
-        token_id: U256,
-        address: Address,
-    ) -> Result<(U256, bool), EVMError<DB::Error>> {
-        self.journaled_state
-            .load_account(address, &mut self.db)
-            .map(|(acc, is_cold)| (acc.info.get_balance(token_id), is_cold))
     }
 
     /// Return account balance and is_cold flag.

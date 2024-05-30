@@ -237,8 +237,6 @@ pub fn balance_of<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, h
 /// TODO: implement burning allowance just for Sablier
 /// Only allow burning for contracts (not EOAs)
 pub fn burn<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
-    // TODO: implement burning allowance just for Sablier
-    // Only allow burning for contracts (not EOAs)
     if host.is_tx_sender_eoa() {
         interpreter.instruction_result = InstructionResult::UnauthorizedCaller;
         return;
