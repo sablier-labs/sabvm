@@ -90,6 +90,7 @@ impl CacheState {
     /// Apply output of revm execution and create account transitions that are used to build BundleState.
     pub fn apply_evm_state(&mut self, evm_state: EvmState) -> Vec<(Address, TransitionAccount)> {
         let mut transitions = Vec::with_capacity(evm_state.accounts.len());
+
         for (address, account) in evm_state.accounts {
             if let Some(transition) = self.apply_account_state(address, account) {
                 transitions.push((address, transition));

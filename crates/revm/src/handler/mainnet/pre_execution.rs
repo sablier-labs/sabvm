@@ -10,12 +10,17 @@ use crate::{
         SpecId::{CANCUN, PRAGUE, SHANGHAI},
         TransactTo, BLOCKHASH_STORAGE_ADDRESS, U256,
     },
-    Context, ContextPrecompile, ContextPrecompiles,
+    Context, ContextPrecompiles,
 };
-use std::boxed::Box;
 
 #[cfg(feature = "std")]
-use crate::sablier::{native_tokens, native_tokens::NativeTokensContextPrecompile};
+use crate::{
+    sablier::{native_tokens, native_tokens::NativeTokensContextPrecompile},
+    ContextPrecompile,
+};
+
+#[cfg(feature = "std")]
+use std::boxed::Box;
 
 /// Main precompile load
 #[inline]

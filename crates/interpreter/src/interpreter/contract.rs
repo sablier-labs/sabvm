@@ -1,3 +1,5 @@
+use revm_primitives::BASE_TOKEN_ID;
+
 use super::analysis::to_analysed;
 use crate::{
     primitives::{Address, Bytecode, Bytes, Env, TransactTo, B256, U256},
@@ -59,7 +61,7 @@ impl Contract {
             hash,
             contract_address,
             env.tx.caller,
-            env.tx.value,
+            env.tx.get_base_transfer_value(),
         )
     }
 
@@ -77,7 +79,11 @@ impl Contract {
             hash,
             call_context.target_address,
             call_context.caller,
-            call_context.call_value(),
+            call_context
+                .call_values()
+                .iter()
+                .find(|tt| tt.id == BASE_TOKEN_ID)
+                .map_or(U256::ZERO, |tt| tt.amount), //TODO: pass all of the transferred tokens when contract deployment is permissionless
         )
     }
 

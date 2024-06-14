@@ -50,11 +50,11 @@ impl<S: State, BH: BlockHash> Database for DatabaseComponents<S, BH> {
             .map_err(Self::Error::BlockHash)
     }
 
-    fn get_token_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
+    fn get_token_ids(&self) -> Result<Vec<U256>, Self::Error> {
         self.state.get_token_ids().map_err(Self::Error::State)
     }
 
-    fn is_token_id_valid(&mut self, token_id: U256) -> Result<bool, Self::Error> {
+    fn is_token_id_valid(&self, token_id: U256) -> Result<bool, Self::Error> {
         self.state
             .is_token_id_valid(token_id)
             .map_err(Self::Error::State)

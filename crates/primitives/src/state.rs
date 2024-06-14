@@ -271,7 +271,18 @@ impl AccountInfo {
     /// - nonce is zero
     pub fn is_empty(&self) -> bool {
         let code_empty = self.is_empty_code_hash() || self.code_hash == B256::ZERO;
-        code_empty && self.balances.len() == 0 && self.nonce == 0
+        code_empty
+            && (self.balances.len() == 0
+                || self.only_has_base_balance() && self.is_base_balance_zero())
+            && self.nonce == 0
+    }
+
+    fn only_has_base_balance(&self) -> bool {
+        self.balances.len() == 1 && self.balances.contains_key(&BASE_TOKEN_ID)
+    }
+
+    fn is_base_balance_zero(&self) -> bool {
+        self.get_base_balance() == U256::ZERO
     }
 
     /// Returns `true` if the account is not empty.

@@ -6,7 +6,7 @@ use ethers_providers::{Http, Provider};
 use indicatif::ProgressBar;
 use revm::db::{CacheDB, EthersDB, StateBuilder};
 use revm::inspectors::TracerEip3155;
-use revm::primitives::{Address, TransactTo, U256};
+use revm::primitives::{Address, TokenTransfer, TransactTo, BASE_TOKEN_ID, U256};
 use revm::{inspector_handle_register, Evm};
 use std::fs::OpenOptions;
 use std::io::BufWriter;
@@ -114,7 +114,12 @@ async fn main() -> anyhow::Result<()> {
                 etx.caller = Address::from(tx.from.as_fixed_bytes());
                 etx.gas_limit = tx.gas.as_u64();
                 local_fill!(etx.gas_price, tx.gas_price, U256::from_limbs);
-                local_fill!(etx.value, Some(tx.value), U256::from_limbs);
+                etx.transferred_tokens = vec![
+                    (TokenTransfer {
+                        id: BASE_TOKEN_ID,
+                        amount: U256::from(tx.value.as_u64()),
+                    }),
+                ];
                 etx.data = tx.input.0.into();
                 let mut gas_priority_fee = U256::ZERO;
                 local_fill!(

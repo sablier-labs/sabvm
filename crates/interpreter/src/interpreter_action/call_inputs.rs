@@ -1,6 +1,8 @@
-use crate::primitives::{Address, Bytes, TransactTo, TxEnv, U256};
+use crate::primitives::{Address, Bytes, TokenTransfer, TransactTo, TxEnv, BASE_TOKEN_ID, U256};
 use core::ops::Range;
 use std::boxed::Box;
+use std::vec;
+use std::vec::Vec;
 
 /// Inputs for a call.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -28,10 +30,10 @@ pub struct CallInputs {
     pub caller: Address,
     /// Call value.
     ///
-    /// NOTE: This value may not necessarily be transferred from caller to callee, see [`CallValue`].
+    /// NOTE: This values may not necessarily be transferred from caller to callee, see [`CallValues`].
     ///
     /// Previously `transfer.value` or `context.apparent_value`.
-    pub value: CallValue,
+    pub values: CallValues,
     /// The call scheme.
     ///
     /// Previously `context.scheme`.
@@ -56,7 +58,7 @@ impl CallInputs {
             target_address,
             bytecode_address: target_address,
             caller: tx_env.caller,
-            value: CallValue::Transfer(tx_env.value),
+            values: CallValues::Transfer(tx_env.transferred_tokens.clone()),
             scheme: CallScheme::Call,
             is_static: false,
             is_eof: false,
@@ -74,23 +76,23 @@ impl CallInputs {
     /// Returns `true` if the call will transfer a non-zero value.
     #[inline]
     pub fn transfers_value(&self) -> bool {
-        self.value.transfer().is_some_and(|x| x > U256::ZERO)
+        self.values.transfer().iter().any(|x| x.amount > U256::ZERO)
     }
 
     /// Returns the transfer value.
     ///
-    /// This is the value that is transferred from caller to callee, see [`CallValue`].
+    /// This is the value that is transferred from caller to callee, see [`CallValues`].
     #[inline]
-    pub const fn transfer_value(&self) -> Option<U256> {
-        self.value.transfer()
+    pub fn transfer_value(&self) -> Vec<TokenTransfer> {
+        self.values.transfer()
     }
 
     /// Returns the **apparent** call value.
     ///
-    /// This value is not actually transferred, see [`CallValue`].
+    /// This value is not actually transferred, see [`CallValues`].
     #[inline]
-    pub const fn apparent_value(&self) -> Option<U256> {
-        self.value.apparent()
+    pub fn apparent_value(&self) -> Vec<TokenTransfer> {
+        self.values.apparent()
     }
 
     /// Returns the address of the transfer source account.
@@ -109,12 +111,12 @@ impl CallInputs {
         self.target_address
     }
 
-    /// Returns the call value, regardless of the transfer value type.
+    /// Returns the call values, regardless of the transfer type.
     ///
-    /// NOTE: this value may not necessarily be transferred from caller to callee, see [`CallValue`].
+    /// NOTE: this values may not necessarily be transferred from caller to callee, see [`CallValues`].
     #[inline]
-    pub const fn call_value(&self) -> U256 {
-        self.value.get()
+    pub fn call_values(&self) -> Vec<TokenTransfer> {
+        self.values.get()
     }
 }
 
@@ -135,37 +137,42 @@ pub enum CallScheme {
 /// Call value.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub enum CallValue {
+pub enum CallValues {
     /// Concrete value, transferred from caller to callee at the end of the transaction.
-    Transfer(U256),
+    Transfer(Vec<TokenTransfer>),
     /// Apparent value, that is **not** actually transferred.
     ///
     /// Set when in a `DELEGATECALL` call type, and used by the `CALLVALUE` opcode.
-    Apparent(U256),
+    Apparent(Vec<TokenTransfer>),
 }
 
-impl Default for CallValue {
+impl Default for CallValues {
     #[inline]
     fn default() -> Self {
-        CallValue::Transfer(U256::ZERO)
+        CallValues::Transfer(vec![
+            (TokenTransfer {
+                id: BASE_TOKEN_ID,
+                amount: U256::ZERO,
+            }),
+        ])
     }
 }
 
-impl CallValue {
+impl CallValues {
     /// Returns the call value, regardless of the type.
     #[inline]
-    pub const fn get(&self) -> U256 {
-        match *self {
-            Self::Transfer(value) | Self::Apparent(value) => value,
+    pub fn get(&self) -> Vec<TokenTransfer> {
+        match self {
+            Self::Transfer(values) | Self::Apparent(values) => values.clone(),
         }
     }
 
     /// Returns the transferred value, if any.
     #[inline]
-    pub const fn transfer(&self) -> Option<U256> {
-        match *self {
-            Self::Transfer(transfer) => Some(transfer),
-            Self::Apparent(_) => None,
+    pub fn transfer(&self) -> Vec<TokenTransfer> {
+        match self {
+            Self::Transfer(values) => values.clone(),
+            Self::Apparent(_) => Vec::new(),
         }
     }
 
@@ -177,10 +184,10 @@ impl CallValue {
 
     /// Returns the apparent value, if any.
     #[inline]
-    pub const fn apparent(&self) -> Option<U256> {
-        match *self {
-            Self::Transfer(_) => None,
-            Self::Apparent(apparent) => Some(apparent),
+    pub fn apparent(&self) -> Vec<TokenTransfer> {
+        match self {
+            Self::Transfer(_) => Vec::new(),
+            Self::Apparent(values) => values.clone(),
         }
     }
 

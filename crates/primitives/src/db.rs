@@ -26,10 +26,10 @@ pub trait Database {
     fn block_hash(&mut self, number: U256) -> Result<B256, Self::Error>;
 
     /// Get the supported token ids
-    fn get_token_ids(&mut self) -> Result<Vec<U256>, Self::Error>;
+    fn get_token_ids(&self) -> Result<Vec<U256>, Self::Error>;
 
     /// Check if token id is valid
-    fn is_token_id_valid(&mut self, token_id: U256) -> Result<bool, Self::Error>;
+    fn is_token_id_valid(&self, token_id: U256) -> Result<bool, Self::Error>;
 }
 
 /// EVM database commit interface.
@@ -110,12 +110,12 @@ impl<T: DatabaseRef> Database for WrapDatabaseRef<T> {
     }
 
     #[inline]
-    fn is_token_id_valid(&mut self, token_id: U256) -> Result<bool, Self::Error> {
+    fn is_token_id_valid(&self, token_id: U256) -> Result<bool, Self::Error> {
         self.0.is_token_id_valid_ref(token_id)
     }
 
     #[inline]
-    fn get_token_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
+    fn get_token_ids(&self) -> Result<Vec<U256>, Self::Error> {
         self.0.get_token_ids_ref()
     }
 }
@@ -167,12 +167,12 @@ impl<'a, E> Database for RefDBWrapper<'a, E> {
     }
 
     #[inline]
-    fn is_token_id_valid(&mut self, token_id: U256) -> Result<bool, Self::Error> {
+    fn is_token_id_valid(&self, token_id: U256) -> Result<bool, Self::Error> {
         self.db.is_token_id_valid_ref(token_id)
     }
 
     #[inline]
-    fn get_token_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
+    fn get_token_ids(&self) -> Result<Vec<U256>, Self::Error> {
         self.db.get_token_ids_ref()
     }
 }

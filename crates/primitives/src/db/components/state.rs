@@ -20,10 +20,10 @@ pub trait State {
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error>;
 
     /// Get the supported token ids
-    fn get_token_ids(&mut self) -> Result<Vec<U256>, Self::Error>;
+    fn get_token_ids(&self) -> Result<Vec<U256>, Self::Error>;
 
     /// Check if token id is valid
-    fn is_token_id_valid(&mut self, token_id: U256) -> Result<bool, Self::Error>;
+    fn is_token_id_valid(&self, token_id: U256) -> Result<bool, Self::Error>;
 }
 
 #[auto_impl(&, &mut, Box, Rc, Arc)]
@@ -65,12 +65,12 @@ where
     }
 
     /// Get the supported token ids
-    fn get_token_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
+    fn get_token_ids(&self) -> Result<Vec<U256>, Self::Error> {
         StateRef::get_token_ids(*self)
     }
 
     /// Check if token id is valid
-    fn is_token_id_valid(&mut self, token_id: U256) -> Result<bool, Self::Error> {
+    fn is_token_id_valid(&self, token_id: U256) -> Result<bool, Self::Error> {
         StateRef::is_token_id_valid(*self, token_id)
     }
 }
@@ -93,11 +93,11 @@ where
         self.deref().storage(address, index)
     }
 
-    fn get_token_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
+    fn get_token_ids(&self) -> Result<Vec<U256>, Self::Error> {
         self.deref().get_token_ids()
     }
 
-    fn is_token_id_valid(&mut self, token_id: U256) -> Result<bool, Self::Error> {
+    fn is_token_id_valid(&self, token_id: U256) -> Result<bool, Self::Error> {
         self.deref().is_token_id_valid(token_id)
     }
 }

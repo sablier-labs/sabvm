@@ -28,7 +28,7 @@ impl CreateInputs {
         Some(CreateInputs {
             caller: tx_env.caller,
             scheme: CreateScheme::Create,
-            value: tx_env.value,
+            value: tx_env.get_base_transfer_value(), //TODO: pass all of the transferred tokens when contract deployment is permissionless
             init_code: tx_env.data.clone(),
             gas_limit,
         })

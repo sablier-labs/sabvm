@@ -293,11 +293,11 @@ impl<DB: Database> Database for State<DB> {
         }
     }
 
-    fn is_token_id_valid(&mut self, token_id: U256) -> Result<bool, Self::Error> {
+    fn is_token_id_valid(&self, token_id: U256) -> Result<bool, Self::Error> {
         self.database.is_token_id_valid(token_id)
     }
 
-    fn get_token_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
+    fn get_token_ids(&self) -> Result<Vec<U256>, Self::Error> {
         self.database.get_token_ids()
     }
 }

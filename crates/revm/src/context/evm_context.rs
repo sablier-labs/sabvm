@@ -1,4 +1,4 @@
-use revm_interpreter::CallValue;
+use revm_interpreter::CallValues;
 
 use super::inner_evm_context::InnerEvmContext;
 use crate::{
@@ -6,7 +6,7 @@ use crate::{
     interpreter::{
         return_ok, CallInputs, Contract, Gas, InstructionResult, Interpreter, InterpreterResult,
     },
-    primitives::{Address, Bytes, EVMError, Env, HashSet, TokenTransfer, BASE_TOKEN_ID, U256},
+    primitives::{Address, Bytes, EVMError, Env, HashSet, U256},
     ContextPrecompiles, FrameOrResult, CALL_STACK_LIMIT,
 };
 use core::{
@@ -173,21 +173,20 @@ impl<DB: Database> EvmContext<DB> {
         let checkpoint = self.journaled_state.checkpoint();
 
         // Touch address. For "EIP-158 State Clear", this will erase empty accounts.
-        match inputs.value {
+        match &inputs.values {
             // if transfer value is zero, do the touch.
-            CallValue::Transfer(value) if value == U256::ZERO => {
+            CallValues::Transfer(values)
+                if values.is_empty() || values.iter().all(|tt| tt.amount == U256::ZERO) =>
+            {
                 self.load_account(inputs.target_address)?;
                 self.journaled_state.touch(&inputs.target_address);
             }
-            CallValue::Transfer(value) => {
+            CallValues::Transfer(values) => {
                 // Transfer value from caller to called account
                 if let Some(result) = self.inner.journaled_state.transfer(
                     &inputs.caller,
                     &inputs.target_address,
-                    &vec![TokenTransfer {
-                        id: BASE_TOKEN_ID,
-                        amount: value,
-                    }],
+                    values,
                     &mut self.inner.db,
                 )? {
                     self.journaled_state.checkpoint_revert(checkpoint);
@@ -244,7 +243,7 @@ pub(crate) mod test_utils {
             bytecode_address: to,
             target_address: to,
             caller: MOCK_CALLER,
-            value: CallValue::Transfer(U256::ZERO),
+            values: CallValues::Transfer(Vec::new()),
             scheme: revm_interpreter::CallScheme::Call,
             is_eof: false,
             is_static: false,
@@ -311,7 +310,9 @@ mod tests {
     use super::*;
     use crate::{
         db::{CacheDB, EmptyDB},
-        primitives::{address, utilities::init_balances, AccountInfo, Bytecode},
+        primitives::{
+            address, utilities::init_balances, AccountInfo, Bytecode, TokenTransfer, BASE_TOKEN_ID,
+        },
         Frame, JournalEntry,
     };
     use std::boxed::Box;
@@ -347,7 +348,12 @@ mod tests {
         let mut evm_context = test_utils::create_empty_evm_context(Box::new(env), db);
         let contract = address!("dead10000000000000000000000000000001dead");
         let mut call_inputs = test_utils::create_mock_call_inputs(contract);
-        call_inputs.value = CallValue::Transfer(U256::from(1));
+        call_inputs.values = CallValues::Transfer(vec![
+            (TokenTransfer {
+                id: BASE_TOKEN_ID,
+                amount: U256::from(1),
+            }),
+        ]);
         let res = evm_context.make_call_frame(&call_inputs);
         let Ok(FrameOrResult::Result(result)) = res else {
             panic!("Expected FrameOrResult::Result");

@@ -85,7 +85,7 @@ impl<DB: Database> Inspector<DB> for CustomPrintTracer {
             inputs.caller,
             inputs.target_address,
             inputs.is_static,
-            inputs.value,
+            inputs.values,
             inputs.input.len(),
         );
         None
@@ -530,7 +530,7 @@ mod test {
         db = evm.db().clone();
         let callee_base_balance = *db
             .accounts
-            .get(&caller_eoa)
+            .get(&callee_eoa)
             .unwrap()
             .info
             .balances

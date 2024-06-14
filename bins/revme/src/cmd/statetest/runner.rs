@@ -5,6 +5,7 @@ use super::{
 };
 use indicatif::{ProgressBar, ProgressDrawTarget};
 use revm::{
+    db::CacheDB,
     db::EmptyDB,
     inspector_handle_register,
     inspectors::TracerEip3155,
@@ -12,7 +13,7 @@ use revm::{
         calc_excess_blob_gas, init_balances, keccak256, Bytecode, Bytes, EVMResultGeneric, Env,
         ExecutionResult, SpecId, TokenTransfer, TransactTo, B256, BASE_TOKEN_ID, U256,
     },
-    Evm, State,
+    Evm, InMemoryDB, State,
 };
 use serde_json::json;
 use std::{
@@ -131,7 +132,7 @@ fn check_evm_execution<EXT>(
     expected_output: Option<&Bytes>,
     test_name: &str,
     exec_result: &EVMResultGeneric<ExecutionResult, Infallible>,
-    evm: &Evm<'_, EXT, &mut State<EmptyDB>>,
+    evm: &Evm<'_, EXT, &mut State<CacheDB<EmptyDB>>>,
     print_json_outcome: bool,
 ) -> Result<(), TestError> {
     let logs_root = log_rlp_hash(exec_result.as_ref().map(|r| r.logs()).unwrap_or_default());
@@ -226,6 +227,7 @@ fn check_evm_execution<EXT>(
             expected: test.hash,
         };
         print_json_output(Some(kind.to_string()));
+
         return Err(TestError {
             name: test_name.to_string(),
             kind,
@@ -374,7 +376,9 @@ pub fn execute_test_suite(
                 let mut state = revm::db::State::builder()
                     .with_cached_prestate(cache)
                     .with_bundle_update()
+                    .with_database(InMemoryDB::default())
                     .build();
+
                 let mut evm = Evm::builder()
                     .with_db(&mut state)
                     .modify_env(|e| e.clone_from(&env))
@@ -443,6 +447,7 @@ pub fn execute_test_suite(
                 let state = revm::db::State::builder()
                     .with_cached_prestate(cache)
                     .with_bundle_update()
+                    .with_database(InMemoryDB::default())
                     .build();
 
                 let path = path.display();

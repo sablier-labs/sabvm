@@ -78,7 +78,6 @@ fn transfer(c: &mut Criterion) {
                 id: BASE_TOKEN_ID,
                 amount: U256::from(10),
             }];
-            tx.value = U256::from(10);
         })
         .build();
 

@@ -5,6 +5,8 @@ use crate::{
     Context,
 };
 
+use std::boxed::Box;
+
 /// Validate environment for the mainnet.
 pub fn validate_env<SPEC: Spec, DB: Database>(env: &Env) -> Result<(), EVMError<DB::Error>> {
     // Important: validate block before tx.
@@ -17,6 +19,17 @@ pub fn validate_env<SPEC: Spec, DB: Database>(env: &Env) -> Result<(), EVMError<
 pub fn validate_tx_against_state<SPEC: Spec, EXT, DB: Database>(
     context: &mut Context<EXT, DB>,
 ) -> Result<(), EVMError<DB::Error>> {
+    // Check whether all of the transferred assets are valid
+    for token in context.evm.env.tx.transferred_tokens.iter() {
+        let result = context.evm.db.is_token_id_valid(token.id);
+        if result.is_err() || result.is_ok_and(|r| !r) {
+            return Err(InvalidTransaction::InvalidTokenId {
+                token_id: Box::new(token.id),
+            }
+            .into());
+        }
+    }
+
     // load acc
     let tx_caller = context.evm.env.tx.caller;
     let (caller_account, _) = context

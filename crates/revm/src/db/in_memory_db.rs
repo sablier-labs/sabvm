@@ -249,11 +249,11 @@ impl<ExtDB: DatabaseRef> Database for CacheDB<ExtDB> {
         }
     }
 
-    fn get_token_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
+    fn get_token_ids(&self) -> Result<Vec<U256>, Self::Error> {
         Ok(self.token_ids.clone())
     }
 
-    fn is_token_id_valid(&mut self, token_id: U256) -> Result<bool, Self::Error> {
+    fn is_token_id_valid(&self, token_id: U256) -> Result<bool, Self::Error> {
         Ok(self.token_ids.contains(&token_id))
     }
 }
@@ -428,12 +428,12 @@ impl Database for BenchmarkDB {
     }
 
     // Get the supported token ids
-    fn get_token_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
+    fn get_token_ids(&self) -> Result<Vec<U256>, Self::Error> {
         Ok(vec![BASE_TOKEN_ID])
     }
 
     // Check if token id is valid
-    fn is_token_id_valid(&mut self, _token_id: U256) -> Result<bool, Self::Error> {
+    fn is_token_id_valid(&self, _token_id: U256) -> Result<bool, Self::Error> {
         Ok(false)
     }
 }

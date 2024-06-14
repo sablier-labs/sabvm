@@ -547,8 +547,6 @@ pub struct TxEnv {
     pub gas_price: U256,
     /// The destination of the transaction.
     pub transact_to: TransactTo,
-    /// The value sent to `transact_to`.
-    pub value: U256,
     /// The data of the transaction.
     pub data: Bytes,
     /// The nonce of the transaction.
@@ -648,7 +646,6 @@ impl Default for TxEnv {
             gas_price: U256::ZERO,
             gas_priority_fee: None,
             transact_to: TransactTo::Call(Address::ZERO), // will do nothing
-            value: U256::ZERO,
             data: Bytes::new(),
             chain_id: None,
             nonce: None,

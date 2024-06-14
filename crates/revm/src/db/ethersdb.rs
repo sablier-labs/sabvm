@@ -156,12 +156,12 @@ impl<M: Middleware> Database for EthersDB<M> {
     }
 
     #[inline]
-    fn get_token_ids(&mut self) -> Result<Vec<U256>, Self::Error> {
+    fn get_token_ids(&self) -> Result<Vec<U256>, Self::Error> {
         <Self as DatabaseRef>::get_token_ids_ref(self)
     }
 
     #[inline]
-    fn is_token_id_valid(&mut self, token_id: U256) -> Result<bool, Self::Error> {
+    fn is_token_id_valid(&self, token_id: U256) -> Result<bool, Self::Error> {
         <Self as DatabaseRef>::is_token_id_valid_ref(self, token_id)
     }
 }
