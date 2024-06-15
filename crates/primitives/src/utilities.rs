@@ -224,6 +224,12 @@ pub mod bytes_parsing {
         Ok(u8::from_be_bytes(bytes.try_into().unwrap()))
     }
 
+    pub fn consume_u32(input: &mut Bytes) -> Result<u32, BytesParsingError> {
+        const U32_LEN: usize = size_of::<u32>();
+        let bytes = consume_bytes_from(input, U32_LEN)?;
+        Ok(u32::from_be_bytes(bytes.try_into().unwrap()))
+    }
+
     pub fn consume_u256_from(input: &mut Bytes) -> Result<U256, BytesParsingError> {
         const U256_LEN: usize = U256::BYTES;
         let bytes = consume_bytes_from(input, U256_LEN)?;

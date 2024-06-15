@@ -121,7 +121,10 @@ mod test {
             address, bytes, keccak256, token_id_address, AccountInfo, Bytecode, Bytes, SpecId,
             TokenTransfer, TransactTo, B256, BASE_TOKEN_ID, U256,
         },
-        sablier::native_tokens::ADDRESS as NATIVE_TOKENS_PRECOMPILE_ADDRESS,
+        sablier::native_tokens::{
+            ADDRESS as NATIVE_TOKENS_PRECOMPILE_ADDRESS, BALANCEOF_SELECTOR, BURN_SELECTOR,
+            MINT_SELECTOR,
+        },
         Evm, InMemoryDB,
     };
     use revm_interpreter::Host;
@@ -148,9 +151,8 @@ mod test {
                 tx.caller = caller;
                 tx.transact_to = TransactTo::Call(NATIVE_TOKENS_PRECOMPILE_ADDRESS);
 
-                // Compose the Tx Data, as follows: the BALANCEOF id + token_id + address
-                const BALANCEOF_ID: u8 = 0xC0;
-                let mut concatenated = vec![BALANCEOF_ID];
+                // Compose the Tx Data, as follows: the balanceOf() function selector + token_id + address
+                let mut concatenated = BALANCEOF_SELECTOR.to_be_bytes().to_vec();
                 concatenated.append(BASE_TOKEN_ID.to_be_bytes_vec().as_mut());
                 concatenated.append(caller.to_vec().as_mut());
                 tx.data = Bytes::from(concatenated);
@@ -234,9 +236,8 @@ mod test {
                 tx.caller = caller;
                 tx.transact_to = TransactTo::Call(NATIVE_TOKENS_PRECOMPILE_ADDRESS);
 
-                // Compose the Tx Data, as follows: the BURN id + sub_id + amount
-                const BURN_ID: u8 = 0xC2;
-                let mut concatenated = vec![BURN_ID];
+                // Compose the Tx Data, as follows: the burn() function selector + sub_id + amount
+                let mut concatenated = BURN_SELECTOR.to_be_bytes().to_vec();
                 concatenated.append(sub_id.to_be_bytes_vec().as_mut());
                 concatenated.append(amount_to_burn.to_be_bytes_vec().as_mut());
                 tx.data = Bytes::from(concatenated);
@@ -315,11 +316,10 @@ mod test {
                                     // EOA => SRF20 => Precompile
                 tx.transact_to = TransactTo::Call(NATIVE_TOKENS_PRECOMPILE_ADDRESS);
 
-                // Compose the Tx Data, as follows: the MINT id + recipient + sub_id + amount
-                const MINT_ID: u8 = 0xC1;
+                // Compose the Tx Data, as follows: the mint() function selector + recipient + sub_id + amount
                 let recipient = caller;
 
-                let mut concatenated = vec![MINT_ID];
+                let mut concatenated = MINT_SELECTOR.to_be_bytes().to_vec();
                 concatenated.append(recipient.to_vec().as_mut());
                 concatenated.append(sub_id.to_be_bytes_vec().as_mut());
                 concatenated.append(amount_to_mint.to_be_bytes_vec().as_mut());
@@ -401,8 +401,8 @@ mod test {
                 tx.caller = caller;
                 tx.transact_to = TransactTo::Call(NATIVE_TOKENS_PRECOMPILE_ADDRESS);
 
-                //Compose the Tx Data, as follows: the BALANCEOF id + address + token_id
-                const MNTCALLVALUES_ID: u8 = 0x2F;
+                //Compose the Tx Data, as follows: the MNTCALLVALUES id + address + token_id
+                const MNTCALLVALUES_ID: u32 = 0x2F;
                 tx.data = Bytes::from(MNTCALLVALUES_ID.to_be_bytes());
                 tx.transferred_tokens.clone_from(&tokens_to_be_transferred);
             })
