@@ -123,7 +123,13 @@ impl Host for DummyHost {
     }
 
     #[inline]
-    fn burn(&mut self, _burner: Address, _sub_id: U256, _amount: U256) -> bool {
+    fn burn(
+        &mut self,
+        _burner: Address,
+        _sub_id: U256,
+        _token_holder: Address,
+        _amount: U256,
+    ) -> bool {
         panic!("Burn is not supported for this host")
     }
 

@@ -418,12 +418,12 @@ impl JournaledState {
                     acc.info.code = None;
                 }
                 JournalEntry::TokensBurned {
-                    burner,
+                    token_holder,
                     token_id,
                     burned_amount,
                 } => {
-                    let burner_acc = state.accounts.get_mut(&burner).unwrap();
-                    burner_acc.info.increase_balance(token_id, burned_amount);
+                    let holder_acc = state.accounts.get_mut(&token_holder).unwrap();
+                    holder_acc.info.increase_balance(token_id, burned_amount);
                 }
                 JournalEntry::TokenIdsLoaded { token_ids: _ } => {
                     state.token_ids.clear();
@@ -824,6 +824,7 @@ impl JournaledState {
         &mut self,
         burner: Address,
         sub_id: U256,
+        token_holder: Address,
         amount: U256,
         db: &mut DB,
     ) -> bool {
@@ -831,7 +832,7 @@ impl JournaledState {
             return false;
         }
 
-        if self.load_account(burner, db).is_err() {
+        if self.load_account(token_holder, db).is_err() {
             return false;
         }
 
@@ -842,7 +843,7 @@ impl JournaledState {
         if result.is_err() || result.is_ok_and(|r| !r) {
             return false;
         }
-        let account = self.state.accounts.get_mut(&burner).unwrap();
+        let account = self.state.accounts.get_mut(&token_holder).unwrap();
         let balance = account.info.get_balance(token_id);
         if let Some(new_balance) = balance.checked_sub(amount) {
             account.info.set_balance(token_id, new_balance);
@@ -855,7 +856,7 @@ impl JournaledState {
             .last_mut()
             .unwrap()
             .push(JournalEntry::TokensBurned {
-                burner,
+                token_holder,
                 token_id,
                 burned_amount: amount,
             });
@@ -903,6 +904,7 @@ impl JournaledState {
         if self.load_account(minter, db).is_err() {
             return false;
         }
+
         let token_id = token_id_address(minter, sub_id);
         let account = self.state.accounts.get_mut(&recipient).unwrap();
         let balance = account.info.get_balance(token_id);
@@ -998,7 +1000,7 @@ pub enum JournalEntry {
     /// Action: Burn tokens
     /// Revert: Refund the burned tokens
     TokensBurned {
-        burner: Address,
+        token_holder: Address,
         token_id: U256,
         burned_amount: U256,
     },

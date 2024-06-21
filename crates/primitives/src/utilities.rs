@@ -190,7 +190,7 @@ mod tests {
 pub mod bytes_parsing {
     use crate::{Address, U256};
 
-    use alloy_primitives::{aliases::U160, Bytes};
+    use alloy_primitives::{Bytes, FixedBytes};
     use std::{mem::size_of, vec::Vec};
 
     #[derive(Debug)]
@@ -243,8 +243,13 @@ pub mod bytes_parsing {
     }
 
     pub fn consume_address_from(input: &mut Bytes) -> Result<Address, BytesParsingError> {
-        const ADDRESS_LEN: usize = U160::BYTES;
-        let bytes = consume_bytes_from(input, ADDRESS_LEN)?;
-        Ok(U160::from_be_bytes::<ADDRESS_LEN>(bytes.try_into().unwrap()).into())
+        let word = consume_word_from(input)?;
+        Ok(Address::from_word(word))
+    }
+
+    pub fn consume_word_from(input: &mut Bytes) -> Result<FixedBytes<32>, BytesParsingError> {
+        const WORD_LEN: usize = U256::BYTES;
+        let bytes = consume_bytes_from(input, WORD_LEN)?;
+        Ok(FixedBytes::from_slice(bytes.as_slice()))
     }
 }

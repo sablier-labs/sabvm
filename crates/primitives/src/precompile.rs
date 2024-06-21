@@ -129,6 +129,8 @@ pub enum PrecompileError {
     InvalidInput,
     // The caller is not authorized to call the Precompile.
     UnauthorizedCaller,
+    // The state change is not allowed during a static call.
+    AttemptedStateChangeDuringStaticCall,
     /// Catch-all variant for other errors.
     Other(String),
 }
@@ -159,6 +161,9 @@ impl fmt::Display for PrecompileError {
             Self::BlobVerifyKzgProofFailed => "verifying blob kzg proof failed",
             Self::InvalidInput => "invalid input to the precompile",
             Self::UnauthorizedCaller => "unauthorized caller for the precompile",
+            Self::AttemptedStateChangeDuringStaticCall => {
+                "attempted changing the state during a static call"
+            }
             Self::Other(s) => s,
         };
         f.write_str(s)

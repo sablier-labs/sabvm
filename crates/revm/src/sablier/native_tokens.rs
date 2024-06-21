@@ -1,16 +1,18 @@
 //! Stateful precompile to implement Native Tokens.
 use crate::{
+    interpreter::CallInputs,
     precompile::{Error, PrecompileResult},
-    primitives::{utilities::bytes_parsing::*, Address, Bytes, U256},
+    primitives::{address, utilities::bytes_parsing::*, Address, Bytes, EVMError, U256},
     ContextStatefulPrecompileMut, Database, InnerEvmContext,
 };
 use std::{string::String, vec::Vec};
 
-pub const ADDRESS: Address = crate::sablier::u64_to_prefixed_address(1);
+// pub const ADDRESS: Address = crate::sablier::u64_to_prefixed_address(1);
+pub const ADDRESS: Address = address!("7060000000000000000000000000000000000001");
 
-pub const BALANCEOF_SELECTOR: u32 = 0x3656eec2; // The function selector of `INativeTokens.balanceOf(uint256 tokenID, address account)`
-pub const MINT_SELECTOR: u32 = 0x156e29f6; // The function selector of `INativeTokens.mint(address recipient, uint256 subID, uint256 amount)`
-pub const BURN_SELECTOR: u32 = 0xb390c0ab; // The function selector of `INativeTokens.burn(uint256 subID, uint256 amount)`
+pub const BALANCEOF_SELECTOR: u32 = 0x3656eec2; // The function selector of `balanceOf(uint256 tokenID, address account)`
+pub const MINT_SELECTOR: u32 = 0x156e29f6; // The function selector of `mint(address recipient, uint256 subID, uint256 amount)`
+pub const BURN_SELECTOR: u32 = 0x9eea5f66; // The function selector of `burn(uint256, address, uint256)`
 
 /// The base gas cost for the NativeTokens precompile operations.
 pub const BASE_GAS_COST: u64 = 15;
@@ -23,18 +25,17 @@ impl Clone for NativeTokensContextPrecompile {
     }
 }
 
-// TODO: uncomment the verification below when smart contracts are allowed to be deployed on the Mainnet
-// fn is_caller_eoa<DB: Database>(
-//     evmctx: &mut InnerEvmContext<DB>,
-// ) -> Result<bool, EVMError<DB::Error>> {
-//     let caller = evmctx.env.tx.caller;
-//     evmctx.code(caller).map(|(bytecode, _)| bytecode.is_empty())
-// }
+fn is_caller_eoa<DB: Database>(
+    evmctx: &mut InnerEvmContext<DB>,
+    caller: Address,
+) -> Result<bool, EVMError<DB::Error>> {
+    evmctx.code(caller).map(|(bytecode, _)| bytecode.is_empty())
+}
 
 impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPrecompile {
     fn call_mut(
         &mut self,
-        input: &Bytes,
+        inputs: &CallInputs,
         gas_limit: u64,
         evmctx: &mut InnerEvmContext<DB>,
     ) -> PrecompileResult {
@@ -43,28 +44,15 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
             return Err(Error::OutOfGas);
         }
 
-        // TODO: uncomment the verification below when smart contracts are allowed to be deployed on the Mainnet
-        // match is_caller_eoa(evmctx) {
-        //     Ok(is_eoa) => {
-        //         if is_eoa {
-        //             return Err(Error::SabVMUnauthorizedCaller);
-        //         }
-        //     }
-        //     Err(_) => {
-        //         return Err(Error::SabVMUnauthorizedCaller);
-        //     }
-        // }
-
         // Create a local mutable copy of the input bytes
-        let mut input = input.clone();
+        let mut input = inputs.input.clone();
 
         // Parse the input bytes, to figure out what opcode to execute
         let function_selector = consume_u32(&mut input).map_err(|_| Error::InvalidInput)?;
 
         // Handle the different opcodes
         match function_selector {
-            // balanceOf
-            0x3656eec2 => {
+            BALANCEOF_SELECTOR => {
                 // Extract the token id from the input
                 let token_id = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
@@ -79,8 +67,18 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                 }
             }
 
-            // mint
-            0x156e29f6 => {
+            MINT_SELECTOR => {
+                if inputs.is_static {
+                    return Err(Error::AttemptedStateChangeDuringStaticCall);
+                }
+
+                let minter = inputs.target_address;
+
+                // Make sure that the caller is a contract
+                if is_caller_eoa(evmctx, minter).map_err(|_| Error::UnauthorizedCaller)? {
+                    return Err(Error::UnauthorizedCaller);
+                }
+
                 // Extract the recipient's address from the input
                 let recipient =
                     consume_address_from(&mut input).map_err(|_| Error::InvalidInput)?;
@@ -91,7 +89,6 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                 // Extract the amount from the input
                 let amount = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
-                let minter = evmctx.env().tx.caller;
                 if evmctx
                     .journaled_state
                     .mint(minter, recipient, sub_id, amount, &mut evmctx.db)
@@ -102,18 +99,35 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                 }
             }
 
-            // burn
-            0xb390c0ab => {
+            BURN_SELECTOR => {
+                // TODO: consider forcing the to-be-burned tokens to be transferred as MNTs.
+                // This would allow us to deduce the token ID from the call itself, as well as make the burning process more transparent to the caller
+                // - and more secure (as e.g. we wouldn't have to deal with the situation when the caller doesn't have enough tokens to burn).
+
+                if inputs.is_static {
+                    return Err(Error::AttemptedStateChangeDuringStaticCall);
+                }
+
+                let burner = inputs.target_address;
+
+                // Make sure that the caller is a contract
+                if is_caller_eoa(evmctx, burner).map_err(|_| Error::UnauthorizedCaller)? {
+                    return Err(Error::UnauthorizedCaller);
+                }
+
                 // Extract the sub_id from the input
                 let sub_id = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                // Extract the token holder address from the input
+                let token_holder =
+                    consume_address_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
                 // Extract the amount from the input
                 let amount = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
-                let burner = evmctx.env().tx.caller;
                 if evmctx
                     .journaled_state
-                    .burn(burner, sub_id, amount, &mut evmctx.db)
+                    .burn(burner, sub_id, token_holder, amount, &mut evmctx.db)
                 {
                     Ok((gas_used, Bytes::new()))
                 } else {

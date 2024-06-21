@@ -243,7 +243,13 @@ pub fn burn<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &
     }
 
     pop!(interpreter, sub_id, amount);
-    if !host.burn(interpreter.contract.target_address, sub_id, amount) {
+    pop_address!(interpreter, token_holder);
+    if !host.burn(
+        interpreter.contract.target_address,
+        sub_id,
+        token_holder,
+        amount,
+    ) {
         interpreter.instruction_result = InstructionResult::FatalExternalError;
         return;
     };

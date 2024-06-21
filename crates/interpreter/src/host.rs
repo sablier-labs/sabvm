@@ -55,7 +55,7 @@ pub trait Host {
     }
 
     /// Burn a Native Token.
-    fn burn(&mut self, burner: Address, sub_id: U256, amount: U256) -> bool;
+    fn burn(&mut self, burner: Address, sub_id: U256, token_holder: Address, amount: U256) -> bool;
 
     /// Check whether the sender of the current tx is an EOA.
     fn is_tx_sender_eoa(&mut self) -> bool {
