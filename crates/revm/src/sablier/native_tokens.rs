@@ -2,13 +2,12 @@
 use crate::{
     interpreter::CallInputs,
     precompile::{Error, PrecompileResult},
-    primitives::{address, utilities::bytes_parsing::*, Address, Bytes, EVMError, U256},
+    primitives::{utilities::bytes_parsing::*, Address, Bytes, EVMError, U256},
     ContextStatefulPrecompileMut, Database, InnerEvmContext,
 };
 use std::{string::String, vec::Vec};
 
-// pub const ADDRESS: Address = crate::sablier::u64_to_prefixed_address(1);
-pub const ADDRESS: Address = address!("7060000000000000000000000000000000000001");
+pub const ADDRESS: Address = crate::sablier::u64_to_prefixed_address(1);
 
 pub const BALANCEOF_SELECTOR: u32 = 0x3656eec2; // The function selector of `balanceOf(uint256 tokenID, address account)`
 pub const MINT_SELECTOR: u32 = 0x156e29f6; // The function selector of `mint(address recipient, uint256 subID, uint256 amount)`

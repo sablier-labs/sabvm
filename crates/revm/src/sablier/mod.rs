@@ -11,6 +11,20 @@ pub mod native_tokens;
 pub const fn u64_to_prefixed_address(x: u64) -> Address {
     let x = x.to_be_bytes();
     Address::new([
-        70, 60, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7],
+        112, 96, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7],
     ])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::primitives::address;
+
+    #[test]
+    fn test_u64_to_prefixed_address() {
+        assert_eq!(
+            u64_to_prefixed_address(1),
+            address!("7060000000000000000000000000000000000001")
+        );
+    }
 }
