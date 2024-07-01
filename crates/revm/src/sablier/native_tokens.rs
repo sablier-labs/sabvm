@@ -10,8 +10,8 @@ use std::{string::String, vec::Vec};
 pub const ADDRESS: Address = crate::sablier::u64_to_prefixed_address(1);
 
 pub const BALANCEOF_SELECTOR: u32 = 0x3656eec2; // The function selector of `balanceOf(uint256 tokenID, address account)`
-pub const MINT_SELECTOR: u32 = 0x156e29f6; // The function selector of `mint(address recipient, uint256 subID, uint256 amount)`
-pub const BURN_SELECTOR: u32 = 0x9eea5f66; // The function selector of `burn(uint256, address, uint256)`
+pub const MINT_SELECTOR: u32 = 0x836a1040; // The function selector of `mint(uint256 subID, address recipient, uint256 amount)`
+pub const BURN_SELECTOR: u32 = 0x9eea5f66; // The function selector of `burn(uint256 subID, address tokenHolder, uint256 amount)`
 
 /// The base gas cost for the NativeTokens precompile operations.
 pub const BASE_GAS_COST: u64 = 15;
@@ -78,12 +78,12 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                     return Err(Error::UnauthorizedCaller);
                 }
 
+                // Extract the sub_id from the input
+                let sub_id = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
                 // Extract the recipient's address from the input
                 let recipient =
                     consume_address_from(&mut input).map_err(|_| Error::InvalidInput)?;
-
-                // Extract the sub_id from the input
-                let sub_id = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
                 // Extract the amount from the input
                 let amount = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
