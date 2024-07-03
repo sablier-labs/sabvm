@@ -2,16 +2,17 @@
 use crate::{
     interpreter::CallInputs,
     precompile::{Error, PrecompileResult},
-    primitives::{utilities::bytes_parsing::*, Address, Bytes, EVMError, U256},
+    primitives::{utilities::bytes_parsing::*, Address, Bytes, EVMError, TokenTransfer, U256},
     ContextStatefulPrecompileMut, Database, InnerEvmContext,
 };
 use std::{string::String, vec::Vec};
 
 pub const ADDRESS: Address = crate::sablier::u64_to_prefixed_address(1);
 
-pub const BALANCEOF_SELECTOR: u32 = 0x3656eec2; // The function selector of `balanceOf(uint256 tokenID, address account)`
 pub const MINT_SELECTOR: u32 = 0x836a1040; // The function selector of `mint(uint256 subID, address recipient, uint256 amount)`
 pub const BURN_SELECTOR: u32 = 0x9eea5f66; // The function selector of `burn(uint256 subID, address tokenHolder, uint256 amount)`
+pub const BALANCEOF_SELECTOR: u32 = 0x3656eec2; // The function selector of `balanceOf(uint256 tokenID, address account)`
+pub const TRANSFER_SELECTOR: u32 = 0x095bcdb6; // The function selector of `transfer(address to, uint256 tokenID, uint256 amount)`
 
 /// The base gas cost for the NativeTokens precompile operations.
 pub const BASE_GAS_COST: u64 = 15;
@@ -71,10 +72,9 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                     return Err(Error::AttemptedStateChangeDuringStaticCall);
                 }
 
-                let minter = inputs.target_address;
-
                 // Make sure that the caller is a contract
-                if is_caller_eoa(evmctx, minter).map_err(|_| Error::UnauthorizedCaller)? {
+                let caller = inputs.target_address;
+                if is_caller_eoa(evmctx, caller).map_err(|_| Error::UnauthorizedCaller)? {
                     return Err(Error::UnauthorizedCaller);
                 }
 
@@ -88,6 +88,7 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                 // Extract the amount from the input
                 let amount = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
+                let minter = caller;
                 if evmctx
                     .journaled_state
                     .mint(minter, recipient, sub_id, amount, &mut evmctx.db)
@@ -107,10 +108,9 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                     return Err(Error::AttemptedStateChangeDuringStaticCall);
                 }
 
-                let burner = inputs.target_address;
-
                 // Make sure that the caller is a contract
-                if is_caller_eoa(evmctx, burner).map_err(|_| Error::UnauthorizedCaller)? {
+                let caller = inputs.target_address;
+                if is_caller_eoa(evmctx, caller).map_err(|_| Error::UnauthorizedCaller)? {
                     return Err(Error::UnauthorizedCaller);
                 }
 
@@ -124,6 +124,7 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                 // Extract the amount from the input
                 let amount = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
+                let burner = caller;
                 if evmctx
                     .journaled_state
                     .burn(burner, sub_id, token_holder, amount, &mut evmctx.db)
@@ -131,6 +132,49 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                     Ok((gas_used, Bytes::new()))
                 } else {
                     Err(Error::Other(String::from("Burn failed")))
+                }
+            }
+
+            TRANSFER_SELECTOR => {
+                if inputs.is_static {
+                    return Err(Error::AttemptedStateChangeDuringStaticCall);
+                }
+
+                // Make sure that the caller is a contract
+                let caller = inputs.target_address;
+                if is_caller_eoa(evmctx, caller).map_err(|_| Error::UnauthorizedCaller)? {
+                    return Err(Error::UnauthorizedCaller);
+                }
+
+                // Extract the recipient's address from the input
+                let recipient =
+                    consume_address_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                // Extract the token ID from the input
+                let token_id = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                // Extract the amount from the input
+                let amount = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                let sender = caller;
+                if evmctx
+                    .journaled_state
+                    .transfer(
+                        &sender,
+                        &recipient,
+                        &vec![
+                            (TokenTransfer {
+                                id: token_id,
+                                amount,
+                            }),
+                        ],
+                        &mut evmctx.db,
+                    )
+                    .is_ok()
+                {
+                    Ok((gas_used, Bytes::new()))
+                } else {
+                    Err(Error::Other(String::from("Transfer failed")))
                 }
             }
 
@@ -155,7 +199,6 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
             // TRANSFERANDCALL
             // TRANSFERMULTIPLE
             // TRANSFERMULTIPLEANDCALL
-            // 0xEE => MNTCALL
             // 0xF6 => MNTCREATE
             _ => Err(Error::InvalidInput),
         }

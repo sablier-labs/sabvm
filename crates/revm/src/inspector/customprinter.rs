@@ -136,6 +136,8 @@ mod test {
 
     const SRF20_MOCK_ADDRESS: Address = address!("5fdcca53617f4d2b9134b29090c87d01058e27e6"); // The address of the SRF20 Mock. Note: there's nothing special about this address. It's random, and is defined as a constant to make the tests more readable.
 
+    static NAIVE_TOKEN_TRANSFERRER_MOCK_BYTECODE: Bytes = bytes!("608060405234801561000f575f80fd5b5060043610610029575f3560e01c8063095bcdb61461002d575b5f80fd5b610047600480360381019061004291906101e9565b610049565b005b61007482828573ffffffffffffffffffffffffffffffffffffffff166100799092919063ffffffff16565b505050565b5f83838360405160240161008f93929190610257565b60405160208183030381529060405263095bcdb660e01b6020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff838183161783525050505090505f73706000000000000000000000000000000000000173ffffffffffffffffffffffffffffffffffffffff168260405161011091906102f8565b5f60405180830381855af49150503d805f8114610148576040519150601f19603f3d011682016040523d82523d5f602084013e61014d565b606091505b505090505050505050565b5f80fd5b5f73ffffffffffffffffffffffffffffffffffffffff82169050919050565b5f6101858261015c565b9050919050565b6101958161017b565b811461019f575f80fd5b50565b5f813590506101b08161018c565b92915050565b5f819050919050565b6101c8816101b6565b81146101d2575f80fd5b50565b5f813590506101e3816101bf565b92915050565b5f805f60608486031215610200576101ff610158565b5b5f61020d868287016101a2565b935050602061021e868287016101d5565b925050604061022f868287016101d5565b9150509250925092565b6102428161017b565b82525050565b610251816101b6565b82525050565b5f60608201905061026a5f830186610239565b6102776020830185610248565b6102846040830184610248565b949350505050565b5f81519050919050565b5f81905092915050565b5f5b838110156102bd5780820151818401526020810190506102a2565b5f8484015250505050565b5f6102d28261028c565b6102dc8185610296565b93506102ec8185602086016102a0565b80840191505092915050565b5f61030382846102c8565b91508190509291505056fea164736f6c634300081a000a");
+
     #[test]
     fn balanceof_precompile() {
         let caller = address!("5fdcca53617f4d2b9134b29090c87d01058e27e0");
@@ -455,13 +457,12 @@ mod test {
     }
 
     #[test]
-    fn eoa_to_eoa_base_token_transfer() {
+    fn token_transfer_via_tx_eoa_to_eoa() {
         let callee_eoa = address!("5fdcca53617f4d2b9134b29090c87d01058e27e9");
         let caller_eoa = address!("5fdcca53617f4d2b9134b29090c87d01058e27e0");
 
-        let mut db = InMemoryDB::default();
         let mut evm = Evm::builder()
-            .with_db(db)
+            .with_db(InMemoryDB::default())
             .modify_db(|db| {
                 let callee_info = AccountInfo {
                     balances: HashMap::default(),
@@ -491,7 +492,7 @@ mod test {
                 ];
             })
             .with_external_context(CustomPrintTracer::default())
-            .with_spec_id(SpecId::BERLIN)
+            .with_spec_id(SpecId::LATEST)
             .append_handler_register(inspector_handle_register)
             .build();
 
@@ -501,28 +502,19 @@ mod test {
         let execution_result = tx_result.unwrap();
         assert!(execution_result.is_success());
 
-        db = evm.db().clone();
-        let callee_base_balance = *db
-            .accounts
-            .get(&callee_eoa)
-            .unwrap()
-            .info
-            .balances
-            .get(&BASE_TOKEN_ID)
-            .unwrap();
+        let callee_base_balance = evm.context.balance(BASE_TOKEN_ID, callee_eoa).unwrap().0;
         assert_eq!(callee_base_balance, U256::from(10));
     }
 
     #[test]
-    fn eoa_to_contract_base_token_transfer() {
+    fn token_transfer_via_tx_eoa_to_contract() {
         let empty_contract_with_payable_external_fallback_bytecode: Bytes = bytes!("608060405200fea2646970667358221220b70791be49b3a1d958db814a6c76821c20ff6d9e801a0ac110775492d67abbba64736f6c634300081a0033"); // The bytecode of a contract with just an empty payable fallback function defined
 
         let callee = address!("5fdcca53617f4d2b9134b29090c87d01058e27e9");
         let caller_eoa = address!("5fdcca53617f4d2b9134b29090c87d01058e27e0");
 
-        let mut db = InMemoryDB::default();
         let mut evm = Evm::builder()
-            .with_db(db)
+            .with_db(InMemoryDB::default())
             .modify_db(|db| {
                 let info = AccountInfo {
                     balances: HashMap::default(),
@@ -567,17 +559,66 @@ mod test {
         let execution_result = tx_result.unwrap();
         assert!(execution_result.is_success());
 
-        db = evm.db().clone();
-
-        let callee_base_balance = *db
-            .accounts
-            .get(&callee)
-            .unwrap()
-            .info
-            .balances
-            .get(&BASE_TOKEN_ID)
-            .unwrap();
+        let callee_base_balance = evm.context.balance(BASE_TOKEN_ID, callee).unwrap().0;
         assert_eq!(callee_base_balance, U256::from(10));
+    }
+
+    #[test]
+    fn token_transfer_via_precompile() {
+        let caller_eoa = address!("5fdcca53617f4d2b9134b29090c87d01058e27e0");
+        let callee_contract = address!("5fdcca53617f4d2b9134b29090c87d01058e27e8");
+        let callee_balance = U256::from(10);
+        let transfer_amount = U256::from(4);
+        let token_id = U256::from(5); // Random token id
+
+        let mut evm = Evm::builder()
+            .with_db(InMemoryDB::default())
+            .modify_db(|db| {
+                db.token_ids.push(token_id);
+
+                let caller_info = AccountInfo {
+                    balances: HashMap::default(),
+                    code_hash: B256::default(),
+                    code: None,
+                    nonce: 0,
+                };
+                db.insert_account_info(caller_eoa, caller_info);
+
+                let token_transferrer_mock_bytecode = &NAIVE_TOKEN_TRANSFERRER_MOCK_BYTECODE;
+                let callee_info = AccountInfo {
+                    balances: HashMap::from([(token_id, callee_balance)]),
+                    code_hash: keccak256(token_transferrer_mock_bytecode.clone()),
+                    code: Some(Bytecode::new_raw(token_transferrer_mock_bytecode.clone())),
+                    nonce: 1,
+                };
+                db.insert_account_info(callee_contract, callee_info);
+            })
+            .modify_tx_env(|tx| {
+                tx.caller = caller_eoa;
+                tx.transact_to = TransactTo::Call(callee_contract);
+
+                // Compose the Tx Data
+                let mut concatenated = bytes!("095bcdb6").to_vec(); // the selector of "transfer(address recipient, uint256 tokenID, uint256 amount)"
+                let recipient_address_evm_word = tx.caller.into_word();
+                concatenated.append(recipient_address_evm_word.to_vec().as_mut());
+                concatenated.append(token_id.to_be_bytes_vec().as_mut());
+                concatenated.append(transfer_amount.to_be_bytes_vec().as_mut());
+
+                tx.data = Bytes::from(concatenated);
+            })
+            .with_external_context(CustomPrintTracer::default())
+            .with_spec_id(SpecId::LATEST)
+            .append_handler_register(inspector_handle_register)
+            .build();
+
+        let tx_result = evm.transact_commit();
+        assert!(tx_result.is_ok());
+
+        let execution_result = tx_result.unwrap();
+        assert!(execution_result.is_success());
+
+        let caller_token_balance = evm.context.balance(token_id, caller_eoa).unwrap().0;
+        assert_eq!(caller_token_balance, transfer_amount);
     }
 
     #[test]
