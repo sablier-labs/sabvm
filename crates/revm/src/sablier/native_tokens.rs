@@ -13,6 +13,7 @@ pub const MINT_SELECTOR: u32 = 0x836a1040; // The function selector of `mint(uin
 pub const BURN_SELECTOR: u32 = 0x9eea5f66; // The function selector of `burn(uint256 subID, address tokenHolder, uint256 amount)`
 pub const BALANCEOF_SELECTOR: u32 = 0x3656eec2; // The function selector of `balanceOf(uint256 tokenID, address account)`
 pub const TRANSFER_SELECTOR: u32 = 0x095bcdb6; // The function selector of `transfer(address to, uint256 tokenID, uint256 amount)`
+pub const TRANSFER_MULTIPLE_SELECTOR: u32 = 0x99583417; // The function selector of `transferMultiple(address to, uint256[] calldata tokenIDs, uint256[] calldata amounts)`
 
 /// The base gas cost for the NativeTokens precompile operations.
 pub const BASE_GAS_COST: u64 = 15;
@@ -48,7 +49,7 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
         let mut input = inputs.input.clone();
 
         // Parse the input bytes, to figure out what opcode to execute
-        let function_selector = consume_u32(&mut input).map_err(|_| Error::InvalidInput)?;
+        let function_selector = consume_u32_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
         // Handle the different opcodes
         match function_selector {
@@ -58,6 +59,11 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
 
                 // Extract the address from the input
                 let address = consume_address_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                // if the input has not been fully consumed by this point, it has been ill-formed
+                if !input.is_empty() {
+                    return Err(Error::InvalidInput);
+                }
 
                 match evmctx.balance(token_id, address) {
                     Ok(balance) => {
@@ -87,6 +93,11 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
 
                 // Extract the amount from the input
                 let amount = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                // if the input has not been fully consumed by this point, it has been ill-formed
+                if !input.is_empty() {
+                    return Err(Error::InvalidInput);
+                }
 
                 let minter = caller;
                 if evmctx
@@ -124,6 +135,11 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                 // Extract the amount from the input
                 let amount = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
+                // if the input has not been fully consumed by this point, it has been ill-formed
+                if !input.is_empty() {
+                    return Err(Error::InvalidInput);
+                }
+
                 let burner = caller;
                 if evmctx
                     .journaled_state
@@ -156,6 +172,11 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                 // Extract the amount from the input
                 let amount = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
+                // if the input has not been fully consumed by this point, it has been ill-formed
+                if !input.is_empty() {
+                    return Err(Error::InvalidInput);
+                }
+
                 let sender = caller;
                 if evmctx
                     .journaled_state
@@ -170,6 +191,66 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                         ],
                         &mut evmctx.db,
                     )
+                    .is_ok()
+                {
+                    Ok((gas_used, Bytes::new()))
+                } else {
+                    Err(Error::Other(String::from("Transfer failed")))
+                }
+            }
+
+            TRANSFER_MULTIPLE_SELECTOR => {
+                if inputs.is_static {
+                    return Err(Error::AttemptedStateChangeDuringStaticCall);
+                }
+
+                // Make sure that the caller is a contract
+                let caller = inputs.target_address;
+                if is_caller_eoa(evmctx, caller).map_err(|_| Error::UnauthorizedCaller)? {
+                    return Err(Error::UnauthorizedCaller);
+                }
+
+                // Extract the recipient's address from the input
+                let recipient =
+                    consume_address_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                // Extract the number of tokens to transfer from the input
+                let tokens_count = consume_u16_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                // Extract the token IDs from the input
+                let mut token_ids = Vec::new();
+                for _ in 0..tokens_count {
+                    token_ids.push(consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?);
+                }
+
+                // Extract the token amounts from the input
+                let mut token_amounts = Vec::new();
+                for _ in 0..tokens_count {
+                    token_amounts
+                        .push(consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?);
+                }
+
+                // TODO: what if the passed ids & amounts add up to a total of tokens_count*2, but the arrays are of different lengths? We can't detect this because we can't tell the passed ids/amounts uint256's apart.
+
+                // if the input has not been fully consumed by this point, it has been ill-formed
+                if !input.is_empty() {
+                    return Err(Error::InvalidInput);
+                }
+
+                // Transform the passed token IDs & amounts into a vector of TokenTransfers
+                let token_transfers = token_ids
+                    .iter()
+                    .zip(token_amounts.iter())
+                    .map(|(id, amount)| TokenTransfer {
+                        id: *id,
+                        amount: *amount,
+                    })
+                    .collect::<Vec<TokenTransfer>>();
+
+                let sender = caller;
+                if evmctx
+                    .journaled_state
+                    .transfer(&sender, &recipient, &token_transfers, &mut evmctx.db)
                     .is_ok()
                 {
                     Ok((gas_used, Bytes::new()))
@@ -195,9 +276,7 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                 Ok((gas_used, Bytes::from(call_values)))
             }
 
-            // TRANSFER
             // TRANSFERANDCALL
-            // TRANSFERMULTIPLE
             // TRANSFERMULTIPLEANDCALL
             // 0xF6 => MNTCREATE
             _ => Err(Error::InvalidInput),

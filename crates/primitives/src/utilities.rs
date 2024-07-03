@@ -218,13 +218,19 @@ pub mod bytes_parsing {
         Ok(input.split_to(no_bytes).to_vec())
     }
 
-    pub fn consume_u8(input: &mut Bytes) -> Result<u8, BytesParsingError> {
+    pub fn consume_u8_from(input: &mut Bytes) -> Result<u8, BytesParsingError> {
         const U8_LEN: usize = size_of::<u8>();
         let bytes = consume_bytes_from(input, U8_LEN)?;
         Ok(u8::from_be_bytes(bytes.try_into().unwrap()))
     }
 
-    pub fn consume_u32(input: &mut Bytes) -> Result<u32, BytesParsingError> {
+    pub fn consume_u16_from(input: &mut Bytes) -> Result<u16, BytesParsingError> {
+        const U16_LEN: usize = size_of::<u16>();
+        let bytes = consume_bytes_from(input, U16_LEN)?;
+        Ok(u16::from_be_bytes(bytes.try_into().unwrap()))
+    }
+
+    pub fn consume_u32_from(input: &mut Bytes) -> Result<u32, BytesParsingError> {
         const U32_LEN: usize = size_of::<u32>();
         let bytes = consume_bytes_from(input, U32_LEN)?;
         Ok(u32::from_be_bytes(bytes.try_into().unwrap()))
