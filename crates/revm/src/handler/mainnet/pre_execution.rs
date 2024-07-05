@@ -32,9 +32,6 @@ pub fn load_precompiles<SPEC: Spec, DB: Database>() -> ContextPrecompiles<DB> {
             .into();
 
     #[cfg(feature = "std")]
-    println!("SabVM precompile address: {:?}", native_tokens::ADDRESS);
-
-    #[cfg(feature = "std")]
     // Add the SabVM precompiles.
     precompiles.extend([(
         native_tokens::ADDRESS,

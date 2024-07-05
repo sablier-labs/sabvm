@@ -214,23 +214,39 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                 let recipient =
                     consume_address_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
-                // Extract the number of tokens to transfer from the input
-                let tokens_count = consume_u16_from(&mut input).map_err(|_| Error::InvalidInput)?;
+                // Extract & ignore the token_ids offset
+                consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+                // Extract & ignore the transfer_amounts offset
+                consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                // Extract the length of the token IDs array from the input
+                let token_ids_len =
+                    consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
                 // Extract the token IDs from the input
                 let mut token_ids = Vec::new();
-                for _ in 0..tokens_count {
+                let last_64_bits: &[u8] = &token_ids_len.to_be_bytes::<32>()[24..];
+                let token_ids_len_u64 = u64::from_be_bytes(last_64_bits.try_into().unwrap());
+                for _ in 0..token_ids_len_u64 {
                     token_ids.push(consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?);
                 }
 
-                // Extract the token amounts from the input
-                let mut token_amounts = Vec::new();
-                for _ in 0..tokens_count {
-                    token_amounts
-                        .push(consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?);
+                // Extract the length of the token IDs array from the input
+                let transfer_amounts_len =
+                    consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                if token_ids_len != transfer_amounts_len {
+                    return Err(Error::InvalidInput);
                 }
 
-                // TODO: what if the passed ids & amounts add up to a total of tokens_count*2, but the arrays are of different lengths? We can't detect this because we can't tell the passed ids/amounts uint256's apart.
+                // Extract the transfer amounts from the input
+                let mut transfer_amounts = Vec::new();
+                let last_64_bits: &[u8] = &transfer_amounts_len.to_be_bytes::<32>()[24..];
+                let transfer_amounts_len_u64 = u64::from_be_bytes(last_64_bits.try_into().unwrap());
+                for _ in 0..transfer_amounts_len_u64 {
+                    transfer_amounts
+                        .push(consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?);
+                }
 
                 // if the input has not been fully consumed by this point, it has been ill-formed
                 if !input.is_empty() {
@@ -240,7 +256,7 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                 // Transform the passed token IDs & amounts into a vector of TokenTransfers
                 let token_transfers = token_ids
                     .iter()
-                    .zip(token_amounts.iter())
+                    .zip(transfer_amounts.iter())
                     .map(|(id, amount)| TokenTransfer {
                         id: *id,
                         amount: *amount,

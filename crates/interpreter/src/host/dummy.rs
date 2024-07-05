@@ -134,11 +134,6 @@ impl Host for DummyHost {
     }
 
     #[inline]
-    fn is_tx_sender_eoa(&mut self) -> bool {
-        false
-    }
-
-    #[inline]
     fn mint(
         &mut self,
         _minter: Address,

@@ -57,15 +57,6 @@ pub trait Host {
     /// Burn a Native Token.
     fn burn(&mut self, burner: Address, sub_id: U256, token_holder: Address, amount: U256) -> bool;
 
-    /// Check whether the sender of the current tx is an EOA.
-    fn is_tx_sender_eoa(&mut self) -> bool {
-        // TODO: tx.caller == tx.origin => it will always be an EOA
-        // at the same time, the address actually calling the MINT
-        // opcode will always be a contract
-        let caller = self.env().tx.caller;
-        self.code(caller).is_none()
-    }
-
     /// Mint a Native Token.
     fn mint(&mut self, minter: Address, recipient: Address, sub_id: U256, amount: U256) -> bool;
 }

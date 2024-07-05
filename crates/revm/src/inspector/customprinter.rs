@@ -118,8 +118,8 @@ mod test {
         inspector_handle_register,
         inspectors::CustomPrintTracer,
         primitives::{
-            address, bytes, keccak256, token_id_address, AccountInfo, Address, Bytecode, Bytes,
-            SpecId, TokenTransfer, TransactTo, B256, BASE_TOKEN_ID, U256,
+            address, bytes, keccak256, token_id_address, AccountInfo, Address, Balances, Bytecode,
+            Bytes, SpecId, TokenTransfer, TransactTo, B256, BASE_TOKEN_ID, U256,
         },
         sablier::native_tokens::{ADDRESS as NATIVE_TOKENS_PRECOMPILE_ADDRESS, BALANCEOF_SELECTOR},
         Evm, InMemoryDB,
@@ -136,7 +136,7 @@ mod test {
 
     const SRF20_MOCK_ADDRESS: Address = address!("5fdcca53617f4d2b9134b29090c87d01058e27e6"); // The address of the SRF20 Mock. Note: there's nothing special about this address. It's random, and is defined as a constant to make the tests more readable.
 
-    static NAIVE_TOKEN_TRANSFERRER_MOCK_BYTECODE: Bytes = bytes!("608060405234801561000f575f80fd5b5060043610610029575f3560e01c8063095bcdb61461002d575b5f80fd5b610047600480360381019061004291906101e9565b610049565b005b61007482828573ffffffffffffffffffffffffffffffffffffffff166100799092919063ffffffff16565b505050565b5f83838360405160240161008f93929190610257565b60405160208183030381529060405263095bcdb660e01b6020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff838183161783525050505090505f73706000000000000000000000000000000000000173ffffffffffffffffffffffffffffffffffffffff168260405161011091906102f8565b5f60405180830381855af49150503d805f8114610148576040519150601f19603f3d011682016040523d82523d5f602084013e61014d565b606091505b505090505050505050565b5f80fd5b5f73ffffffffffffffffffffffffffffffffffffffff82169050919050565b5f6101858261015c565b9050919050565b6101958161017b565b811461019f575f80fd5b50565b5f813590506101b08161018c565b92915050565b5f819050919050565b6101c8816101b6565b81146101d2575f80fd5b50565b5f813590506101e3816101bf565b92915050565b5f805f60608486031215610200576101ff610158565b5b5f61020d868287016101a2565b935050602061021e868287016101d5565b925050604061022f868287016101d5565b9150509250925092565b6102428161017b565b82525050565b610251816101b6565b82525050565b5f60608201905061026a5f830186610239565b6102776020830185610248565b6102846040830184610248565b949350505050565b5f81519050919050565b5f81905092915050565b5f5b838110156102bd5780820151818401526020810190506102a2565b5f8484015250505050565b5f6102d28261028c565b6102dc8185610296565b93506102ec8185602086016102a0565b80840191505092915050565b5f61030382846102c8565b91508190509291505056fea164736f6c634300081a000a");
+    static NAIVE_TOKEN_TRANSFERRER_MOCK_BYTECODE: Bytes = bytes!("608060405234801561000f575f80fd5b5060043610610034575f3560e01c8063095bcdb6146100385780639958341714610054575b5f80fd5b610052600480360381019061004d919061032f565b610070565b005b61006e600480360381019061006991906103e0565b6100a0565b005b61009b82828573ffffffffffffffffffffffffffffffffffffffff166100d69092919063ffffffff16565b505050565b6100cf848484848973ffffffffffffffffffffffffffffffffffffffff166101b590949392919063ffffffff16565b5050505050565b5f8383836040516024016100ec9392919061048f565b60405160208183030381529060405263095bcdb660e01b6020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff838183161783525050505090505f73706000000000000000000000000000000000000173ffffffffffffffffffffffffffffffffffffffff168260405161016d9190610530565b5f60405180830381855af49150503d805f81146101a5576040519150601f19603f3d011682016040523d82523d5f602084013e6101aa565b606091505b505090505050505050565b5f85858585856040516024016101cf9594939291906105be565b604051602081830303815290604052639958341760e01b6020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff838183161783525050505090505f73706000000000000000000000000000000000000173ffffffffffffffffffffffffffffffffffffffff16826040516102509190610530565b5f60405180830381855af49150503d805f8114610288576040519150601f19603f3d011682016040523d82523d5f602084013e61028d565b606091505b5050905050505050505050565b5f80fd5b5f80fd5b5f73ffffffffffffffffffffffffffffffffffffffff82169050919050565b5f6102cb826102a2565b9050919050565b6102db816102c1565b81146102e5575f80fd5b50565b5f813590506102f6816102d2565b92915050565b5f819050919050565b61030e816102fc565b8114610318575f80fd5b50565b5f8135905061032981610305565b92915050565b5f805f606084860312156103465761034561029a565b5b5f610353868287016102e8565b93505060206103648682870161031b565b92505060406103758682870161031b565b9150509250925092565b5f80fd5b5f80fd5b5f80fd5b5f8083601f8401126103a05761039f61037f565b5b8235905067ffffffffffffffff8111156103bd576103bc610383565b5b6020830191508360208202830111156103d9576103d8610387565b5b9250929050565b5f805f805f606086880312156103f9576103f861029a565b5b5f610406888289016102e8565b955050602086013567ffffffffffffffff8111156104275761042661029e565b5b6104338882890161038b565b9450945050604086013567ffffffffffffffff8111156104565761045561029e565b5b6104628882890161038b565b92509250509295509295909350565b61047a816102c1565b82525050565b610489816102fc565b82525050565b5f6060820190506104a25f830186610471565b6104af6020830185610480565b6104bc6040830184610480565b949350505050565b5f81519050919050565b5f81905092915050565b5f5b838110156104f55780820151818401526020810190506104da565b5f8484015250505050565b5f61050a826104c4565b61051481856104ce565b93506105248185602086016104d8565b80840191505092915050565b5f61053b8284610500565b915081905092915050565b5f82825260208201905092915050565b5f80fd5b82818337505050565b5f61056e8385610546565b93507f07ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8311156105a1576105a0610556565b5b6020830292506105b283858461055a565b82840190509392505050565b5f6060820190506105d15f830188610471565b81810360208301526105e4818688610563565b905081810360408301526105f9818486610563565b9050969550505050505056fea164736f6c634300081a000a");
 
     #[test]
     fn balanceof_precompile() {
@@ -619,6 +619,110 @@ mod test {
 
         let caller_token_balance = evm.context.balance(token_id, caller_eoa).unwrap().0;
         assert_eq!(caller_token_balance, transfer_amount);
+    }
+
+    #[test]
+    fn token_transfer_multiple_via_precompile() {
+        let caller_eoa = address!("5fdcca53617f4d2b9134b29090c87d01058e27e0");
+        let callee_contract = address!("5fdcca53617f4d2b9134b29090c87d01058e27e8");
+
+        let token_ids = vec![U256::from(5), U256::from(6)]; // Random token ids
+        let callee_balances = [U256::from(10), U256::from(10)];
+        let transfer_amounts = [U256::from(4), U256::from(6)];
+
+        assert_eq!(token_ids.len(), callee_balances.len());
+        assert_eq!(callee_balances.len(), transfer_amounts.len());
+
+        let mut evm = Evm::builder()
+            .with_db(InMemoryDB::default())
+            .modify_db(|db| {
+                db.token_ids.append(&mut token_ids.clone());
+
+                let caller_info = AccountInfo {
+                    balances: HashMap::default(),
+                    code_hash: B256::default(),
+                    code: None,
+                    nonce: 0,
+                };
+                db.insert_account_info(caller_eoa, caller_info);
+
+                let token_transferrer_mock_bytecode = &NAIVE_TOKEN_TRANSFERRER_MOCK_BYTECODE;
+                let mut balances: Balances = HashMap::new();
+                for (token_id, balance) in token_ids
+                    .iter()
+                    .zip(callee_balances.iter())
+                    .collect::<Vec<(&U256, &U256)>>()
+                {
+                    balances.insert(*token_id, *balance);
+                }
+                let callee_info = AccountInfo {
+                    balances,
+                    code_hash: keccak256(token_transferrer_mock_bytecode.clone()),
+                    code: Some(Bytecode::new_raw(token_transferrer_mock_bytecode.clone())),
+                    nonce: 1,
+                };
+                db.insert_account_info(callee_contract, callee_info);
+            })
+            .modify_tx_env(|tx| {
+                tx.caller = caller_eoa;
+                tx.transact_to = TransactTo::Call(callee_contract);
+
+                // Compose the Tx Data
+                // tx.data structure:
+                // 0 - recipient's address
+                // 1/32 - token_ids_offset
+                // 2/64 - amounts_offset
+                // 3/96 - token_ids_len
+                // 4/128 - token_ids
+                // ~/~ - transfer_amounts_len
+                // ~/~ - transfer_amounts
+
+                let mut concatenated = bytes!("99583417").to_vec(); // the selector of "transferMultiple(address to, uint256[] calldata tokenIDs, uint256[] calldata amounts)"
+
+                let recipient_address_evm_word = tx.caller.into_word();
+                concatenated.append(recipient_address_evm_word.to_vec().as_mut());
+
+                let token_ids_offset = U256::from(96);
+                concatenated.append(token_ids_offset.to_be_bytes_vec().as_mut());
+
+                let token_ids_len = U256::from_be_slice(token_ids.len().to_be_bytes().as_slice());
+
+                let evm_word_size = U256::from(32);
+                let amounts_offset =
+                    token_ids_offset + ((U256::from(1) + token_ids_len) * evm_word_size);
+                concatenated.append(amounts_offset.to_be_bytes_vec().as_mut());
+
+                concatenated.append(token_ids_len.to_be_bytes_vec().as_mut());
+                for token_id in token_ids.iter() {
+                    concatenated.append(token_id.to_be_bytes_vec().as_mut());
+                }
+
+                let transfer_amounts_len =
+                    U256::from_be_slice(transfer_amounts.len().to_be_bytes().as_slice());
+                concatenated.append(transfer_amounts_len.to_be_bytes_vec().as_mut());
+                for transfer_amount in transfer_amounts.iter() {
+                    concatenated.append(transfer_amount.to_be_bytes_vec().as_mut());
+                }
+
+                println!("concatenated: {:?}", concatenated);
+
+                tx.data = Bytes::from(concatenated);
+            })
+            .with_external_context(CustomPrintTracer::default())
+            .with_spec_id(SpecId::LATEST)
+            .append_handler_register(inspector_handle_register)
+            .build();
+
+        let tx_result = evm.transact_commit();
+        assert!(tx_result.is_ok());
+
+        let execution_result = tx_result.unwrap();
+        assert!(execution_result.is_success());
+
+        for (token_id, transfer_amount) in token_ids.iter().zip(transfer_amounts.iter()) {
+            let caller_token_balance = evm.context.balance(*token_id, caller_eoa).unwrap().0;
+            assert_eq!(caller_token_balance, *transfer_amount);
+        }
     }
 
     #[test]

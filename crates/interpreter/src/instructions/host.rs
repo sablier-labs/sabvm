@@ -235,13 +235,7 @@ pub fn balance_of<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, h
 }
 
 /// TODO: implement burning allowance just for Sablier
-/// Only allow burning for contracts (not EOAs)
 pub fn burn<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
-    if host.is_tx_sender_eoa() {
-        interpreter.instruction_result = InstructionResult::UnauthorizedCaller;
-        return;
-    }
-
     pop!(interpreter, sub_id, amount);
     pop_address!(interpreter, token_holder);
     if !host.burn(
@@ -258,13 +252,7 @@ pub fn burn<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &
 }
 
 /// TODO: implement minting allowance just for Sablier
-/// Only allow minting for contracts (not EOAs)
 pub fn mint<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
-    if host.is_tx_sender_eoa() {
-        interpreter.instruction_result = InstructionResult::UnauthorizedCaller;
-        return;
-    }
-
     pop_address!(interpreter, recipient);
     pop!(interpreter, sub_id, amount);
     if !host.mint(
