@@ -13,6 +13,7 @@ pub const MINT_SELECTOR: u32 = 0x836a1040; // The function selector of `mint(uin
 pub const BURN_SELECTOR: u32 = 0x9eea5f66; // The function selector of `burn(uint256 subID, address tokenHolder, uint256 amount)`
 pub const BALANCEOF_SELECTOR: u32 = 0x3656eec2; // The function selector of `balanceOf(uint256 tokenID, address account)`
 pub const TRANSFER_SELECTOR: u32 = 0x095bcdb6; // The function selector of `transfer(address to, uint256 tokenID, uint256 amount)`
+pub const TRANSFER_AND_CALL_SELECTOR: u32 = 0xd1c673e9; // The function selector of `transferAndCall(address recipientAndCallee, uint256 tokenID, uint256 amount, bytes calldata data)`
 pub const TRANSFER_MULTIPLE_SELECTOR: u32 = 0x99583417; // The function selector of `transferMultiple(address to, uint256[] calldata tokenIDs, uint256[] calldata amounts)`
 
 /// The base gas cost for the NativeTokens precompile operations.
@@ -26,11 +27,13 @@ impl Clone for NativeTokensContextPrecompile {
     }
 }
 
-fn is_caller_eoa<DB: Database>(
+fn is_address_eoa<DB: Database>(
     evmctx: &mut InnerEvmContext<DB>,
-    caller: Address,
+    address: Address,
 ) -> Result<bool, EVMError<DB::Error>> {
-    evmctx.code(caller).map(|(bytecode, _)| bytecode.is_empty())
+    evmctx
+        .code(address)
+        .map(|(bytecode, _)| bytecode.is_empty())
 }
 
 impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPrecompile {
@@ -80,7 +83,7 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
 
                 // Make sure that the caller is a contract
                 let caller = inputs.target_address;
-                if is_caller_eoa(evmctx, caller).map_err(|_| Error::UnauthorizedCaller)? {
+                if is_address_eoa(evmctx, caller).map_err(|_| Error::UnauthorizedCaller)? {
                     return Err(Error::UnauthorizedCaller);
                 }
 
@@ -121,7 +124,7 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
 
                 // Make sure that the caller is a contract
                 let caller = inputs.target_address;
-                if is_caller_eoa(evmctx, caller).map_err(|_| Error::UnauthorizedCaller)? {
+                if is_address_eoa(evmctx, caller).map_err(|_| Error::UnauthorizedCaller)? {
                     return Err(Error::UnauthorizedCaller);
                 }
 
@@ -158,7 +161,7 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
 
                 // Make sure that the caller is a contract
                 let caller = inputs.target_address;
-                if is_caller_eoa(evmctx, caller).map_err(|_| Error::UnauthorizedCaller)? {
+                if is_address_eoa(evmctx, caller).map_err(|_| Error::UnauthorizedCaller)? {
                     return Err(Error::UnauthorizedCaller);
                 }
 
@@ -199,6 +202,51 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                 }
             }
 
+            TRANSFER_AND_CALL_SELECTOR => {
+                if inputs.is_static {
+                    return Err(Error::AttemptedStateChangeDuringStaticCall);
+                }
+
+                // Make sure that the caller is a contract
+                let caller = inputs.target_address;
+                if is_address_eoa(evmctx, caller).map_err(|_| Error::UnauthorizedCaller)? {
+                    return Err(Error::UnauthorizedCaller);
+                }
+
+                // Extract the recipient's address from the input
+                let recipient_and_callee =
+                    consume_address_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                // Make sure that the callee is a contract
+                if is_address_eoa(evmctx, recipient_and_callee).map_err(|_| Error::InvalidInput)? {
+                    return Err(Error::InvalidInput);
+                }
+
+                // Extract the token ID from the input
+                let token_id = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                // Extract the amount from the input
+                let amount = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                // Extract the byte size of the calldata from the input
+                let calldata_size =
+                    consume_usize_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                // Extract the calldata from the input
+                let calldata = consume_bytes_from(&mut input, calldata_size)
+                    .map_err(|_| Error::InvalidInput)?;
+
+                // if the input has not been fully consumed by this point, it has been ill-formed
+                if !input.is_empty() {
+                    return Err(Error::InvalidInput);
+                }
+
+                // Call the callee, transferring the MNTs and passing the calldata to it
+
+                // TODO: remove the below once this case is fully implemented
+                Ok((gas_used, Bytes::new()))
+            }
+
             TRANSFER_MULTIPLE_SELECTOR => {
                 if inputs.is_static {
                     return Err(Error::AttemptedStateChangeDuringStaticCall);
@@ -206,7 +254,7 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
 
                 // Make sure that the caller is a contract
                 let caller = inputs.target_address;
-                if is_caller_eoa(evmctx, caller).map_err(|_| Error::UnauthorizedCaller)? {
+                if is_address_eoa(evmctx, caller).map_err(|_| Error::UnauthorizedCaller)? {
                     return Err(Error::UnauthorizedCaller);
                 }
 

@@ -28,9 +28,9 @@ pub struct CallInputs {
     ///
     /// Previously `context.caller`.
     pub caller: Address,
-    /// Call value.
+    /// Call values.
     ///
-    /// NOTE: This values may not necessarily be transferred from caller to callee, see [`CallValues`].
+    /// NOTE: These values may not necessarily be transferred from caller to callee, see [`CallValues`].
     ///
     /// Previously `transfer.value` or `context.apparent_value`.
     pub values: CallValues,
