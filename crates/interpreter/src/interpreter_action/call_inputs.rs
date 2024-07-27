@@ -134,7 +134,7 @@ pub enum CallScheme {
     StaticCall,
 }
 
-/// Call value.
+/// Call values.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum CallValues {

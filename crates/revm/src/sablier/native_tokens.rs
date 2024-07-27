@@ -1,4 +1,6 @@
 //! Stateful precompile to implement Native Tokens.
+use revm_precompile::{PrimitiveCallInfo, ResultInfo, ResultOrNewCall};
+
 use crate::{
     interpreter::CallInputs,
     precompile::{Error, PrecompileResult},
@@ -69,9 +71,10 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                 }
 
                 match evmctx.balance(token_id, address) {
-                    Ok(balance) => {
-                        Ok((gas_used, balance.0.to_be_bytes::<{ U256::BYTES }>().into()))
-                    }
+                    Ok(balance) => Ok(ResultOrNewCall::Result(ResultInfo {
+                        gas_used,
+                        returned_bytes: balance.0.to_be_bytes::<{ U256::BYTES }>().into(),
+                    })),
                     Err(_) => Err(Error::InvalidInput),
                 }
             }
@@ -107,7 +110,10 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                     .journaled_state
                     .mint(minter, recipient, sub_id, amount, &mut evmctx.db)
                 {
-                    Ok((gas_used, Bytes::new()))
+                    Ok(ResultOrNewCall::Result(ResultInfo {
+                        gas_used,
+                        returned_bytes: Bytes::new(),
+                    }))
                 } else {
                     Err(Error::Other(String::from("Mint failed")))
                 }
@@ -148,7 +154,10 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                     .journaled_state
                     .burn(burner, sub_id, token_holder, amount, &mut evmctx.db)
                 {
-                    Ok((gas_used, Bytes::new()))
+                    Ok(ResultOrNewCall::Result(ResultInfo {
+                        gas_used,
+                        returned_bytes: Bytes::new(),
+                    }))
                 } else {
                     Err(Error::Other(String::from("Burn failed")))
                 }
@@ -196,7 +205,10 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                     )
                     .is_ok()
                 {
-                    Ok((gas_used, Bytes::new()))
+                    Ok(ResultOrNewCall::Result(ResultInfo {
+                        gas_used,
+                        returned_bytes: Bytes::new(),
+                    }))
                 } else {
                     Err(Error::Other(String::from("Transfer failed")))
                 }
@@ -228,12 +240,17 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                 // Extract the amount from the input
                 let amount = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
+                // Extract and ignore the calldata offset from the input
+                let _ = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
                 // Extract the byte size of the calldata from the input
                 let calldata_size =
-                    consume_usize_from(&mut input).map_err(|_| Error::InvalidInput)?;
+                    consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                let calldata_usize: usize = calldata_size.try_into().unwrap_or_default();
 
                 // Extract the calldata from the input
-                let calldata = consume_bytes_from(&mut input, calldata_size)
+                let mut calldata = consume_bytes_from(&mut input, calldata_usize)
                     .map_err(|_| Error::InvalidInput)?;
 
                 // if the input has not been fully consumed by this point, it has been ill-formed
@@ -241,10 +258,21 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                     return Err(Error::InvalidInput);
                 }
 
-                // Call the callee, transferring the MNTs and passing the calldata to it
+                // Renounce the 28-byte 0 prefix, forming the EVM word together with the 4-byte function selector
+                calldata = calldata[28..].to_vec();
 
-                // TODO: remove the below once this case is fully implemented
-                Ok((gas_used, Bytes::new()))
+                // Signal to the external context that a Call to the callee must be performed,
+                // transferring the MNTs and passing the calldata to it
+                Ok(ResultOrNewCall::Call(PrimitiveCallInfo {
+                    target_address: recipient_and_callee,
+                    token_transfers: vec![
+                        (TokenTransfer {
+                            id: token_id,
+                            amount,
+                        }),
+                    ],
+                    input_data: calldata.into(),
+                }))
             }
 
             TRANSFER_MULTIPLE_SELECTOR => {
@@ -317,7 +345,10 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                     .transfer(&sender, &recipient, &token_transfers, &mut evmctx.db)
                     .is_ok()
                 {
-                    Ok((gas_used, Bytes::new()))
+                    Ok(ResultOrNewCall::Result(ResultInfo {
+                        gas_used,
+                        returned_bytes: Bytes::new(),
+                    }))
                 } else {
                     Err(Error::Other(String::from("Transfer failed")))
                 }
@@ -337,10 +368,12 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                     call_values.append(token.amount.to_be_bytes_vec().as_mut());
                 }
 
-                Ok((gas_used, Bytes::from(call_values)))
+                Ok(ResultOrNewCall::Result(ResultInfo {
+                    gas_used,
+                    returned_bytes: Bytes::from(call_values),
+                }))
             }
 
-            // TRANSFERANDCALL
             // TRANSFERMULTIPLEANDCALL
             // 0xF6 => MNTCREATE
             _ => Err(Error::InvalidInput),

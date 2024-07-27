@@ -614,6 +614,8 @@ mod test {
     fn build_custom_precompile() {
         struct CustomPrecompile;
 
+        use crate::primitives::{ResultInfo, ResultOrNewCall};
+
         impl ContextStatefulPrecompile<EmptyDB> for CustomPrecompile {
             fn call(
                 &self,
@@ -621,7 +623,10 @@ mod test {
                 _gas_price: u64,
                 _context: &mut InnerEvmContext<EmptyDB>,
             ) -> PrecompileResult {
-                Ok((10, Bytes::new()))
+                Ok(ResultOrNewCall::Result(ResultInfo {
+                    gas_used: 10,
+                    returned_bytes: Bytes::new(),
+                }))
             }
         }
 

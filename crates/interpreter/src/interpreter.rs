@@ -9,13 +9,13 @@ pub use contract::Contract;
 pub use shared_memory::{num_words, SharedMemory, EMPTY_SHARED_MEMORY};
 pub use stack::{Stack, STACK_LIMIT};
 
-use crate::EOFCreateOutcome;
 use crate::{
-    gas, primitives::Bytes, push, push_b256, return_ok, return_revert, CallOutcome, CreateOutcome,
-    FunctionStack, Gas, Host, InstructionResult, InterpreterAction,
+    gas, primitives::Bytes, push, push_b256, return_ok, return_revert, CallOutcome, CallValues,
+    CreateOutcome, EOFCreateOutcome, FunctionStack, Gas, Host, InstructionResult,
+    InterpreterAction,
 };
 use core::cmp::min;
-use revm_primitives::{Bytecode, Eof, U256};
+use revm_primitives::{Address, Bytecode, Eof, U256};
 use std::borrow::ToOwned;
 
 /// EVM bytecode interpreter.
@@ -66,6 +66,17 @@ impl Default for Interpreter {
     fn default() -> Self {
         Self::new(Contract::default(), 0, false)
     }
+}
+
+pub enum ResultOrNewCall {
+    Result(InterpreterResult),
+    NewCall(CallInfo),
+}
+
+pub struct CallInfo {
+    pub target_address: Address,
+    pub call_values: CallValues,
+    pub input_data: Bytes,
 }
 
 /// The result of an interpreter operation.

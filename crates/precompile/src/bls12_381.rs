@@ -43,6 +43,7 @@ mod test {
     use super::msm::msm_required_gas;
     use super::pairing;
     use eyre::Result;
+    use revm_primitives::ResultOrNewCall;
     use revm_primitives::{hex::FromHex, Bytes, PrecompileResult};
     use rstest::rstest;
     use serde_derive::{Deserialize, Serialize};
@@ -104,25 +105,45 @@ mod test {
             let target_gas: u64 = 30_000_000;
             let res = precompile(&input, target_gas);
             if let Some(expected_error) = vector.expected_error {
-                assert!(res.is_err(), "expected error {expected_error} didn't happen in {test_name}, got result {res:?}");
+                assert!(
+                    res.is_err(),
+                    "expected error {expected_error} didn't happen in {test_name}"
+                );
             } else {
                 let Some(gas) = vector.gas else {
                     panic!("gas is missing in {test_name}");
                 };
-                let (actual_gas, actual_output) =
-                    res.unwrap_or_else(|e| panic!("precompile call failed for {test_name}: {e}"));
-                assert_eq!(
-                    gas, actual_gas,
-                    "expected gas: {}, actual gas: {} in {test_name}",
-                    gas, actual_gas
-                );
-                let Some(expected) = vector.expected else {
-                    panic!("expected output is missing in {test_name}");
-                };
-                let expected_output = Bytes::from_hex(expected).unwrap();
-                assert_eq!(
-                    expected_output, actual_output,
-                    "expected output: {expected_output}, actual output: {actual_output} in {test_name}");
+
+                if res.is_err() {
+                    let err = res.err().unwrap();
+                    panic!("precompile call failed for {test_name}: {err}");
+                }
+
+                match res.ok() {
+                    Some(ResultOrNewCall::Result(used_gas_and_returned_bytes)) => {
+                        let actual_gas = used_gas_and_returned_bytes.gas_used;
+                        let actual_output = used_gas_and_returned_bytes.returned_bytes;
+                        assert_eq!(
+                            gas, actual_gas,
+                            "expected gas: {}, actual gas: {} in {test_name}",
+                            gas, actual_gas
+                        );
+                        let Some(expected) = vector.expected else {
+                            panic!("expected output is missing in {test_name}");
+                        };
+                        let expected_output = Bytes::from_hex(expected).unwrap();
+                        assert_eq!(
+                            expected_output, actual_output,
+                            "expected output: {expected_output}, actual output: {actual_output} in {test_name}"
+                        );
+                    }
+                    Some(ResultOrNewCall::Call(_)) => {
+                        panic!("expected result, got call in {test_name}");
+                    }
+                    None => {
+                        panic!("expected result, got nothing in {test_name}");
+                    }
+                }
             }
         }
     }

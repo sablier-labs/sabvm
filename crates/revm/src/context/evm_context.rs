@@ -1,14 +1,17 @@
-use revm_interpreter::CallValues;
-
 use super::inner_evm_context::InnerEvmContext;
 use crate::{
     db::Database,
     interpreter::{
-        return_ok, CallInputs, Contract, Gas, InstructionResult, Interpreter, InterpreterResult,
+        interpreter::{CallInfo, ResultOrNewCall as InterpreterResultOrNewCallInfo},
+        return_ok, CallInputs, CallValues, Contract, Gas, InstructionResult, Interpreter,
+        InterpreterResult,
     },
-    primitives::{Bytes, EVMError, Env, HashSet, U256},
+    primitives::{
+        Bytes, EVMError, Env, HashSet, ResultOrNewCall as PrecompileResultOrNewCallInfo, U256,
+    },
     ContextPrecompiles, FrameOrResult, CALL_STACK_LIMIT,
 };
+
 use core::{
     fmt,
     ops::{Deref, DerefMut},
@@ -102,7 +105,11 @@ impl<DB: Database> EvmContext<DB> {
 
     /// Call precompile contract
     #[inline]
-    fn call_precompile(&mut self, inputs: &CallInputs, gas: Gas) -> Option<InterpreterResult> {
+    fn call_precompile(
+        &mut self,
+        inputs: &CallInputs,
+        gas: Gas,
+    ) -> Option<InterpreterResultOrNewCallInfo> {
         let out = self
             .precompiles
             .call(inputs, gas.limit(), &mut self.inner)?;
@@ -114,14 +121,27 @@ impl<DB: Database> EvmContext<DB> {
         };
 
         match out {
-            Ok((gas_used, data)) => {
-                if result.gas.record_cost(gas_used) {
-                    result.result = InstructionResult::Return;
-                    result.output = data;
-                } else {
-                    result.result = InstructionResult::PrecompileOOG;
+            Ok(call_or_result_info) => match call_or_result_info {
+                PrecompileResultOrNewCallInfo::Call(primitive_call_info) => {
+                    return Some(InterpreterResultOrNewCallInfo::NewCall(CallInfo {
+                        target_address: primitive_call_info.target_address,
+                        input_data: primitive_call_info.input_data,
+                        call_values: CallValues::Transfer(primitive_call_info.token_transfers),
+                    }));
                 }
-            }
+                PrecompileResultOrNewCallInfo::Result(interpreter_result) => {
+                    let (gas_used, data) = (
+                        interpreter_result.gas_used,
+                        interpreter_result.returned_bytes,
+                    );
+                    if result.gas.record_cost(gas_used) {
+                        result.result = InstructionResult::Return;
+                        result.output = data;
+                    } else {
+                        result.result = InstructionResult::PrecompileOOG;
+                    }
+                }
+            },
             Err(e) => {
                 result.result = if e == crate::precompile::Error::OutOfGas {
                     InstructionResult::PrecompileOOG
@@ -130,7 +150,7 @@ impl<DB: Database> EvmContext<DB> {
                 };
             }
         }
-        Some(result)
+        Some(InterpreterResultOrNewCallInfo::Result(result))
     }
 
     /// Make call frame
@@ -191,16 +211,68 @@ impl<DB: Database> EvmContext<DB> {
             _ => {}
         };
 
-        if let Some(result) = self.call_precompile(inputs, gas) {
-            if matches!(result.result, return_ok!()) {
-                self.journaled_state.checkpoint_commit();
-            } else {
-                self.journaled_state.checkpoint_revert(checkpoint);
+        if let Some(result_or_call_info) = self.call_precompile(inputs, gas) {
+            match result_or_call_info {
+                InterpreterResultOrNewCallInfo::NewCall(call_info) => {
+                    // Compose the new Call Frame to process
+                    let (account, _) = self
+                        .inner
+                        .journaled_state
+                        .load_code(call_info.target_address, &mut self.inner.db)?;
+                    let code_hash = account.info.code_hash();
+                    let bytecode = account.info.code.clone().unwrap_or_default();
+
+                    let call_inputs = CallInputs {
+                        input: call_info.input_data.clone(),
+                        gas_limit: gas.limit(),
+                        bytecode_address: call_info.target_address,
+                        target_address: call_info.target_address,
+                        caller: inputs.caller,
+                        values: call_info.call_values,
+                        scheme: revm_interpreter::CallScheme::Call,
+                        is_eof: false,
+                        is_static: inputs.is_static,
+                        return_memory_offset: 0..0,
+                    };
+
+                    // Transfer value from caller to called account
+                    if let Some(result) = self.inner.journaled_state.transfer(
+                        &call_inputs.caller,
+                        &call_inputs.target_address,
+                        &call_inputs.values.get(),
+                        &mut self.inner.db,
+                    )? {
+                        self.journaled_state.checkpoint_revert(checkpoint);
+                        return return_result(result);
+                    }
+
+                    let contract = Contract::new_with_context(
+                        call_info.input_data.clone(),
+                        bytecode,
+                        Some(code_hash),
+                        &call_inputs,
+                    );
+
+                    // Create interpreter, execute the call and push new CallStackFrame.
+                    Ok(FrameOrResult::new_call_frame(
+                        call_inputs.return_memory_offset.clone(),
+                        checkpoint,
+                        Interpreter::new(contract, call_inputs.gas_limit, call_inputs.is_static),
+                    ))
+                }
+
+                InterpreterResultOrNewCallInfo::Result(result) => {
+                    if matches!(result.result, return_ok!()) {
+                        self.journaled_state.checkpoint_commit();
+                    } else {
+                        self.journaled_state.checkpoint_revert(checkpoint);
+                    }
+                    Ok(FrameOrResult::new_call_result(
+                        result,
+                        inputs.return_memory_offset.clone(),
+                    ))
+                }
             }
-            Ok(FrameOrResult::new_call_result(
-                result,
-                inputs.return_memory_offset.clone(),
-            ))
         } else if !bytecode.is_empty() {
             let contract =
                 Contract::new_with_context(inputs.input.clone(), bytecode, Some(code_hash), inputs);

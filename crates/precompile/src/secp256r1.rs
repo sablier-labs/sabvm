@@ -8,7 +8,9 @@
 //! with the address that it is currently deployed at.
 use crate::{u64_to_address, Precompile, PrecompileWithAddress};
 use p256::ecdsa::{signature::hazmat::PrehashVerifier, Signature, VerifyingKey};
-use revm_primitives::{Bytes, PrecompileError, PrecompileResult, B256};
+use revm_primitives::{
+    Bytes, PrecompileError, PrecompileResult, ResultInfo, ResultOrNewCall, B256,
+};
 
 /// Base gas fee for secp256r1 p256verify operation.
 const P256VERIFY_BASE: u64 = 3450;
@@ -40,7 +42,10 @@ pub fn p256_verify(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     } else {
         Bytes::new()
     };
-    Ok((P256VERIFY_BASE, result))
+    Ok(ResultOrNewCall::Result(ResultInfo {
+        gas_used: P256VERIFY_BASE,
+        returned_bytes: result,
+    }))
 }
 
 /// Returns `Some(())` if the signature included in the input byte slice is
@@ -96,7 +101,14 @@ mod test {
     fn test_sig_verify(#[case] input: &str, #[case] expect_success: bool) {
         let input = Bytes::from_hex(input).unwrap();
         let target_gas = 3_500u64;
-        let (gas_used, res) = p256_verify(&input, target_gas).unwrap();
+        let call_or_result_info = p256_verify(&input, target_gas).unwrap();
+        let (gas_used, res) = match call_or_result_info {
+            ResultOrNewCall::Result(used_gas_and_returned_bytes) => (
+                used_gas_and_returned_bytes.gas_used,
+                used_gas_and_returned_bytes.returned_bytes,
+            ),
+            _ => panic!("expected result, got call"),
+        };
         assert_eq!(gas_used, 3_450u64);
         let expected_result = if expect_success {
             B256::with_last_byte(1).into()

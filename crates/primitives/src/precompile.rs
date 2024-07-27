@@ -1,12 +1,32 @@
-use crate::{Bytes, Env};
+use crate::{Address, Bytes, Env, TokenTransfer};
 use core::fmt;
 use dyn_clone::DynClone;
-use std::{boxed::Box, string::String, sync::Arc};
+use std::{boxed::Box, string::String, sync::Arc, vec::Vec};
 
 /// A precompile operation result.
 ///
-/// Returns either `Ok((gas_used, return_bytes))` or `Err(error)`.
-pub type PrecompileResult = Result<(u64, Bytes), PrecompileError>;
+/// Returns either `Ok((gas_used, returned_bytes))` or `Err(error)`.
+pub type PrecompileResult = Result<ResultOrNewCall, PrecompileError>;
+
+/// Contains either a Precompile Result or the CallInputs for an inner call.
+#[derive(Debug)]
+pub enum ResultOrNewCall {
+    Result(ResultInfo),
+    Call(PrimitiveCallInfo),
+}
+
+#[derive(Debug)]
+pub struct PrimitiveCallInfo {
+    pub target_address: Address,
+    pub token_transfers: Vec<TokenTransfer>,
+    pub input_data: Bytes,
+}
+
+#[derive(Debug)]
+pub struct ResultInfo {
+    pub gas_used: u64,
+    pub returned_bytes: Bytes,
+}
 
 pub type StandardPrecompileFn = fn(&Bytes, u64) -> PrecompileResult;
 pub type EnvPrecompileFn = fn(&Bytes, u64, env: &Env) -> PrecompileResult;
