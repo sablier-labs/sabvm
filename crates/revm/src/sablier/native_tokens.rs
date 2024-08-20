@@ -17,6 +17,7 @@ pub const BALANCEOF_SELECTOR: u32 = 0x3656eec2; // The function selector of `bal
 pub const TRANSFER_SELECTOR: u32 = 0x095bcdb6; // The function selector of `transfer(address to, uint256 tokenID, uint256 amount)`
 pub const TRANSFER_AND_CALL_SELECTOR: u32 = 0xd1c673e9; // The function selector of `transferAndCall(address recipientAndCallee, uint256 tokenID, uint256 amount, bytes calldata data)`
 pub const TRANSFER_MULTIPLE_SELECTOR: u32 = 0x99583417; // The function selector of `transferMultiple(address to, uint256[] calldata tokenIDs, uint256[] calldata amounts)`
+pub const TRANSFER_MULTIPLE_AND_CALL_SELECTOR: u32 = 0x822bbe4c; // The function selector of `transferMultipleAndCall(address recipientAndCallee, uint256[] calldata tokenIDs, uint256[] calldata, amounts bytes calldata data)`
 
 /// The base gas cost for the NativeTokens precompile operations.
 pub const BASE_GAS_COST: u64 = 15;
@@ -307,6 +308,16 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                     token_ids.push(consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?);
                 }
 
+                // Make sure the token IDs are unique
+                if token_ids.len()
+                    != token_ids
+                        .iter()
+                        .collect::<std::collections::HashSet<_>>()
+                        .len()
+                {
+                    return Err(Error::InvalidInput);
+                }
+
                 // Extract the length of the token IDs array from the input
                 let transfer_amounts_len =
                     consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
@@ -352,6 +363,105 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                 } else {
                     Err(Error::Other(String::from("Transfer failed")))
                 }
+            }
+
+            TRANSFER_MULTIPLE_AND_CALL_SELECTOR => {
+                if inputs.is_static {
+                    return Err(Error::AttemptedStateChangeDuringStaticCall);
+                }
+
+                // Make sure that the caller is a contract
+                let caller = inputs.target_address;
+                if is_address_eoa(evmctx, caller).map_err(|_| Error::UnauthorizedCaller)? {
+                    return Err(Error::UnauthorizedCaller);
+                }
+
+                // Extract the recipient's address from the input
+                let recipient_and_callee =
+                    consume_address_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                // Make sure that the callee is a contract
+                if is_address_eoa(evmctx, recipient_and_callee).map_err(|_| Error::InvalidInput)? {
+                    return Err(Error::InvalidInput);
+                }
+
+                // Extract & ignore the token_ids offset
+                let _ = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                // Extract & ignore the transfer_amounts offset
+                let _ = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                // Extract & ignore the calldata offset from the input
+                let _ = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                // Extract the length of the token IDs array from the input
+                let token_ids_len =
+                    consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                // Initialize the vector of TokenTransfers
+                let capacity: usize = token_ids_len.try_into().unwrap_or_default();
+                let mut token_transfers: Vec<TokenTransfer> = Vec::with_capacity(capacity);
+
+                // Extract the token IDs from the input
+                for _ in 0..capacity {
+                    let token_id =
+                        consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+                    token_transfers.push(TokenTransfer {
+                        id: token_id,
+                        amount: U256::ZERO,
+                    });
+                }
+
+                // Make sure the token IDs inside the vector are unique
+                if token_transfers.len()
+                    != token_transfers
+                        .iter()
+                        .map(|x| x.id)
+                        .collect::<std::collections::HashSet<_>>()
+                        .len()
+                {
+                    return Err(Error::InvalidInput);
+                }
+
+                // Extract the length of the transfer array from the input
+                let transfer_amounts_len =
+                    consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                if token_ids_len != transfer_amounts_len {
+                    return Err(Error::InvalidInput);
+                }
+
+                // Extract the transfer amounts from the input
+                for transfer in token_transfers.iter_mut() {
+                    transfer.amount =
+                        consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+                }
+
+                // Extract the byte size of the calldata from the input
+                let calldata_size =
+                    consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                let calldata_usize: usize = calldata_size.try_into().unwrap_or_default();
+
+                // Extract the calldata from the input
+                let mut calldata = consume_bytes_from(&mut input, calldata_usize)
+                    .map_err(|_| Error::InvalidInput)?;
+
+                // if the input has not been fully consumed by this point, it has been ill-formed
+                if !input.is_empty() {
+                    return Err(Error::InvalidInput);
+                }
+
+                // Renounce the 28-byte 0 prefix, forming the EVM word together with the 4-byte function selector
+                calldata = calldata[28..].to_vec();
+
+                // Signal to the external context that a Call to the callee must be performed,
+                // transferring the MNTs and passing the calldata to it
+                Ok(ResultOrNewCall::Call(PrimitiveCallInfo {
+                    target_address: recipient_and_callee,
+                    token_transfers,
+                    input_data: calldata.into(),
+                }))
             }
 
             // MNTCALLVALUES
