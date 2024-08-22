@@ -13,7 +13,7 @@ pub const ADDRESS: Address = crate::sablier::u64_to_prefixed_address(1);
 
 pub const MINT_SELECTOR: u32 = 0x836a1040; // The function selector of `mint(uint256 subID, address recipient, uint256 amount)`
 pub const BURN_SELECTOR: u32 = 0x9eea5f66; // The function selector of `burn(uint256 subID, address tokenHolder, uint256 amount)`
-pub const BALANCEOF_SELECTOR: u32 = 0x3656eec2; // The function selector of `balanceOf(uint256 tokenID, address account)`
+pub const BALANCEOF_SELECTOR: u32 = 0x00fdd58e; // The function selector of `balanceOf(address account, uint256 tokenID)`
 pub const TRANSFER_SELECTOR: u32 = 0x095bcdb6; // The function selector of `transfer(address to, uint256 tokenID, uint256 amount)`
 pub const TRANSFER_AND_CALL_SELECTOR: u32 = 0xd1c673e9; // The function selector of `transferAndCall(address recipientAndCallee, uint256 tokenID, uint256 amount, bytes calldata data)`
 pub const TRANSFER_MULTIPLE_SELECTOR: u32 = 0x99583417; // The function selector of `transferMultiple(address to, uint256[] calldata tokenIDs, uint256[] calldata amounts)`
@@ -60,11 +60,11 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
         // Handle the different opcodes
         match function_selector {
             BALANCEOF_SELECTOR => {
-                // Extract the token id from the input
-                let token_id = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
-
                 // Extract the address from the input
                 let address = consume_address_from(&mut input).map_err(|_| Error::InvalidInput)?;
+
+                // Extract the token id from the input
+                let token_id = consume_u256_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
                 // if the input has not been fully consumed by this point, it has been ill-formed
                 if !input.is_empty() {
