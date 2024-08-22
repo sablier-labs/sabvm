@@ -644,6 +644,94 @@ mod test {
     }
 
     #[test]
+    fn token_transfer_multiple_via_tx_eoa_to_contract() {
+        let empty_contract_with_payable_external_fallback_bytecode: Bytes = bytes!("608060405200fea2646970667358221220b70791be49b3a1d958db814a6c76821c20ff6d9e801a0ac110775492d67abbba64736f6c634300081a0033"); // The bytecode of a contract with just an empty payable fallback function defined
+
+        let caller_eoa = address!("5fdcca53617f4d2b9134b29090c87d01058e27e0");
+        let callee = address!("5fdcca53617f4d2b9134b29090c87d01058e27e9");
+
+        let token1_id = BASE_TOKEN_ID; // The Base token id
+        let token1_transferrer_balance = U256::from(10);
+        let token1_transfer_amount = U256::from(5);
+
+        let token2_id = U256::from(5); // Random token id
+        let token2_transferrer_balance = U256::from(20);
+        let token2_transfer_amount = U256::from(16);
+
+        let mut evm = Evm::builder()
+            .with_db(InMemoryDB::default())
+            .modify_db(|db| {
+                db.token_ids.push(token2_id);
+                let caller_info = AccountInfo {
+                    balances: HashMap::from([
+                        (token1_id, token1_transferrer_balance),
+                        (token2_id, token2_transferrer_balance),
+                    ]),
+                    code_hash: B256::default(),
+                    code: None,
+                    nonce: 0,
+                };
+                db.insert_account_info(caller_eoa, caller_info);
+
+                let info = AccountInfo {
+                    balances: HashMap::default(),
+                    code_hash: keccak256(
+                        empty_contract_with_payable_external_fallback_bytecode.clone(),
+                    ),
+                    code: Some(Bytecode::new_raw(
+                        empty_contract_with_payable_external_fallback_bytecode.clone(),
+                    )),
+                    nonce: 1,
+                };
+
+                db.insert_account_info(callee, info);
+            })
+            .modify_tx_env(|tx| {
+                tx.caller = caller_eoa;
+                tx.transact_to = TransactTo::Call(callee);
+                tx.data = Bytes::new();
+                tx.transferred_tokens = vec![
+                    (TokenTransfer {
+                        id: token1_id,
+                        amount: token1_transfer_amount,
+                    }),
+                    (TokenTransfer {
+                        id: token2_id,
+                        amount: token2_transfer_amount,
+                    }),
+                ];
+            })
+            .with_external_context(CustomPrintTracer::default())
+            .with_spec_id(SpecId::LATEST)
+            .append_handler_register(inspector_handle_register)
+            .build();
+
+        let tx_result = evm.transact_commit();
+        assert!(tx_result.is_ok());
+
+        let execution_result = tx_result.unwrap();
+        assert!(execution_result.is_success());
+
+        let callee_base_balance = evm.context.balance(token1_id, callee).unwrap().0;
+        assert_eq!(callee_base_balance, token1_transfer_amount);
+
+        let caller_token1_balance = evm.context.balance(token1_id, caller_eoa).unwrap().0;
+        assert_eq!(
+            caller_token1_balance,
+            token1_transferrer_balance - token1_transfer_amount
+        );
+
+        let callee_token2_balance = evm.context.balance(token2_id, callee).unwrap().0;
+        assert_eq!(callee_token2_balance, token2_transfer_amount);
+
+        let caller_token2_balance = evm.context.balance(token2_id, caller_eoa).unwrap().0;
+        assert_eq!(
+            caller_token2_balance,
+            token2_transferrer_balance - token2_transfer_amount
+        );
+    }
+
+    #[test]
     fn token_transfer_naive_transferrer_native_library_precompile() {
         let caller_eoa = address!("5fdcca53617f4d2b9134b29090c87d01058e27e0");
         let token_transferrer_balance = U256::from(10);
