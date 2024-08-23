@@ -1,10 +1,9 @@
-use revm_primitives::BASE_TOKEN_ID;
-
 use super::analysis::to_analysed;
 use crate::{
-    primitives::{Address, Bytecode, Bytes, Env, TransactTo, B256, U256},
+    primitives::{Address, Bytecode, Bytes, Env, TokenTransfer, TransactTo, B256},
     CallInputs,
 };
+use std::vec::Vec;
 
 /// EVM contract information.
 #[derive(Clone, Debug, Default)]
@@ -21,8 +20,8 @@ pub struct Contract {
     pub target_address: Address,
     /// Caller of the EVM.
     pub caller: Address,
-    /// Value send to contract from transaction or from CALL opcodes.
-    pub call_value: U256,
+    /// Values sent to the contract from transaction or from CALL opcodes.
+    pub call_values: Vec<TokenTransfer>,
 }
 
 impl Contract {
@@ -34,7 +33,7 @@ impl Contract {
         hash: Option<B256>,
         target_address: Address,
         caller: Address,
-        call_value: U256,
+        call_values: Vec<TokenTransfer>,
     ) -> Self {
         let bytecode = to_analysed(bytecode);
 
@@ -44,7 +43,7 @@ impl Contract {
             hash,
             target_address,
             caller,
-            call_value,
+            call_values,
         }
     }
 
@@ -61,7 +60,7 @@ impl Contract {
             hash,
             contract_address,
             env.tx.caller,
-            env.tx.get_base_transfer_value(),
+            env.tx.transferred_tokens.clone(),
         )
     }
 
@@ -79,11 +78,7 @@ impl Contract {
             hash,
             call_context.target_address,
             call_context.caller,
-            call_context
-                .call_values()
-                .iter()
-                .find(|tt| tt.id == BASE_TOKEN_ID)
-                .map_or(U256::ZERO, |tt| tt.amount), //TODO: pass all of the transferred tokens when contract deployment is permissionless
+            call_context.call_values(),
         )
     }
 

@@ -13,6 +13,7 @@ pub const ADDRESS: Address = crate::sablier::u64_to_prefixed_address(1);
 
 pub const MINT_SELECTOR: u32 = 0x836a1040; // The function selector of `mint(uint256 subID, address recipient, uint256 amount)`
 pub const BURN_SELECTOR: u32 = 0x9eea5f66; // The function selector of `burn(uint256 subID, address tokenHolder, uint256 amount)`
+pub const GET_CALL_VALUES_SELECTOR: u32 = 0x6141a8b9; // The function selector of `getCallValues() external returns (uint256[] calldata, uint256[] calldata)`
 pub const BALANCEOF_SELECTOR: u32 = 0x00fdd58e; // The function selector of `balanceOf(address account, uint256 tokenID)`
 pub const TRANSFER_SELECTOR: u32 = 0x095bcdb6; // The function selector of `transfer(address to, uint256 tokenID, uint256 amount)`
 pub const TRANSFER_AND_CALL_SELECTOR: u32 = 0xd1c673e9; // The function selector of `transferAndCall(address recipientAndCallee, uint256 tokenID, uint256 amount, bytes calldata data)`
@@ -464,28 +465,49 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
                 }))
             }
 
-            // MNTCALLVALUES
-            0x2F => {
-                let mut call_values: Vec<u8> = evmctx
-                    .env
-                    .tx
-                    .transferred_tokens
-                    .len()
-                    .to_be_bytes()
-                    .to_vec();
-                for token in evmctx.env.tx.transferred_tokens.iter() {
-                    call_values.append(token.id.to_be_bytes_vec().as_mut());
-                    call_values.append(token.amount.to_be_bytes_vec().as_mut());
+            GET_CALL_VALUES_SELECTOR => {
+                // Make sure that the caller is a contract
+                let caller = inputs.target_address;
+                if is_address_eoa(evmctx, caller).map_err(|_| Error::UnauthorizedCaller)? {
+                    return Err(Error::UnauthorizedCaller);
+                }
+
+                // Returned data structure:
+                // 0/0: token ids offset (== 64)
+                // 1/32: transfer amounts offset (== TBD)
+                // 2/64: token ids length
+                // 3+/96+: token ids elements
+                // TBD/TBD: token amounts length
+                // TBD/TBD: token amounts elements
+
+                // Encode the returned data
+                let token_ids_offset = U256::from(64);
+                let mut data = token_ids_offset.to_be_bytes_vec();
+
+                let token_ids_len = U256::from(inputs.call_values().len());
+
+                let evm_word_size = U256::from(32);
+                let transfer_amounts_offset =
+                    token_ids_offset + evm_word_size + token_ids_len * evm_word_size;
+                data.append(transfer_amounts_offset.to_be_bytes_vec().as_mut());
+
+                data.append(token_ids_len.to_be_bytes_vec().as_mut());
+                for token in inputs.call_values().iter() {
+                    data.append(token.id.to_be_bytes_vec().as_mut());
+                }
+
+                data.append(token_ids_len.to_be_bytes_vec().as_mut());
+                for token in inputs.call_values().iter() {
+                    data.append(token.amount.to_be_bytes_vec().as_mut());
                 }
 
                 Ok(ResultOrNewCall::Result(ResultInfo {
                     gas_used,
-                    returned_bytes: Bytes::from(call_values),
+                    returned_bytes: Bytes::from(data),
                 }))
             }
 
-            // TRANSFERMULTIPLEANDCALL
-            // 0xF6 => MNTCREATE
+            // MNTCREATE =>
             _ => Err(Error::InvalidInput),
         }
     }

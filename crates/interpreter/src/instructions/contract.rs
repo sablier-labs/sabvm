@@ -262,12 +262,7 @@ pub fn extdelegatecall<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpret
             target_address,
             caller: interpreter.contract.target_address,
             bytecode_address: target_address,
-            values: CallValues::Apparent(vec![
-                (TokenTransfer {
-                    id: BASE_TOKEN_ID,
-                    amount: interpreter.contract.call_value,
-                }),
-            ]),
+            values: CallValues::Apparent(interpreter.contract.call_values.clone()),
             // TODO(EOF) should be EofDelegateCall?
             scheme: CallScheme::DelegateCall,
             is_static: interpreter.is_static,
@@ -527,12 +522,7 @@ pub fn delegate_call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter
             target_address: interpreter.contract.target_address,
             caller: interpreter.contract.caller,
             bytecode_address: to,
-            values: CallValues::Apparent(vec![
-                (TokenTransfer {
-                    id: BASE_TOKEN_ID,
-                    amount: interpreter.contract.call_value,
-                }),
-            ]),
+            values: CallValues::Apparent(interpreter.contract.call_values.clone()),
             scheme: CallScheme::DelegateCall,
             is_static: interpreter.is_static,
             is_eof: false,

@@ -10,11 +10,11 @@ use crate::{
         keccak256, Account, Address, AnalysisKind, Bytecode, Bytes, CreateScheme, EVMError, Env,
         Eof, HashSet, Spec,
         SpecId::{self, *},
-        B256, U256,
+        TokenTransfer, B256, BASE_TOKEN_ID, U256,
     },
     FrameOrResult, JournalCheckpoint, CALL_STACK_LIMIT,
 };
-use std::boxed::Box;
+use std::{boxed::Box, vec};
 
 /// EVM contexts contains data that EVM needs for execution.
 #[derive(Debug)]
@@ -289,7 +289,12 @@ impl<DB: Database> InnerEvmContext<DB> {
             None,
             inputs.created_address,
             inputs.caller,
-            inputs.value,
+            vec![
+                (TokenTransfer {
+                    id: BASE_TOKEN_ID,
+                    amount: inputs.value,
+                }),
+            ],
         );
 
         let mut interpreter = Interpreter::new(contract, inputs.gas_limit, false);
@@ -406,13 +411,19 @@ impl<DB: Database> InnerEvmContext<DB> {
 
         let bytecode = Bytecode::new_raw(inputs.init_code.clone());
 
+        // TODO: adapt for MNTs when the contract deployment is permissionless
         let contract = Contract::new(
             Bytes::new(),
             bytecode,
             Some(init_code_hash),
             created_address,
             inputs.caller,
-            inputs.value,
+            vec![
+                (TokenTransfer {
+                    id: BASE_TOKEN_ID,
+                    amount: inputs.value,
+                }),
+            ],
         );
 
         Ok(FrameOrResult::new_create_frame(

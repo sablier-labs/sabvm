@@ -127,7 +127,7 @@ mod test {
 
     const SRF20_MOCK_ADDRESS: Address = address!("5fdcca53617f4d2b9134b29090c87d01058e27e6"); // The address of the SRF20 Mock. Note: there's nothing special about this address. It's random, and is defined as a constant to make the tests more readable.
 
-    static NAIVE_TOKEN_TRANSFERRER_MOCK_BYTECODE: Bytes = bytes!("608060405234801561000f575f80fd5b5060043610610065575f3560e01c8063995834171161004e57806399583417146100a1578063a7a85a6b146100bd578063d1c673e9146100ed57610065565b8063095bcdb614610069578063822bbe4c14610085575b5f80fd5b610083600480360381019061007e9190610773565b610109565b005b61009f600480360381019061009a9190610879565b610139565b005b6100bb60048036038101906100b6919061093d565b610175565b005b6100d760048036038101906100d291906109ce565b6101ab565b6040516100e49190610a1b565b60405180910390f35b61010760048036038101906101029190610a34565b6101dd565b005b61013482828573ffffffffffffffffffffffffffffffffffffffff166102139092919063ffffffff16565b505050565b61016c8686868686868d73ffffffffffffffffffffffffffffffffffffffff166102f2909695949392919063ffffffff16565b50505050505050565b6101a4848484848973ffffffffffffffffffffffffffffffffffffffff166103dd90949392919063ffffffff16565b5050505050565b5f6101d5828473ffffffffffffffffffffffffffffffffffffffff166104c290919063ffffffff16565b905092915050565b61020c848484848973ffffffffffffffffffffffffffffffffffffffff166105f990949392919063ffffffff16565b5050505050565b5f83838360405160240161022993929190610ac7565b60405160208183030381529060405263095bcdb660e01b6020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff838183161783525050505090505f73706000000000000000000000000000000000000173ffffffffffffffffffffffffffffffffffffffff16826040516102aa9190610b68565b5f60405180830381855af49150503d805f81146102e2576040519150601f19603f3d011682016040523d82523d5f602084013e6102e7565b606091505b505090505050505050565b5f878787878787876040516024016103109796959493929190610c50565b60405160208183030381529060405263822bbe4c60e01b6020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff838183161783525050505090505f73706000000000000000000000000000000000000173ffffffffffffffffffffffffffffffffffffffff16826040516103919190610b68565b5f60405180830381855af49150503d805f81146103c9576040519150601f19603f3d011682016040523d82523d5f602084013e6103ce565b606091505b50509050505050505050505050565b5f85858585856040516024016103f7959493929190610cae565b604051602081830303815290604052639958341760e01b6020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff838183161783525050505090505f73706000000000000000000000000000000000000173ffffffffffffffffffffffffffffffffffffffff16826040516104789190610b68565b5f60405180830381855af49150503d805f81146104b0576040519150601f19603f3d011682016040523d82523d5f602084013e6104b5565b606091505b5050905050505050505050565b5f8083836040516024016104d7929190610cf5565b60405160208183030381529060405262fdd58e60e01b6020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff838183161783525050505090505f8073706000000000000000000000000000000000000173ffffffffffffffffffffffffffffffffffffffff16836040516105589190610b68565b5f60405180830381855afa9150503d805f8114610590576040519150601f19603f3d011682016040523d82523d5f602084013e610595565b606091505b5091509150816105da576040517f17e60c820000000000000000000000000000000000000000000000000000000081526004016105d190610d76565b60405180910390fd5b808060200190518101906105ee9190610da8565b935050505092915050565b5f8585858585604051602401610613959493929190610dd3565b60405160208183030381529060405263d1c673e960e01b6020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff838183161783525050505090505f73706000000000000000000000000000000000000173ffffffffffffffffffffffffffffffffffffffff16826040516106949190610b68565b5f60405180830381855af49150503d805f81146106cc576040519150601f19603f3d011682016040523d82523d5f602084013e6106d1565b606091505b5050905050505050505050565b5f80fd5b5f80fd5b5f73ffffffffffffffffffffffffffffffffffffffff82169050919050565b5f61070f826106e6565b9050919050565b61071f81610705565b8114610729575f80fd5b50565b5f8135905061073a81610716565b92915050565b5f819050919050565b61075281610740565b811461075c575f80fd5b50565b5f8135905061076d81610749565b92915050565b5f805f6060848603121561078a576107896106de565b5b5f6107978682870161072c565b93505060206107a88682870161075f565b92505060406107b98682870161075f565b9150509250925092565b5f80fd5b5f80fd5b5f80fd5b5f8083601f8401126107e4576107e36107c3565b5b8235905067ffffffffffffffff811115610801576108006107c7565b5b60208301915083602082028301111561081d5761081c6107cb565b5b9250929050565b5f8083601f840112610839576108386107c3565b5b8235905067ffffffffffffffff811115610856576108556107c7565b5b602083019150836001820283011115610872576108716107cb565b5b9250929050565b5f805f805f805f6080888a031215610894576108936106de565b5b5f6108a18a828b0161072c565b975050602088013567ffffffffffffffff8111156108c2576108c16106e2565b5b6108ce8a828b016107cf565b9650965050604088013567ffffffffffffffff8111156108f1576108f06106e2565b5b6108fd8a828b016107cf565b9450945050606088013567ffffffffffffffff8111156109205761091f6106e2565b5b61092c8a828b01610824565b925092505092959891949750929550565b5f805f805f60608688031215610956576109556106de565b5b5f6109638882890161072c565b955050602086013567ffffffffffffffff811115610984576109836106e2565b5b610990888289016107cf565b9450945050604086013567ffffffffffffffff8111156109b3576109b26106e2565b5b6109bf888289016107cf565b92509250509295509295909350565b5f80604083850312156109e4576109e36106de565b5b5f6109f18582860161072c565b9250506020610a028582860161075f565b9150509250929050565b610a1581610740565b82525050565b5f602082019050610a2e5f830184610a0c565b92915050565b5f805f805f60808688031215610a4d57610a4c6106de565b5b5f610a5a8882890161072c565b9550506020610a6b8882890161075f565b9450506040610a7c8882890161075f565b935050606086013567ffffffffffffffff811115610a9d57610a9c6106e2565b5b610aa988828901610824565b92509250509295509295909350565b610ac181610705565b82525050565b5f606082019050610ada5f830186610ab8565b610ae76020830185610a0c565b610af46040830184610a0c565b949350505050565b5f81519050919050565b5f81905092915050565b5f5b83811015610b2d578082015181840152602081019050610b12565b5f8484015250505050565b5f610b4282610afc565b610b4c8185610b06565b9350610b5c818560208601610b10565b80840191505092915050565b5f610b738284610b38565b915081905092915050565b5f82825260208201905092915050565b5f80fd5b82818337505050565b5f610ba68385610b7e565b93507f07ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff831115610bd957610bd8610b8e565b5b602083029250610bea838584610b92565b82840190509392505050565b5f82825260208201905092915050565b828183375f83830152505050565b5f601f19601f8301169050919050565b5f610c2f8385610bf6565b9350610c3c838584610c06565b610c4583610c14565b840190509392505050565b5f608082019050610c635f83018a610ab8565b8181036020830152610c7681888a610b9b565b90508181036040830152610c8b818688610b9b565b90508181036060830152610ca0818486610c24565b905098975050505050505050565b5f606082019050610cc15f830188610ab8565b8181036020830152610cd4818688610b9b565b90508181036040830152610ce9818486610b9b565b90509695505050505050565b5f604082019050610d085f830185610ab8565b610d156020830184610a0c565b9392505050565b5f82825260208201905092915050565b7f4e6174697665546f6b656e733a2062616c616e63654f66206661696c656400005f82015250565b5f610d60601e83610d1c565b9150610d6b82610d2c565b602082019050919050565b5f6020820190508181035f830152610d8d81610d54565b9050919050565b5f81519050610da281610749565b92915050565b5f60208284031215610dbd57610dbc6106de565b5b5f610dca84828501610d94565b91505092915050565b5f608082019050610de65f830188610ab8565b610df36020830187610a0c565b610e006040830186610a0c565b8181036060830152610e13818486610c24565b9050969550505050505056fea164736f6c634300081a000a");
+    static NAIVE_TOKEN_TRANSFERRER_MOCK_BYTECODE: Bytes = bytes!("608060405260043610610064575f3560e01c8063995834171161004257806399583417146100d7578063a7a85a6b146100ff578063d1c673e91461013b57610064565b8063095bcdb6146100685780636141a8b914610090578063822bbe4c146100af575b5f80fd5b348015610073575f80fd5b5061008e6004803603810190610089919061092e565b610163565b005b610098610193565b6040516100a6929190610a35565b60405180910390f35b3480156100ba575f80fd5b506100d560048036038101906100d09190610b20565b6101bd565b005b3480156100e2575f80fd5b506100fd60048036038101906100f89190610be4565b6101f9565b005b34801561010a575f80fd5b5061012560048036038101906101209190610c75565b61022f565b6040516101329190610cc2565b60405180910390f35b348015610146575f80fd5b50610161600480360381019061015c9190610cdb565b610261565b005b61018e82828573ffffffffffffffffffffffffffffffffffffffff166102979092919063ffffffff16565b505050565b6060806101b53373ffffffffffffffffffffffffffffffffffffffff16610376565b915091509091565b6101f08686868686868d73ffffffffffffffffffffffffffffffffffffffff166104a4909695949392919063ffffffff16565b50505050505050565b610228848484848973ffffffffffffffffffffffffffffffffffffffff1661058f90949392919063ffffffff16565b5050505050565b5f610259828473ffffffffffffffffffffffffffffffffffffffff1661067490919063ffffffff16565b905092915050565b610290848484848973ffffffffffffffffffffffffffffffffffffffff166107ab90949392919063ffffffff16565b5050505050565b5f8383836040516024016102ad93929190610d6e565b60405160208183030381529060405263095bcdb660e01b6020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff838183161783525050505090505f73706000000000000000000000000000000000000173ffffffffffffffffffffffffffffffffffffffff168260405161032e9190610e0f565b5f60405180830381855af49150503d805f8114610366576040519150601f19603f3d011682016040523d82523d5f602084013e61036b565b606091505b505090505050505050565b6060805f604051602401604051602081830303815290604052636141a8b960e01b6020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff838183161783525050505090505f8073706000000000000000000000000000000000000173ffffffffffffffffffffffffffffffffffffffff16836040516104029190610e0f565b5f60405180830381855af49150503d805f811461043a576040519150601f19603f3d011682016040523d82523d5f602084013e61043f565b606091505b509150915081610484576040517f17e60c8200000000000000000000000000000000000000000000000000000000815260040161047b90610ea5565b60405180910390fd5b80806020019051810190610498919061101f565b94509450505050915091565b5f878787878787876040516024016104c29796959493929190611147565b60405160208183030381529060405263822bbe4c60e01b6020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff838183161783525050505090505f73706000000000000000000000000000000000000173ffffffffffffffffffffffffffffffffffffffff16826040516105439190610e0f565b5f60405180830381855af49150503d805f811461057b576040519150601f19603f3d011682016040523d82523d5f602084013e610580565b606091505b50509050505050505050505050565b5f85858585856040516024016105a99594939291906111a5565b604051602081830303815290604052639958341760e01b6020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff838183161783525050505090505f73706000000000000000000000000000000000000173ffffffffffffffffffffffffffffffffffffffff168260405161062a9190610e0f565b5f60405180830381855af49150503d805f8114610662576040519150601f19603f3d011682016040523d82523d5f602084013e610667565b606091505b5050905050505050505050565b5f8083836040516024016106899291906111ec565b60405160208183030381529060405262fdd58e60e01b6020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff838183161783525050505090505f8073706000000000000000000000000000000000000173ffffffffffffffffffffffffffffffffffffffff168360405161070a9190610e0f565b5f60405180830381855afa9150503d805f8114610742576040519150601f19603f3d011682016040523d82523d5f602084013e610747565b606091505b50915091508161078c576040517f17e60c820000000000000000000000000000000000000000000000000000000081526004016107839061125d565b60405180910390fd5b808060200190518101906107a0919061127b565b935050505092915050565b5f85858585856040516024016107c59594939291906112a6565b60405160208183030381529060405263d1c673e960e01b6020820180517bffffffffffffffffffffffffffffffffffffffffffffffffffffffff838183161783525050505090505f73706000000000000000000000000000000000000173ffffffffffffffffffffffffffffffffffffffff16826040516108469190610e0f565b5f60405180830381855af49150503d805f811461087e576040519150601f19603f3d011682016040523d82523d5f602084013e610883565b606091505b5050905050505050505050565b5f604051905090565b5f80fd5b5f80fd5b5f73ffffffffffffffffffffffffffffffffffffffff82169050919050565b5f6108ca826108a1565b9050919050565b6108da816108c0565b81146108e4575f80fd5b50565b5f813590506108f5816108d1565b92915050565b5f819050919050565b61090d816108fb565b8114610917575f80fd5b50565b5f8135905061092881610904565b92915050565b5f805f6060848603121561094557610944610899565b5b5f610952868287016108e7565b93505060206109638682870161091a565b92505060406109748682870161091a565b9150509250925092565b5f81519050919050565b5f82825260208201905092915050565b5f819050602082019050919050565b6109b0816108fb565b82525050565b5f6109c183836109a7565b60208301905092915050565b5f602082019050919050565b5f6109e38261097e565b6109ed8185610988565b93506109f883610998565b805f5b83811015610a28578151610a0f88826109b6565b9750610a1a836109cd565b9250506001810190506109fb565b5085935050505092915050565b5f6040820190508181035f830152610a4d81856109d9565b90508181036020830152610a6181846109d9565b90509392505050565b5f80fd5b5f80fd5b5f80fd5b5f8083601f840112610a8b57610a8a610a6a565b5b8235905067ffffffffffffffff811115610aa857610aa7610a6e565b5b602083019150836020820283011115610ac457610ac3610a72565b5b9250929050565b5f8083601f840112610ae057610adf610a6a565b5b8235905067ffffffffffffffff811115610afd57610afc610a6e565b5b602083019150836001820283011115610b1957610b18610a72565b5b9250929050565b5f805f805f805f6080888a031215610b3b57610b3a610899565b5b5f610b488a828b016108e7565b975050602088013567ffffffffffffffff811115610b6957610b6861089d565b5b610b758a828b01610a76565b9650965050604088013567ffffffffffffffff811115610b9857610b9761089d565b5b610ba48a828b01610a76565b9450945050606088013567ffffffffffffffff811115610bc757610bc661089d565b5b610bd38a828b01610acb565b925092505092959891949750929550565b5f805f805f60608688031215610bfd57610bfc610899565b5b5f610c0a888289016108e7565b955050602086013567ffffffffffffffff811115610c2b57610c2a61089d565b5b610c3788828901610a76565b9450945050604086013567ffffffffffffffff811115610c5a57610c5961089d565b5b610c6688828901610a76565b92509250509295509295909350565b5f8060408385031215610c8b57610c8a610899565b5b5f610c98858286016108e7565b9250506020610ca98582860161091a565b9150509250929050565b610cbc816108fb565b82525050565b5f602082019050610cd55f830184610cb3565b92915050565b5f805f805f60808688031215610cf457610cf3610899565b5b5f610d01888289016108e7565b9550506020610d128882890161091a565b9450506040610d238882890161091a565b935050606086013567ffffffffffffffff811115610d4457610d4361089d565b5b610d5088828901610acb565b92509250509295509295909350565b610d68816108c0565b82525050565b5f606082019050610d815f830186610d5f565b610d8e6020830185610cb3565b610d9b6040830184610cb3565b949350505050565b5f81519050919050565b5f81905092915050565b5f5b83811015610dd4578082015181840152602081019050610db9565b5f8484015250505050565b5f610de982610da3565b610df38185610dad565b9350610e03818560208601610db7565b80840191505092915050565b5f610e1a8284610ddf565b915081905092915050565b5f82825260208201905092915050565b7f4e6174697665546f6b656e733a2067657443616c6c56616c756573206661696c5f8201527f6564000000000000000000000000000000000000000000000000000000000000602082015250565b5f610e8f602283610e25565b9150610e9a82610e35565b604082019050919050565b5f6020820190508181035f830152610ebc81610e83565b9050919050565b5f601f19601f8301169050919050565b7f4e487b71000000000000000000000000000000000000000000000000000000005f52604160045260245ffd5b610f0982610ec3565b810181811067ffffffffffffffff82111715610f2857610f27610ed3565b5b80604052505050565b5f610f3a610890565b9050610f468282610f00565b919050565b5f67ffffffffffffffff821115610f6557610f64610ed3565b5b602082029050602081019050919050565b5f81519050610f8481610904565b92915050565b5f610f9c610f9784610f4b565b610f31565b90508083825260208201905060208402830185811115610fbf57610fbe610a72565b5b835b81811015610fe85780610fd48882610f76565b845260208401935050602081019050610fc1565b5050509392505050565b5f82601f83011261100657611005610a6a565b5b8151611016848260208601610f8a565b91505092915050565b5f806040838503121561103557611034610899565b5b5f83015167ffffffffffffffff8111156110525761105161089d565b5b61105e85828601610ff2565b925050602083015167ffffffffffffffff81111561107f5761107e61089d565b5b61108b85828601610ff2565b9150509250929050565b5f80fd5b82818337505050565b5f6110ad8385610988565b93507f07ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff8311156110e0576110df611095565b5b6020830292506110f1838584611099565b82840190509392505050565b5f82825260208201905092915050565b828183375f83830152505050565b5f61112683856110fd565b935061113383858461110d565b61113c83610ec3565b840190509392505050565b5f60808201905061115a5f83018a610d5f565b818103602083015261116d81888a6110a2565b905081810360408301526111828186886110a2565b9050818103606083015261119781848661111b565b905098975050505050505050565b5f6060820190506111b85f830188610d5f565b81810360208301526111cb8186886110a2565b905081810360408301526111e08184866110a2565b90509695505050505050565b5f6040820190506111ff5f830185610d5f565b61120c6020830184610cb3565b9392505050565b7f4e6174697665546f6b656e733a2062616c616e63654f66206661696c656400005f82015250565b5f611247601e83610e25565b915061125282611213565b602082019050919050565b5f6020820190508181035f8301526112748161123b565b9050919050565b5f602082840312156112905761128f610899565b5b5f61129d84828501610f76565b91505092915050565b5f6080820190506112b95f830188610d5f565b6112c66020830187610cb3565b6112d36040830186610cb3565b81810360608301526112e681848661111b565b9050969550505050505056fea164736f6c634300081a000a");
 
     const NAIVE_TOKEN_TRANSFERRER_MOCK_ADDRESS: Address =
         address!("5fdcca53617f4d2b9134b29090c87d01058e27e8"); // The address of the Mock Contract via which to Transfer and Call. Note: there's nothing special about this address. It's random, and is defined as a constant to make the tests more readable.
@@ -157,12 +157,12 @@ mod test {
                 tx.caller = caller;
                 tx.transact_to = TransactTo::Call(NATIVE_TOKENS_PRECOMPILE_ADDRESS);
 
-                // Compose the Tx Data, as follows: the balanceOf() function selector + address + token_id
-                let mut concatenated = BALANCEOF_SELECTOR.to_be_bytes().to_vec();
+                // Encode the Tx Data, as follows: the balanceOf() function selector + address + token_id
+                let mut data = BALANCEOF_SELECTOR.to_be_bytes().to_vec();
                 let caller_address_evm_word = caller.into_word();
-                concatenated.append(caller_address_evm_word.to_vec().as_mut());
-                concatenated.append(BASE_TOKEN_ID.to_be_bytes_vec().as_mut());
-                tx.data = Bytes::from(concatenated);
+                data.append(caller_address_evm_word.to_vec().as_mut());
+                data.append(BASE_TOKEN_ID.to_be_bytes_vec().as_mut());
+                tx.data = Bytes::from(data);
             })
             .with_external_context(CustomPrintTracer::default())
             .with_spec_id(SpecId::LATEST)
@@ -209,13 +209,13 @@ mod test {
                 tx.caller = caller;
                 tx.transact_to = TransactTo::Call(NAIVE_TOKEN_TRANSFERRER_MOCK_ADDRESS);
 
-                // Compose the Tx Data
-                let mut concatenated = bytes!("a7a85a6b").to_vec(); // the selector of "getBalanceOfToken(address account, uint256 tokenID)"
+                // Encode the Tx Data
+                let mut data = bytes!("a7a85a6b").to_vec(); // the selector of "getBalanceOfToken(address account, uint256 tokenID)"
                 let recipient_address_evm_word = tx.caller.into_word();
-                concatenated.append(recipient_address_evm_word.to_vec().as_mut());
-                concatenated.append(BASE_TOKEN_ID.to_be_bytes_vec().as_mut());
+                data.append(recipient_address_evm_word.to_vec().as_mut());
+                data.append(BASE_TOKEN_ID.to_be_bytes_vec().as_mut());
 
-                tx.data = Bytes::from(concatenated);
+                tx.data = Bytes::from(data);
             })
             .with_external_context(CustomPrintTracer::default())
             .with_spec_id(SpecId::LATEST)
@@ -262,12 +262,12 @@ mod test {
                 tx.caller = caller;
                 tx.transact_to = TransactTo::Call(SRF20_MOCK_ADDRESS);
 
-                // Compose the Tx Data
-                let mut concatenated = bytes!("40c10f19").to_vec(); // the selector of "mint(address, uint256)"
+                // Encode the Tx Data
+                let mut data = bytes!("40c10f19").to_vec(); // the selector of "mint(address, uint256)"
                 let recipient_address_evm_word = tx.caller.into_word();
-                concatenated.append(recipient_address_evm_word.to_vec().as_mut());
-                concatenated.append(amount_to_mint.to_be_bytes_vec().as_mut());
-                tx.data = Bytes::from(concatenated);
+                data.append(recipient_address_evm_word.to_vec().as_mut());
+                data.append(amount_to_mint.to_be_bytes_vec().as_mut());
+                tx.data = Bytes::from(data);
             })
             .with_external_context(CustomPrintTracer::default())
             .with_spec_id(SpecId::LATEST)
@@ -319,10 +319,10 @@ mod test {
                 tx.caller = caller;
                 tx.transact_to = TransactTo::Call(SRF20_MOCK_ADDRESS);
 
-                // Compose the Tx Data
-                let mut concatenated = bytes!("42966c68").to_vec(); // the selector of "burn(uint256)"
-                concatenated.append(amount_to_burn.to_be_bytes_vec().as_mut());
-                tx.data = Bytes::from(concatenated);
+                // Encode the Tx Data
+                let mut data = bytes!("42966c68").to_vec(); // the selector of "burn(uint256)"
+                data.append(amount_to_burn.to_be_bytes_vec().as_mut());
+                tx.data = Bytes::from(data);
             })
             .with_external_context(CustomPrintTracer::default())
             .with_spec_id(SpecId::LATEST)
@@ -343,71 +343,67 @@ mod test {
     }
 
     #[test]
-    fn mntcallvalues_eof_precompile() {
+    fn callvalues_naive_transferrer_native_library_precompile() {
         use crate::primitives::{
-            address, token_id_address, utilities::bytes_parsing::*, AccountInfo, Bytes,
-            TokenTransfer, TransactTo, B256, BASE_TOKEN_ID, U256,
+            address, utilities::bytes_parsing::*, AccountInfo, TokenTransfer, TransactTo, B256,
+            BASE_TOKEN_ID, U256,
         };
 
-        let caller = address!("5fdcca53617f4d2b9134b29090c87d01058e27e0");
-        let caller_token1_balance = U256::from(10);
+        let caller_eoa = address!("5fdcca53617f4d2b9134b29090c87d01058e27e0");
+        let caller_initial_balance = U256::from(10);
 
-        let sub_id2 = U256::from(2);
-        let token2_id = token_id_address(NATIVE_TOKENS_PRECOMPILE_ADDRESS, sub_id2);
-        let caller_token2_balance = U256::from(100);
+        let token1_id = BASE_TOKEN_ID;
+        let token1_transfer_amount = U256::from(7);
 
-        let sub_id3 = U256::from(3);
-        let token3_id = token_id_address(NATIVE_TOKENS_PRECOMPILE_ADDRESS, sub_id3);
-        let caller_token3_balance = U256::from(1000);
+        let token2_id = U256::from(5); // Random id
+        let token2_transfer_amount = U256::from(4);
 
         let tokens_to_be_transferred = vec![
             TokenTransfer {
-                id: BASE_TOKEN_ID,
-                amount: caller_token1_balance,
+                id: token1_id,
+                amount: token1_transfer_amount,
             },
             TokenTransfer {
                 id: token2_id,
-                amount: caller_token2_balance,
-            },
-            TokenTransfer {
-                id: token3_id,
-                amount: caller_token3_balance,
+                amount: token2_transfer_amount,
             },
         ];
 
         let mut evm = Evm::builder()
             .with_db(InMemoryDB::default())
             .modify_db(|db| {
-                db.token_ids.extend(vec![token2_id, token3_id]);
-
-                let callee_info = AccountInfo {
-                    balances: HashMap::default(),
-                    code_hash: B256::default(),
-                    code: None,
-                    nonce: 0,
-                };
-                db.insert_account_info(NATIVE_TOKENS_PRECOMPILE_ADDRESS, callee_info);
+                db.token_ids.push(token2_id);
 
                 let caller_info = AccountInfo {
                     balances: HashMap::from([
-                        (BASE_TOKEN_ID, caller_token1_balance),
-                        (token2_id, caller_token2_balance),
-                        (token3_id, caller_token3_balance),
+                        (token1_id, caller_initial_balance),
+                        (token2_id, caller_initial_balance),
                     ]),
                     code_hash: B256::default(),
                     code: None,
                     nonce: 0,
                 };
-                db.insert_account_info(caller, caller_info);
+                db.insert_account_info(caller_eoa, caller_info);
+
+                let call_values_checker_bytecode = &NAIVE_TOKEN_TRANSFERRER_MOCK_BYTECODE;
+                let call_values_checker_info = AccountInfo {
+                    balances: HashMap::default(),
+                    code_hash: keccak256(call_values_checker_bytecode.clone()),
+                    code: Some(Bytecode::new_raw(call_values_checker_bytecode.clone())),
+                    nonce: 1,
+                };
+                db.insert_account_info(
+                    NAIVE_TOKEN_TRANSFERRER_MOCK_ADDRESS,
+                    call_values_checker_info,
+                );
             })
             .modify_tx_env(|tx| {
-                tx.caller = caller;
-                tx.transact_to = TransactTo::Call(NATIVE_TOKENS_PRECOMPILE_ADDRESS);
+                tx.caller = caller_eoa;
+                tx.transact_to = TransactTo::Call(NAIVE_TOKEN_TRANSFERRER_MOCK_ADDRESS);
+                tx.transferred_tokens = tokens_to_be_transferred.clone();
 
-                //Compose the Tx Data, as follows: the MNTCALLVALUES id + address + token_id
-                const MNTCALLVALUES_ID: u32 = 0x2F;
-                tx.data = Bytes::from(MNTCALLVALUES_ID.to_be_bytes());
-                tx.transferred_tokens.clone_from(&tokens_to_be_transferred);
+                // Encode the Tx Data
+                tx.data = bytes!("6141a8b9"); // the selector of "getCallValues()"
             })
             .with_external_context(CustomPrintTracer::default())
             .with_spec_id(SpecId::LATEST)
@@ -421,38 +417,60 @@ mod test {
         assert!(execution_result.is_success());
 
         let mut tx_output = Bytes::copy_from_slice(execution_result.output().unwrap());
-        let transferred_tokens_no = match consume_usize_from(&mut tx_output) {
+
+        // Extract and ignore the token ids offset from the output
+        let _ = match consume_u256_from(&mut tx_output) {
             Ok(value) => value,
-            Err(_) => panic!("Failed to consume usize from output"),
+            Err(_) => panic!("Failed to consume from output"),
         };
 
-        assert_eq!(transferred_tokens_no, 3);
+        // Extract and ignore the token amounts offset from the output
+        let _ = match consume_u256_from(&mut tx_output) {
+            Ok(value) => value,
+            Err(_) => panic!("Failed to consume from output"),
+        };
+
+        let transferred_tokens_no = match consume_u256_from(&mut tx_output) {
+            Ok(value) => value,
+            Err(_) => panic!("Failed to consume from output"),
+        };
+
+        assert_eq!(
+            transferred_tokens_no,
+            U256::from_be_slice(tokens_to_be_transferred.len().to_be_bytes().as_slice())
+        );
 
         let mut transferred_tokens = Vec::new();
-
-        for _ in 0..transferred_tokens_no {
+        for _ in 0..tokens_to_be_transferred.len() {
             let token_id = match consume_u256_from(&mut tx_output) {
                 Ok(value) => value,
                 Err(_) => panic!("Failed to consume token id from output"),
             };
 
-            let token_amount = match consume_u256_from(&mut tx_output) {
-                Ok(value) => value,
-                Err(_) => panic!("Failed to consume token amount from output"),
-            };
-
             transferred_tokens.push(TokenTransfer {
                 id: token_id,
-                amount: token_amount,
+                amount: U256::default(),
             });
         }
 
-        let mut sorted_vec1 = tokens_to_be_transferred.clone();
-        sorted_vec1.sort();
-        let mut sorted_vec2 = transferred_tokens.clone();
-        sorted_vec2.sort();
+        // Extract and ignore the token amounts offset from the output
+        let _ = match consume_u256_from(&mut tx_output) {
+            Ok(value) => value,
+            Err(_) => panic!("Failed to consume from output"),
+        };
+        for token_transfer in transferred_tokens.iter_mut() {
+            token_transfer.amount = match consume_u256_from(&mut tx_output) {
+                Ok(value) => value,
+                Err(_) => panic!("Failed to consume token amount from output"),
+            };
+        }
 
-        assert_eq!(sorted_vec1, sorted_vec2);
+        let mut expected_callvalues_sorted = tokens_to_be_transferred.clone();
+        expected_callvalues_sorted.sort();
+        let mut actual_callvalues_sorted = transferred_tokens.clone();
+        actual_callvalues_sorted.sort();
+
+        assert_eq!(expected_callvalues_sorted, actual_callvalues_sorted);
     }
 
     #[test]
@@ -764,14 +782,14 @@ mod test {
                 tx.caller = caller_eoa;
                 tx.transact_to = TransactTo::Call(NAIVE_TOKEN_TRANSFERRER_MOCK_ADDRESS);
 
-                // Compose the Tx Data
-                let mut concatenated = bytes!("095bcdb6").to_vec(); // the selector of "transfer(address recipient, uint256 tokenID, uint256 amount)"
+                // Encode the Tx Data
+                let mut data = bytes!("095bcdb6").to_vec(); // the selector of "transfer(address recipient, uint256 tokenID, uint256 amount)"
                 let recipient_address_evm_word = tx.caller.into_word();
-                concatenated.append(recipient_address_evm_word.to_vec().as_mut());
-                concatenated.append(token_id.to_be_bytes_vec().as_mut());
-                concatenated.append(transfer_amount.to_be_bytes_vec().as_mut());
+                data.append(recipient_address_evm_word.to_vec().as_mut());
+                data.append(token_id.to_be_bytes_vec().as_mut());
+                data.append(transfer_amount.to_be_bytes_vec().as_mut());
 
-                tx.data = Bytes::from(concatenated);
+                tx.data = Bytes::from(data);
             })
             .with_external_context(CustomPrintTracer::default())
             .with_spec_id(SpecId::LATEST)
@@ -833,44 +851,44 @@ mod test {
                 tx.caller = caller_eoa;
                 tx.transact_to = TransactTo::Call(NAIVE_TOKEN_TRANSFERRER_MOCK_ADDRESS);
 
-                // Compose the Tx Data
+                // Encode the Tx Data
                 // tx.data structure:
                 // 0 - recipient's address
                 // 1/32 - token_ids_offset
                 // 2/64 - amounts_offset
                 // 3/96 - token_ids_len
                 // 4/128 - token_ids
-                // ~/~ - transfer_amounts_len
-                // ~/~ - transfer_amounts
+                // TBD/TBD - transfer_amounts_len
+                // TBD/TBD - transfer_amounts
 
-                let mut concatenated = bytes!("99583417").to_vec(); // the selector of "transferMultiple(address to, uint256[] calldata tokenIDs, uint256[] calldata amounts)"
+                let mut data = bytes!("99583417").to_vec(); // the selector of "transferMultiple(address to, uint256[] calldata tokenIDs, uint256[] calldata amounts)"
 
                 let recipient_address_evm_word = tx.caller.into_word();
-                concatenated.append(recipient_address_evm_word.to_vec().as_mut());
+                data.append(recipient_address_evm_word.to_vec().as_mut());
 
                 let token_ids_offset = U256::from(96);
-                concatenated.append(token_ids_offset.to_be_bytes_vec().as_mut());
+                data.append(token_ids_offset.to_be_bytes_vec().as_mut());
 
                 let token_ids_len = U256::from_be_slice(token_ids.len().to_be_bytes().as_slice());
 
                 let evm_word_size = U256::from(32);
                 let amounts_offset =
                     token_ids_offset + ((U256::from(1) + token_ids_len) * evm_word_size);
-                concatenated.append(amounts_offset.to_be_bytes_vec().as_mut());
+                data.append(amounts_offset.to_be_bytes_vec().as_mut());
 
-                concatenated.append(token_ids_len.to_be_bytes_vec().as_mut());
+                data.append(token_ids_len.to_be_bytes_vec().as_mut());
                 for token_id in token_ids.iter() {
-                    concatenated.append(token_id.to_be_bytes_vec().as_mut());
+                    data.append(token_id.to_be_bytes_vec().as_mut());
                 }
 
                 let transfer_amounts_len =
                     U256::from_be_slice(transfer_amounts.len().to_be_bytes().as_slice());
-                concatenated.append(transfer_amounts_len.to_be_bytes_vec().as_mut());
+                data.append(transfer_amounts_len.to_be_bytes_vec().as_mut());
                 for transfer_amount in transfer_amounts.iter() {
-                    concatenated.append(transfer_amount.to_be_bytes_vec().as_mut());
+                    data.append(transfer_amount.to_be_bytes_vec().as_mut());
                 }
 
-                tx.data = Bytes::from(concatenated);
+                tx.data = Bytes::from(data);
             })
             .with_external_context(CustomPrintTracer::default())
             .with_spec_id(SpecId::LATEST)
@@ -945,36 +963,36 @@ mod test {
                 // 2/64 - transfer amount
                 // 3/96 - calldata offset (== 128)
                 // 4/128 - calldata byte length
-                // ~/~ - calldata bytes
+                // TBD/TBD - calldata bytes
 
-                // Compose the Tx Data
-                let mut concatenated = bytes!("d1c673e9").to_vec(); // the selector of "transferAndCall(address recipientAndCallee, uint256 tokenID, uint256 amount, bytes calldata data)"
+                // Encode the Tx Data
+                let mut data = bytes!("d1c673e9").to_vec(); // the selector of "transferAndCall(address recipientAndCallee, uint256 tokenID, uint256 amount, bytes calldata data)"
                 let recipient_and_callee_address_evm_word =
                     CONTRACT_TO_TRANSFER_AND_CALL_TO_ADDRESS.into_word();
-                concatenated.append(recipient_and_callee_address_evm_word.to_vec().as_mut());
-                concatenated.append(token_id.to_be_bytes_vec().as_mut());
-                concatenated.append(transfer_amount.to_be_bytes_vec().as_mut());
+                data.append(recipient_and_callee_address_evm_word.to_vec().as_mut());
+                data.append(token_id.to_be_bytes_vec().as_mut());
+                data.append(transfer_amount.to_be_bytes_vec().as_mut());
 
                 let calldata_offset = U256::from(128);
-                concatenated.append(calldata_offset.to_be_bytes_vec().as_mut());
+                data.append(calldata_offset.to_be_bytes_vec().as_mut());
 
-                let mut calldata_concatenated: Vec<u8> = Vec::new();
-                let mut word = [0; 32];
+                let mut inner_data: Vec<u8> = Vec::new();
+                let mut evm_word = [0; 32];
 
-                word[28..].copy_from_slice(bytes!("ffb4fc75").to_vec().as_slice()); // the selector of "transferTokenForAFee(address recipient, uint256 tokenID, uint256 amount, uint256 fee)"
-                calldata_concatenated.append(word.to_vec().as_mut());
+                evm_word[28..].copy_from_slice(bytes!("ffb4fc75").to_vec().as_slice()); // the selector of "transferTokenForAFee(address recipient, uint256 tokenID, uint256 amount, uint256 fee)"
+                inner_data.append(evm_word.to_vec().as_mut());
 
                 let recipient_address_evm_word = end_recipient_eoa.into_word();
-                calldata_concatenated.append(recipient_address_evm_word.to_vec().as_mut());
-                calldata_concatenated.append(token_id.to_be_bytes_vec().as_mut());
-                calldata_concatenated.append(transfer_amount.to_be_bytes_vec().as_mut());
-                calldata_concatenated.append(fee_amount.to_be_bytes_vec().as_mut());
+                inner_data.append(recipient_address_evm_word.to_vec().as_mut());
+                inner_data.append(token_id.to_be_bytes_vec().as_mut());
+                inner_data.append(transfer_amount.to_be_bytes_vec().as_mut());
+                inner_data.append(fee_amount.to_be_bytes_vec().as_mut());
 
-                let calldata_byte_length = U256::from(calldata_concatenated.len());
-                concatenated.append(calldata_byte_length.to_be_bytes_vec().as_mut());
-                concatenated.append(calldata_concatenated.as_mut());
+                let calldata_byte_length = U256::from(inner_data.len());
+                data.append(calldata_byte_length.to_be_bytes_vec().as_mut());
+                data.append(inner_data.as_mut());
 
-                tx.data = Bytes::from(concatenated);
+                tx.data = Bytes::from(data);
             })
             .with_external_context(CustomPrintTracer::default())
             .with_spec_id(SpecId::LATEST)
@@ -1064,40 +1082,40 @@ mod test {
                 // 8/256 - transfer amounts::transfer_amount (1)
                 // 9/288 - transfer amounts::transfer_amount (2)
                 // 10/320 - calldata byte length
-                // ~/~ - calldata bytes
+                // TBD/TBD - calldata bytes
 
-                // Compose the Tx Data
-                let mut concatenated = bytes!("822bbe4c").to_vec(); // the selector of `transferMultipleAndCall(address recipientAndCallee, uint256[] calldata tokenIDs, uint256[] calldata amounts, bytes calldata data)`
+                // Encode the Tx Data
+                let mut data = bytes!("822bbe4c").to_vec(); // the selector of `transferMultipleAndCall(address recipientAndCallee, uint256[] calldata tokenIDs, uint256[] calldata amounts, bytes calldata data)`
                 let recipient_and_callee_address_evm_word =
                     CONTRACT_TO_TRANSFER_AND_CALL_TO_ADDRESS.into_word();
-                concatenated.append(recipient_and_callee_address_evm_word.to_vec().as_mut());
+                data.append(recipient_and_callee_address_evm_word.to_vec().as_mut());
 
                 let token_ids_offset = U256::from(128);
-                concatenated.append(token_ids_offset.to_be_bytes_vec().as_mut());
+                data.append(token_ids_offset.to_be_bytes_vec().as_mut());
 
                 let transfer_amounts_offset = U256::from(224);
-                concatenated.append(transfer_amounts_offset.to_be_bytes_vec().as_mut());
+                data.append(transfer_amounts_offset.to_be_bytes_vec().as_mut());
 
                 let calldata_offset = U256::from(320);
-                concatenated.append(calldata_offset.to_be_bytes_vec().as_mut());
+                data.append(calldata_offset.to_be_bytes_vec().as_mut());
 
                 let token_ids_len = U256::from(2);
-                concatenated.append(token_ids_len.to_be_bytes_vec().as_mut());
-                concatenated.append(token1_id.to_be_bytes_vec().as_mut());
-                concatenated.append(token2_id.to_be_bytes_vec().as_mut());
+                data.append(token_ids_len.to_be_bytes_vec().as_mut());
+                data.append(token1_id.to_be_bytes_vec().as_mut());
+                data.append(token2_id.to_be_bytes_vec().as_mut());
 
                 let transfer_amounts_len = U256::from(2);
-                concatenated.append(transfer_amounts_len.to_be_bytes_vec().as_mut());
-                concatenated.append(transfer_amount.to_be_bytes_vec().as_mut());
-                concatenated.append(transfer_amount.to_be_bytes_vec().as_mut());
+                data.append(transfer_amounts_len.to_be_bytes_vec().as_mut());
+                data.append(transfer_amount.to_be_bytes_vec().as_mut());
+                data.append(transfer_amount.to_be_bytes_vec().as_mut());
 
-                let mut calldata_concatenated: Vec<u8> = Vec::new();
-                let mut word = [0; 32];
+                let mut inner_data: Vec<u8> = Vec::new();
+                let mut evm_word = [0; 32];
 
-                word[28..].copy_from_slice(bytes!("65066c97").to_vec().as_slice()); // the selector of "transferMultipleTokensForAFee(address recipient, uint256[] calldata tokenIDs, uint256[] calldata amounts, uint256 fee)"
-                calldata_concatenated.append(word.to_vec().as_mut());
+                evm_word[28..].copy_from_slice(bytes!("65066c97").to_vec().as_slice()); // the selector of "transferMultipleTokensForAFee(address recipient, uint256[] calldata tokenIDs, uint256[] calldata amounts, uint256 fee)"
+                inner_data.append(evm_word.to_vec().as_mut());
 
-                // calldata structure:
+                // Calldata structure:
                 // 0 - recipient's address
                 // 1/32 - token ids offset (== 128)
                 // 2/64 - transfer amounts offset (== 224)
@@ -1109,33 +1127,32 @@ mod test {
                 // 8/256 - transfer amounts::transfer_amount (1)
                 // 9/288 - transfer amounts::transfer_amount (2)
 
-                // Compose the Tx Data
-
+                // Encode the Tx Data
                 let recipient_address_evm_word = end_recipient_eoa.into_word();
-                calldata_concatenated.append(recipient_address_evm_word.to_vec().as_mut());
+                inner_data.append(recipient_address_evm_word.to_vec().as_mut());
                 let token_ids_offset = U256::from(128);
-                calldata_concatenated.append(token_ids_offset.to_be_bytes_vec().as_mut());
+                inner_data.append(token_ids_offset.to_be_bytes_vec().as_mut());
 
                 let transfer_amounts_offset = U256::from(224);
-                calldata_concatenated.append(transfer_amounts_offset.to_be_bytes_vec().as_mut());
+                inner_data.append(transfer_amounts_offset.to_be_bytes_vec().as_mut());
 
-                calldata_concatenated.append(fee_amount.to_be_bytes_vec().as_mut());
+                inner_data.append(fee_amount.to_be_bytes_vec().as_mut());
 
                 let token_ids_len = U256::from(2);
-                calldata_concatenated.append(token_ids_len.to_be_bytes_vec().as_mut());
-                calldata_concatenated.append(token1_id.to_be_bytes_vec().as_mut());
-                calldata_concatenated.append(token2_id.to_be_bytes_vec().as_mut());
+                inner_data.append(token_ids_len.to_be_bytes_vec().as_mut());
+                inner_data.append(token1_id.to_be_bytes_vec().as_mut());
+                inner_data.append(token2_id.to_be_bytes_vec().as_mut());
 
                 let transfer_amounts_len = U256::from(2);
-                calldata_concatenated.append(transfer_amounts_len.to_be_bytes_vec().as_mut());
-                calldata_concatenated.append(transfer_amount.to_be_bytes_vec().as_mut());
-                calldata_concatenated.append(transfer_amount.to_be_bytes_vec().as_mut());
+                inner_data.append(transfer_amounts_len.to_be_bytes_vec().as_mut());
+                inner_data.append(transfer_amount.to_be_bytes_vec().as_mut());
+                inner_data.append(transfer_amount.to_be_bytes_vec().as_mut());
 
-                let calldata_byte_length = U256::from(calldata_concatenated.len());
-                concatenated.append(calldata_byte_length.to_be_bytes_vec().as_mut());
-                concatenated.append(calldata_concatenated.as_mut());
+                let calldata_byte_length = U256::from(inner_data.len());
+                data.append(calldata_byte_length.to_be_bytes_vec().as_mut());
+                data.append(inner_data.as_mut());
 
-                tx.data = Bytes::from(concatenated);
+                tx.data = Bytes::from(data);
             })
             .with_external_context(CustomPrintTracer::default())
             .with_spec_id(SpecId::LATEST)
