@@ -39,9 +39,6 @@ impl Env {
     }
 
     /// Calculates the effective gas price of the transaction.
-    /// TODO: this being the calculation of how much gas the tx signer is willing to pay for the tx, find the place
-    /// where it's dynamically calculated how much gas the ongoing tx is consuming - and add the cost to process
-    /// the MNTs there.
     #[inline]
     pub fn effective_gas_price(&self) -> U256 {
         if let Some(priority_fee) = self.tx.gas_priority_fee {
@@ -253,7 +250,6 @@ impl Env {
         if required_base_balance > base_token_balance {
             if self.cfg.is_balance_check_disabled() {
                 // Add transaction cost to balance to ensure execution doesn't fail.
-                // TODO: how is it even possible to execute txs without someone paying for all of the gas??
                 account.info.set_base_balance(required_base_balance);
             } else {
                 return Err(InvalidTransaction::LackOfFundForMaxFee {
@@ -807,7 +803,6 @@ mod tests {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TokenTransfer {
     pub id: U256,
-    // TODO: should we rename this to `value` for more clarity?
     pub amount: U256,
 }
 

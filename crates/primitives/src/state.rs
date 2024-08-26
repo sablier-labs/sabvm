@@ -235,7 +235,7 @@ impl Hash for AccountInfo {
         //Hash the (token_id, balance) tuples in a deterministic-order
         let mut balances: Vec<_> = self.balances.iter().collect();
         balances.sort_by(|a, b| a.0.cmp(b.0));
-        // TODO: check if this distinguish between `(id: 1, balance: 25)` and `(id: 12, balance: 5)`. Maybe we should create
+        // TODO: check if this distinguishes between `(id: 1, balance: 25)` and `(id: 12, balance: 5)`. Maybe we should create
         // a custom aggregate object from the tuple values (e.g. stringify [id] + [separator] + [balance]), and hash the
         // resulting string?
         balances

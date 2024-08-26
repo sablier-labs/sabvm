@@ -52,8 +52,6 @@ impl ExecutionResult {
         matches!(self, Self::Halt { .. })
     }
 
-    /// TODO: why isn't there an `is_revert`, too?
-
     /// Returns the output data of the execution.
     ///
     /// Returns `None` if the execution was halted.
