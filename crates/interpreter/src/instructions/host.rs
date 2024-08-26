@@ -9,10 +9,27 @@ use std::vec::Vec;
 
 pub fn balance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     pop_address!(interpreter, address);
-    push_b256!(interpreter, address.into_word());
-    push!(interpreter, BASE_TOKEN_ID);
 
-    balance_of::<H, SPEC>(interpreter, host);
+    let Some((balance, is_cold)) = host.balance(BASE_TOKEN_ID, address) else {
+        interpreter.instruction_result = InstructionResult::FatalExternalError;
+        return;
+    };
+
+    gas!(
+        interpreter,
+        if SPEC::enabled(BERLIN) {
+            warm_cold_cost(is_cold)
+        } else if SPEC::enabled(ISTANBUL) {
+            // EIP-1884: Repricing for trie-size-dependent opcodes
+            700
+        } else if SPEC::enabled(TANGERINE) {
+            400
+        } else {
+            20
+        }
+    );
+
+    push!(interpreter, balance);
 }
 
 /// EIP-1884: Repricing for trie-size-dependent opcodes
