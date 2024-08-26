@@ -3,6 +3,9 @@ use crate::primitives::Address;
 #[cfg(feature = "std")]
 pub mod native_tokens;
 
+#[cfg(feature = "std")]
+mod test_native_tokens;
+
 /// Similar to `crate::u64_to_address`, but adds the number 706 as a prefix. 706 is the sum of the ASCII value
 /// of the characters in the string "Sablier".
 ///

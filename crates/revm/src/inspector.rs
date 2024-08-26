@@ -7,6 +7,7 @@ use auto_impl::auto_impl;
 
 #[cfg(feature = "std")]
 mod customprinter;
+
 #[cfg(all(feature = "std", feature = "serde-json"))]
 mod eip3155;
 mod gas;
