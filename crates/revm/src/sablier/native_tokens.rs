@@ -58,7 +58,7 @@ impl<DB: Database> ContextStatefulPrecompileMut<DB> for NativeTokensContextPreco
         // Parse the input bytes, to figure out what opcode to execute
         let function_selector = consume_u32_from(&mut input).map_err(|_| Error::InvalidInput)?;
 
-        // Handle the different opcodes
+        // Handle the different function selectors
         match function_selector {
             BALANCEOF_SELECTOR => {
                 // Extract the address from the input
