@@ -1,7 +1,7 @@
 use crate::{
     gas::{self, warm_cold_cost},
     interpreter::Interpreter,
-    primitives::{Bytes, Log, LogData, Spec, SpecId::*, B256, BASE_TOKEN_ID, U256},
+    primitives::{Bytes, Log, LogData, Spec, SpecId::*, B256, U256},
     Host, InstructionResult, SStoreResult,
 };
 use core::cmp::min;
@@ -10,7 +10,7 @@ use std::vec::Vec;
 pub fn balance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     pop_address!(interpreter, address);
 
-    let Some((balance, is_cold)) = host.balance(BASE_TOKEN_ID, address) else {
+    let Some((balance, is_cold)) = host.base_balance(address) else {
         interpreter.instruction_result = InstructionResult::FatalExternalError;
         return;
     };

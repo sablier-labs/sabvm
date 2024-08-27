@@ -799,6 +799,7 @@ mod tests {
     }
 }
 
+/// The information about a token transfer.
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TokenTransfer {

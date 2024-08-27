@@ -15,6 +15,7 @@ pub enum ResultOrNewCall {
     Call(PrimitiveCallInfo),
 }
 
+/// Contains the information required to make a new call.
 #[derive(Debug)]
 pub struct PrimitiveCallInfo {
     pub target_address: Address,
@@ -22,6 +23,7 @@ pub struct PrimitiveCallInfo {
     pub input_data: Bytes,
 }
 
+/// Contains the information about the result of a precompile operation.
 #[derive(Debug)]
 pub struct ResultInfo {
     pub gas_used: u64,

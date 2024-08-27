@@ -7,6 +7,7 @@ use std::vec::Vec;
 #[derive(Debug, Default, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct EvmState {
+    // The mapping from addresses to accounts.
     pub accounts: HashMap<Address, Account>,
     // The ids of all tokens minted in the VM.
     pub token_ids: Vec<U256>,
@@ -184,6 +185,7 @@ impl EvmStorageSlot {
     }
 }
 
+/// The token balances of an account, as a mapping from token ids to token amounts owned by the address.
 pub type TokenBalances = HashMap<U256, U256>;
 
 /// The account information.

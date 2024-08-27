@@ -68,11 +68,14 @@ impl Default for Interpreter {
     }
 }
 
+/// The enum that represents either the result of an interpreter operation -
+/// or the request for a new call to be executed.
 pub enum ResultOrNewCall {
     Result(InterpreterResult),
     NewCall(CallInfo),
 }
 
+/// The information needed to execute a new call.
 pub struct CallInfo {
     pub target_address: Address,
     pub call_values: CallValues,

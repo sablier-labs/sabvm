@@ -411,13 +411,3 @@ pub fn validate_initial_tx_gas(
 
     initial_gas
 }
-
-#[inline]
-pub fn burn_cost() -> Option<u64> {
-    Some(BURN_TOKENS)
-}
-
-#[inline]
-pub fn mint_cost() -> Option<u64> {
-    Some(MINT_TOKENS)
-}
