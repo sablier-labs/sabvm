@@ -828,6 +828,10 @@ impl JournaledState {
         amount: U256,
         db: &mut DB,
     ) -> bool {
+        if amount == U256::ZERO {
+            return false;
+        }
+
         if self.load_native_token_ids(db).is_err() {
             return false;
         }
@@ -838,7 +842,6 @@ impl JournaledState {
 
         let token_id = token_id_address(burner, sub_id);
 
-        // TODO: shouldn't this be verified before this function is called?
         let result = db.is_token_id_valid(token_id);
         if result.is_err() || result.is_ok_and(|r| !r) {
             return false;

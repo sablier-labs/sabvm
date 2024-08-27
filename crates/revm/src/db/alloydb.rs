@@ -89,7 +89,7 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for AlloyD
         let nonce = nonce?;
 
         Ok(Some(AccountInfo::new(
-            Balances::from([(BASE_TOKEN_ID, balance)]),
+            TokenBalances::from([(BASE_TOKEN_ID, balance)]),
             nonce,
             code_hash,
             code,

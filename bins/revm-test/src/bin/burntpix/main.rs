@@ -4,7 +4,7 @@ use regex::bytes::Regex;
 use revm::{
     db::{CacheDB, EmptyDB},
     primitives::{
-        address, hex, keccak256, AccountInfo, Address, Balances, Bytecode, Bytes, ExecutionResult,
+        address, hex, keccak256, AccountInfo, Address, TokenBalances, Bytecode, Bytes, ExecutionResult,
         Output, TransactTo, B256, BASE_TOKEN_ID, U256,
     },
     Evm,
@@ -102,7 +102,7 @@ fn try_from_hex_to_u32(hex: &str) -> eyre::Result<u32> {
 fn insert_account_info(cache_db: &mut CacheDB<EmptyDB>, addr: Address, code: Bytes) {
     let code_hash = hex::encode(keccak256(code.clone()));
     let account_info = AccountInfo::new(
-        Balances::from([(BASE_TOKEN_ID, U256::ZERO)]),
+        TokenBalances::from([(BASE_TOKEN_ID, U256::ZERO)]),
         0,
         B256::from_str(&code_hash).unwrap(),
         Bytecode::new_raw(code),

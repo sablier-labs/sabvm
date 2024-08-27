@@ -1,5 +1,5 @@
 use crate::{
-    b256, Balances, B256, BASE_TOKEN_ID, BLOB_GASPRICE_UPDATE_FRACTION, MIN_BLOB_GASPRICE,
+    b256, TokenBalances, B256, BASE_TOKEN_ID, BLOB_GASPRICE_UPDATE_FRACTION, MIN_BLOB_GASPRICE,
     TARGET_BLOB_GAS_PER_BLOCK,
 };
 pub use alloy_primitives::keccak256;
@@ -32,8 +32,8 @@ pub fn calc_blob_gasprice(excess_blob_gas: u64) -> u128 {
 }
 
 /// Creates a simple balances map with the given balance for the base token.
-pub fn init_balances(base_balance: U256) -> Balances {
-    let mut balances = Balances::new();
+pub fn init_balances(base_balance: U256) -> TokenBalances {
+    let mut balances = TokenBalances::new();
     balances.insert(BASE_TOKEN_ID, base_balance);
     balances
 }

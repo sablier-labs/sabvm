@@ -21,7 +21,7 @@ pub type EvmStorage = HashMap<U256, EvmStorageSlot>;
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Account {
-    /// Balances, nonce, and code.
+    /// TokenBalances, nonce, and code.
     pub info: AccountInfo,
     /// Storage cache
     pub storage: EvmStorage,
@@ -184,17 +184,14 @@ impl EvmStorageSlot {
     }
 }
 
-// TODO: create a custom type with a suggestive name for the (U256, U256) tuple. This will make
-/// the code more readable - especially in places where the tuple members are currently accessed
-/// via `.0` and `.1`.
-pub type Balances = HashMap<U256, U256>;
+pub type TokenBalances = HashMap<U256, U256>;
 
 /// The account information.
 #[derive(Clone, Debug, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AccountInfo {
     /// Token balances.
-    pub balances: Balances,
+    pub balances: TokenBalances,
     /// Account nonce.
     pub nonce: u64,
     /// code hash,
@@ -248,7 +245,7 @@ impl Hash for AccountInfo {
 }
 
 impl AccountInfo {
-    pub fn new(balances: Balances, nonce: u64, code_hash: B256, code: Bytecode) -> Self {
+    pub fn new(balances: TokenBalances, nonce: u64, code_hash: B256, code: Bytecode) -> Self {
         Self {
             balances,
             nonce,
@@ -379,8 +376,8 @@ impl AccountInfo {
     }
 }
 
-impl From<Balances> for AccountInfo {
-    fn from(balances: Balances) -> Self {
+impl From<TokenBalances> for AccountInfo {
+    fn from(balances: TokenBalances) -> Self {
         AccountInfo {
             balances,
             ..Default::default()

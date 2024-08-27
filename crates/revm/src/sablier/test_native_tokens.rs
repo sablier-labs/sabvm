@@ -2,8 +2,8 @@
 mod test {
     use crate::{
         primitives::{
-            address, bytes, keccak256, token_id_address, AccountInfo, Address, Balances, Bytecode,
-            Bytes, SpecId, TokenTransfer, TransactTo, B256, BASE_TOKEN_ID, U256,
+            address, bytes, keccak256, token_id_address, AccountInfo, Address, Bytecode, Bytes,
+            SpecId, TokenBalances, TokenTransfer, TransactTo, B256, BASE_TOKEN_ID, U256,
         },
         sablier::native_tokens::{ADDRESS as NATIVE_TOKENS_PRECOMPILE_ADDRESS, BALANCEOF_SELECTOR},
         Evm, InMemoryDB,
@@ -705,7 +705,7 @@ mod test {
                 db.insert_account_info(caller_eoa, caller_info);
 
                 let token_transferrer_mock_bytecode = &NAIVE_TOKEN_TRANSFERRER_MOCK_BYTECODE;
-                let mut balances: Balances = HashMap::new();
+                let mut balances: TokenBalances = HashMap::new();
                 for (token_id, balance) in token_ids
                     .iter()
                     .zip(token_transferrer_balances.iter())

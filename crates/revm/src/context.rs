@@ -201,10 +201,6 @@ impl<EXT, DB: Database> Host for Context<EXT, DB> {
     }
 
     fn burn(&mut self, burner: Address, sub_id: U256, token_holder: Address, amount: U256) -> bool {
-        if amount == U256::ZERO {
-            return false;
-        }
-
         self.evm.inner.journaled_state.burn(
             burner,
             sub_id,
@@ -214,7 +210,7 @@ impl<EXT, DB: Database> Host for Context<EXT, DB> {
         )
     }
     fn mint(&mut self, minter: Address, recipient: Address, sub_id: U256, amount: U256) -> bool {
-        // TODO: also return the generated Token Id from this function
+        // TODO: also return the generated Token Id from this function?
 
         if amount == U256::ZERO {
             return false;

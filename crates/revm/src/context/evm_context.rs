@@ -296,7 +296,7 @@ pub(crate) mod test_utils {
     use crate::{
         db::{CacheDB, EmptyDB},
         journaled_state::JournaledState,
-        primitives::{address, Address, Balances, SpecId, B256},
+        primitives::{address, Address, SpecId, TokenBalances, B256},
     };
 
     /// Mock caller address.
@@ -324,7 +324,7 @@ pub(crate) mod test_utils {
     pub fn create_cache_db_evm_context_with_balances(
         env: Box<Env>,
         mut db: CacheDB<EmptyDB>,
-        balances: Balances,
+        balances: TokenBalances,
     ) -> EvmContext<CacheDB<EmptyDB>> {
         db.insert_account_info(
             test_utils::MOCK_CALLER,
