@@ -88,7 +88,12 @@ impl<T: Transport + Clone, N: Network, P: Provider<T, N>> DatabaseRef for AlloyD
         let code_hash = code.hash_slow();
         let nonce = nonce?;
 
-        Ok(Some(AccountInfo::new(balance, nonce, code_hash, code)))
+        Ok(Some(AccountInfo::new(
+            TokenBalances::from([(BASE_TOKEN_ID, balance)]),
+            nonce,
+            code_hash,
+            code,
+        )))
     }
 
     fn block_hash_ref(&self, number: U256) -> Result<B256, Self::Error> {

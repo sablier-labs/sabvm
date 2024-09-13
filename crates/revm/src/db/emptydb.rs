@@ -3,7 +3,7 @@ use revm_interpreter::primitives::{
     db::{Database, DatabaseRef},
     keccak256, AccountInfo, Address, Bytecode, B256, U256,
 };
-use std::string::ToString;
+use std::{string::ToString, vec::Vec};
 
 /// An empty database that always returns default values when queried.
 pub type EmptyDB = EmptyDBTyped<Infallible>;
@@ -81,6 +81,15 @@ impl<E> Database for EmptyDBTyped<E> {
     fn block_hash(&mut self, number: U256) -> Result<B256, Self::Error> {
         <Self as DatabaseRef>::block_hash_ref(self, number)
     }
+
+    fn get_token_ids(&self) -> Result<Vec<U256>, Self::Error> {
+        <Self as DatabaseRef>::get_token_ids_ref(self)
+    }
+
+    #[inline]
+    fn is_token_id_valid(&self, token_id: U256) -> Result<bool, Self::Error> {
+        <Self as DatabaseRef>::is_token_id_valid_ref(self, token_id)
+    }
 }
 
 impl<E> DatabaseRef for EmptyDBTyped<E> {
@@ -104,6 +113,16 @@ impl<E> DatabaseRef for EmptyDBTyped<E> {
     #[inline]
     fn block_hash_ref(&self, number: U256) -> Result<B256, Self::Error> {
         Ok(keccak256(number.to_string().as_bytes()))
+    }
+
+    #[inline]
+    fn is_token_id_valid_ref(&self, _token_id: U256) -> Result<bool, Self::Error> {
+        Ok(false)
+    }
+
+    #[doc = r" Get the supported token ids"]
+    fn get_token_ids_ref(&self) -> Result<Vec<U256>, Self::Error> {
+        Ok(Vec::new())
     }
 }
 

@@ -1,5 +1,5 @@
 use crate::{
-    primitives::U256,
+    primitives::{ResultInfo, ResultOrNewCall, U256},
     utilities::{left_pad, left_pad_vec, right_pad_vec, right_pad_with_offset},
     Error, Precompile, PrecompileResult, PrecompileWithAddress,
 };
@@ -74,7 +74,10 @@ where
 
     // Handle a special case when both the base and mod length are zero.
     if base_len == 0 && mod_len == 0 {
-        return Ok((min_gas, Bytes::new()));
+        return Ok(ResultOrNewCall::Result(ResultInfo {
+            gas_used: min_gas,
+            returned_bytes: Bytes::new(),
+        }));
     }
 
     // Cast exponent length to usize, since it does not make sense to handle larger values.
@@ -113,7 +116,10 @@ where
     let output = modexp(base, exponent, modulus);
 
     // left pad the result to modulus length. bytes will always by less or equal to modulus length.
-    Ok((gas_cost, left_pad_vec(&output, mod_len).into_owned().into()))
+    Ok(ResultOrNewCall::Result(ResultInfo {
+        gas_used: gas_cost,
+        returned_bytes: left_pad_vec(&output, mod_len).into_owned().into(),
+    }))
 }
 
 pub fn byzantium_gas_calc(base_len: u64, exp_len: u64, mod_len: u64, exp_highp: &U256) -> u64 {
@@ -347,14 +353,26 @@ mod tests {
     fn test_byzantium_modexp_gas() {
         for (test, &test_gas) in TESTS.iter().zip(BYZANTIUM_GAS.iter()) {
             let input = hex::decode(test.input).unwrap().into();
-            let res = byzantium_run(&input, 100_000_000).unwrap();
+            let call_or_result_info = byzantium_run(&input, 100_000_000).unwrap();
             let expected = hex::decode(test.expected).unwrap();
-            assert_eq!(
-                res.0, test_gas,
-                "used gas not matching for test: {}",
-                test.name
-            );
-            assert_eq!(res.1, expected, "test:{}", test.name);
+
+            match call_or_result_info {
+                ResultOrNewCall::Result(used_gas_and_returned_bytes) => {
+                    assert_eq!(
+                        used_gas_and_returned_bytes.gas_used, test_gas,
+                        "used gas not matching for test: {}",
+                        test.name
+                    );
+                    assert_eq!(
+                        used_gas_and_returned_bytes.returned_bytes, expected,
+                        "test:{}",
+                        test.name
+                    );
+                }
+                ResultOrNewCall::Call(_) => {
+                    panic!("expected result but got call in test_alt_bn128_add")
+                }
+            }
         }
     }
 
@@ -362,21 +380,40 @@ mod tests {
     fn test_berlin_modexp_gas() {
         for (test, &test_gas) in TESTS.iter().zip(BERLIN_GAS.iter()) {
             let input = hex::decode(test.input).unwrap().into();
-            let res = berlin_run(&input, 100_000_000).unwrap();
+            let call_or_result_info = berlin_run(&input, 100_000_000).unwrap();
             let expected = hex::decode(test.expected).unwrap();
-            assert_eq!(
-                res.0, test_gas,
-                "used gas not matching for test: {}",
-                test.name
-            );
-            assert_eq!(res.1, expected, "test:{}", test.name);
+
+            match call_or_result_info {
+                ResultOrNewCall::Result(used_gas_and_returned_bytes) => {
+                    assert_eq!(
+                        used_gas_and_returned_bytes.gas_used, test_gas,
+                        "used gas not matching for test: {}",
+                        test.name
+                    );
+                    assert_eq!(
+                        used_gas_and_returned_bytes.returned_bytes, expected,
+                        "test:{}",
+                        test.name
+                    );
+                }
+                ResultOrNewCall::Call(_) => {
+                    panic!("expected result but got call in test_alt_bn128_add")
+                }
+            }
         }
     }
 
     #[test]
     fn test_berlin_modexp_empty_input() {
-        let res = berlin_run(&Bytes::new(), 100_000).unwrap();
+        let call_or_result_info = berlin_run(&Bytes::new(), 100_000).unwrap();
         let expected: Vec<u8> = Vec::new();
-        assert_eq!(res.1, expected)
+        match call_or_result_info {
+            ResultOrNewCall::Result(used_gas_and_returned_bytes) => {
+                assert_eq!(used_gas_and_returned_bytes.returned_bytes, expected)
+            }
+            ResultOrNewCall::Call(_) => {
+                panic!("expected result but got call in test_alt_bn128_add")
+            }
+        }
     }
 }

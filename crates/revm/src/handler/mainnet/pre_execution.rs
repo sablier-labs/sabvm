@@ -13,12 +13,32 @@ use crate::{
     Context, ContextPrecompiles,
 };
 
+#[cfg(feature = "std")]
+use crate::{
+    sablier::{native_tokens, native_tokens::NativeTokensContextPrecompile},
+    ContextPrecompile,
+};
+
+#[cfg(feature = "std")]
+use std::boxed::Box;
+
 /// Main precompile load
 #[inline]
 pub fn load_precompiles<SPEC: Spec, DB: Database>() -> ContextPrecompiles<DB> {
-    Precompiles::new(PrecompileSpecId::from_spec_id(SPEC::SPEC_ID))
-        .clone()
-        .into()
+    // Load the vanilla EVM precompiles.
+    let mut precompiles: ContextPrecompiles<DB> =
+        Precompiles::new(PrecompileSpecId::from_spec_id(SPEC::SPEC_ID))
+            .clone()
+            .into();
+
+    #[cfg(feature = "std")]
+    // Add the SabVM precompiles.
+    precompiles.extend([(
+        native_tokens::ADDRESS,
+        ContextPrecompile::ContextStatefulMut(Box::new(NativeTokensContextPrecompile {})),
+    )]);
+
+    precompiles
 }
 
 /// Main load handle
@@ -67,7 +87,9 @@ pub fn deduct_caller_inner<SPEC: Spec>(caller_account: &mut Account, env: &Env) 
     }
 
     // set new caller account balance.
-    caller_account.info.balance = caller_account.info.balance.saturating_sub(gas_cost);
+    caller_account
+        .info
+        .decrease_base_balance_saturating(gas_cost);
 
     // bump the nonce for calls. Nonce for CREATE will be bumped in `handle_create`.
     if matches!(env.tx.transact_to, TransactTo::Call(_)) {

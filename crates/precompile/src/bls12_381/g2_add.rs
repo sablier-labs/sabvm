@@ -3,7 +3,9 @@ use crate::{u64_to_address, PrecompileWithAddress};
 use blst::{
     blst_p2, blst_p2_add_or_double_affine, blst_p2_affine, blst_p2_from_affine, blst_p2_to_affine,
 };
-use revm_primitives::{Bytes, Precompile, PrecompileError, PrecompileResult};
+use revm_primitives::{
+    Bytes, Precompile, PrecompileError, PrecompileResult, ResultInfo, ResultOrNewCall,
+};
 
 /// [EIP-2537](https://eips.ethereum.org/EIPS/eip-2537#specification) BLS12_G2ADD precompile.
 pub const PRECOMPILE: PrecompileWithAddress =
@@ -53,5 +55,8 @@ pub(super) fn g2_add(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     unsafe { blst_p2_to_affine(&mut p_aff, &p) };
 
     let out = encode_g2_point(&p_aff);
-    Ok((BASE_GAS_FEE, out))
+    Ok(ResultOrNewCall::Result(ResultInfo {
+        gas_used: BASE_GAS_FEE,
+        returned_bytes: out,
+    }))
 }

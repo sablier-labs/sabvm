@@ -36,7 +36,7 @@ pub use interpreter::{
     EMPTY_SHARED_MEMORY, STACK_LIMIT,
 };
 pub use interpreter_action::{
-    CallInputs, CallOutcome, CallScheme, CallValue, CreateInputs, CreateOutcome, CreateScheme,
+    CallInputs, CallOutcome, CallScheme, CallValues, CreateInputs, CreateOutcome, CreateScheme,
     EOFCreateInput, EOFCreateOutcome, InterpreterAction,
 };
 pub use opcode::{Instruction, OpCode, OPCODE_INFO_JUMPTABLE};

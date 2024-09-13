@@ -9,10 +9,12 @@ use std::vec::Vec;
 
 pub fn balance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     pop_address!(interpreter, address);
-    let Some((balance, is_cold)) = host.balance(address) else {
+
+    let Some((balance, is_cold)) = host.base_balance(address) else {
         interpreter.instruction_result = InstructionResult::FatalExternalError;
         return;
     };
+
     gas!(
         interpreter,
         if SPEC::enabled(BERLIN) {
@@ -26,6 +28,7 @@ pub fn balance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host
             20
         }
     );
+
     push!(interpreter, balance);
 }
 
@@ -33,7 +36,7 @@ pub fn balance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host
 pub fn selfbalance<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &mut H) {
     check!(interpreter, ISTANBUL);
     gas!(interpreter, gas::LOW);
-    let Some((balance, _)) = host.balance(interpreter.contract.target_address) else {
+    let Some((balance, _)) = host.base_balance(interpreter.contract.target_address) else {
         interpreter.instruction_result = InstructionResult::FatalExternalError;
         return;
     };

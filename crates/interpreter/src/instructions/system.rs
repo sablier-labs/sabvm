@@ -1,6 +1,6 @@
 use crate::{
     gas,
-    primitives::{Spec, B256, KECCAK_EMPTY, U256},
+    primitives::{Spec, B256, BASE_TOKEN_ID, KECCAK_EMPTY, U256},
     Host, InstructionResult, Interpreter,
 };
 use core::ptr;
@@ -88,7 +88,15 @@ pub fn calldatasize<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut
 
 pub fn callvalue<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {
     gas!(interpreter, gas::BASE);
-    push!(interpreter, interpreter.contract.call_value);
+    push!(
+        interpreter,
+        interpreter
+            .contract
+            .call_values
+            .iter()
+            .find(|tt| tt.id == BASE_TOKEN_ID)
+            .map_or(U256::ZERO, |tt| tt.amount)
+    );
 }
 
 pub fn calldatacopy<H: Host + ?Sized>(interpreter: &mut Interpreter, _host: &mut H) {

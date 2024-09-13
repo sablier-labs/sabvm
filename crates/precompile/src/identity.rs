@@ -1,6 +1,6 @@
 use super::calc_linear_cost_u32;
 use crate::{Error, Precompile, PrecompileResult, PrecompileWithAddress};
-use revm_primitives::Bytes;
+use revm_primitives::{Bytes, ResultInfo, ResultOrNewCall};
 
 pub const FUN: PrecompileWithAddress =
     PrecompileWithAddress(crate::u64_to_address(4), Precompile::Standard(identity_run));
@@ -19,5 +19,8 @@ pub fn identity_run(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     if gas_used > gas_limit {
         return Err(Error::OutOfGas);
     }
-    Ok((gas_used, input.clone()))
+    Ok(ResultOrNewCall::Result(ResultInfo {
+        gas_used,
+        returned_bytes: input.clone(),
+    }))
 }

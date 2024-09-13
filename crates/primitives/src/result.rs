@@ -207,7 +207,7 @@ pub enum InvalidTransaction {
     CallGasCostMoreThanGasLimit,
     /// EIP-3607 Reject transactions from senders with deployed code
     RejectCallerWithCode,
-    /// Transaction account does not have enough amount of ether to cover transferred value and gas_limit*gas_price.
+    /// Transaction account doesn't have enough base token to cover the transferred value and gas_limit*gas_price.
     LackOfFundForMaxFee {
         fee: Box<U256>,
         balance: Box<U256>,
@@ -282,6 +282,18 @@ pub enum InvalidTransaction {
     /// case for failed deposit transactions.
     #[cfg(feature = "optimism")]
     HaltedDepositPostRegolith,
+    /// One of the token ids in the transaction is invalid.
+    InvalidTokenId {
+        token_id: Box<U256>,
+    },
+    /// Transaction account doesn't have enough token balance to cover the transferred value.
+    NotEnoughTokenBalanceForTransfer {
+        token_id: Box<U256>,
+        required_balance: Box<U256>,
+        actual_balance: Box<U256>,
+    },
+    /// Token IDs in transaction are not unique
+    TokenIdsNotUnique,
 }
 
 #[cfg(feature = "std")]
@@ -304,9 +316,6 @@ impl fmt::Display for InvalidTransaction {
             }
             Self::RejectCallerWithCode => {
                 write!(f, "reject transactions from senders with deployed code")
-            }
-            Self::LackOfFundForMaxFee { fee, balance } => {
-                write!(f, "lack of funds ({balance}) for max fee ({fee})")
             }
             Self::OverflowPaymentInTransaction => {
                 write!(f, "overflow payment in transaction")
@@ -355,6 +364,20 @@ impl fmt::Display for InvalidTransaction {
                     "deposit transaction halted post-regolith; error will be bubbled up to main return handler"
                 )
             }
+            Self::InvalidTokenId { token_id } => {
+                write!(f, "The token id {token_id} in the transaction is invalid")
+            }
+            Self::LackOfFundForMaxFee { fee, balance } => {
+                write!(f, "lack of funds ({balance}) for max fee ({fee})")
+            }
+            Self::NotEnoughTokenBalanceForTransfer {
+                token_id,
+                required_balance,
+                actual_balance,
+            } => {
+                write!(f, "The account balance {actual_balance} of token id {token_id} is not enough to cover the required {required_balance}")
+            }
+            Self::TokenIdsNotUnique => write!(f, "The ids of the submitted tokens are not unique"),
         }
     }
 }
@@ -423,6 +446,9 @@ pub enum HaltReason {
     /* Optimism errors */
     #[cfg(feature = "optimism")]
     FailedDeposit,
+
+    /* Sablier errors */
+    UnauthorizedCaller,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]

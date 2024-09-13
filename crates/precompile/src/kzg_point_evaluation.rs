@@ -1,6 +1,6 @@
 use crate::{Address, Error, Precompile, PrecompileResult, PrecompileWithAddress};
 use c_kzg::{Bytes32, Bytes48, KzgProof, KzgSettings};
-use revm_primitives::{hex_literal::hex, Bytes, Env};
+use revm_primitives::{hex_literal::hex, Bytes, Env, ResultInfo, ResultOrNewCall};
 use sha2::{Digest, Sha256};
 
 pub const POINT_EVALUATION: PrecompileWithAddress =
@@ -51,7 +51,10 @@ pub fn run(input: &Bytes, gas_limit: u64, env: &Env) -> PrecompileResult {
     }
 
     // Return FIELD_ELEMENTS_PER_BLOB and BLS_MODULUS as padded 32 byte big endian values
-    Ok((GAS_COST, RETURN_VALUE.into()))
+    Ok(ResultOrNewCall::Result(ResultInfo {
+        gas_used: GAS_COST,
+        returned_bytes: RETURN_VALUE.into(),
+    }))
 }
 
 /// `VERSIONED_HASH_VERSION_KZG ++ sha256(commitment)[1..]`
@@ -113,8 +116,16 @@ mod tests {
         let expected_output = hex!("000000000000000000000000000000000000000000000000000000000000100073eda753299d7d483339d80809a1d80553bda402fffe5bfeffffffff00000001");
         let gas = 50000;
         let env = Env::default();
-        let (actual_gas, actual_output) = run(&input.into(), gas, &env).unwrap();
-        assert_eq!(actual_gas, gas);
-        assert_eq!(actual_output[..], expected_output);
+        let call_or_result_info = run(&input.into(), gas, &env).unwrap();
+        match call_or_result_info {
+            ResultOrNewCall::Result(ResultInfo {
+                gas_used,
+                returned_bytes,
+            }) => {
+                assert_eq!(gas_used, gas);
+                assert_eq!(returned_bytes[..], expected_output);
+            }
+            _ => panic!("Expected result"),
+        }
     }
 }

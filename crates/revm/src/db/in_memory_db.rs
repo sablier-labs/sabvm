@@ -1,7 +1,7 @@
 use super::{DatabaseCommit, DatabaseRef, EmptyDB};
 use crate::primitives::{
-    hash_map::Entry, Account, AccountInfo, Address, Bytecode, HashMap, Log, B256, KECCAK_EMPTY,
-    U256,
+    hash_map::Entry, state::EvmState, utilities::init_balances, AccountInfo, Address, Bytecode,
+    HashMap, Log, B256, BASE_TOKEN_ID, KECCAK_EMPTY, U256,
 };
 use crate::Database;
 use core::convert::Infallible;
@@ -33,6 +33,8 @@ pub struct CacheDB<ExtDB> {
     ///
     /// Note: this is read-only, data is never written to this database.
     pub db: ExtDB,
+    /// The ids of all tokens minted in the VM
+    pub token_ids: Vec<U256>,
 }
 
 impl<ExtDB: Default> Default for CacheDB<ExtDB> {
@@ -52,6 +54,7 @@ impl<ExtDB> CacheDB<ExtDB> {
             logs: Vec::default(),
             block_hashes: HashMap::new(),
             db,
+            token_ids: vec![BASE_TOKEN_ID],
         }
     }
 
@@ -128,8 +131,8 @@ impl<ExtDB: DatabaseRef> CacheDB<ExtDB> {
 }
 
 impl<ExtDB> DatabaseCommit for CacheDB<ExtDB> {
-    fn commit(&mut self, changes: HashMap<Address, Account>) {
-        for (address, mut account) in changes {
+    fn commit(&mut self, changes: EvmState) {
+        for (address, mut account) in changes.accounts {
             if !account.is_touched() {
                 continue;
             }
@@ -162,6 +165,7 @@ impl<ExtDB> DatabaseCommit for CacheDB<ExtDB> {
                     .map(|(key, value)| (key, value.present_value())),
             );
         }
+        self.token_ids = changes.token_ids;
     }
 }
 
@@ -244,6 +248,14 @@ impl<ExtDB: DatabaseRef> Database for CacheDB<ExtDB> {
             }
         }
     }
+
+    fn get_token_ids(&self) -> Result<Vec<U256>, Self::Error> {
+        Ok(self.token_ids.clone())
+    }
+
+    fn is_token_id_valid(&self, token_id: U256) -> Result<bool, Self::Error> {
+        Ok(self.token_ids.contains(&token_id))
+    }
 }
 
 impl<ExtDB: DatabaseRef> DatabaseRef for CacheDB<ExtDB> {
@@ -287,6 +299,14 @@ impl<ExtDB: DatabaseRef> DatabaseRef for CacheDB<ExtDB> {
             Some(entry) => Ok(*entry),
             None => self.db.block_hash_ref(number),
         }
+    }
+
+    fn get_token_ids_ref(&self) -> Result<Vec<U256>, Self::Error> {
+        self.db.get_token_ids_ref()
+    }
+
+    fn is_token_id_valid_ref(&self, token_id: U256) -> Result<bool, Self::Error> {
+        self.db.is_token_id_valid_ref(token_id)
     }
 }
 
@@ -376,7 +396,7 @@ impl Database for BenchmarkDB {
         if address == Address::ZERO {
             return Ok(Some(AccountInfo {
                 nonce: 1,
-                balance: U256::from(10000000),
+                balances: init_balances(U256::from(10000000)),
                 code: Some(self.0.clone()),
                 code_hash: self.1,
             }));
@@ -384,7 +404,7 @@ impl Database for BenchmarkDB {
         if address == Address::with_last_byte(1) {
             return Ok(Some(AccountInfo {
                 nonce: 0,
-                balance: U256::from(10000000),
+                balances: init_balances(U256::from(10000000)),
                 code: None,
                 code_hash: KECCAK_EMPTY,
             }));
@@ -405,6 +425,16 @@ impl Database for BenchmarkDB {
     // History related
     fn block_hash(&mut self, _number: U256) -> Result<B256, Self::Error> {
         Ok(B256::default())
+    }
+
+    // Get the supported token ids
+    fn get_token_ids(&self) -> Result<Vec<U256>, Self::Error> {
+        Ok(vec![BASE_TOKEN_ID])
+    }
+
+    // Check if token id is valid
+    fn is_token_id_valid(&self, _token_id: U256) -> Result<bool, Self::Error> {
+        Ok(false)
     }
 }
 

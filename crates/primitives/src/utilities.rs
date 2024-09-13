@@ -1,7 +1,9 @@
 use crate::{
-    b256, B256, BLOB_GASPRICE_UPDATE_FRACTION, MIN_BLOB_GASPRICE, TARGET_BLOB_GAS_PER_BLOCK,
+    b256, TokenBalances, B256, BASE_TOKEN_ID, BLOB_GASPRICE_UPDATE_FRACTION, MIN_BLOB_GASPRICE,
+    TARGET_BLOB_GAS_PER_BLOCK,
 };
 pub use alloy_primitives::keccak256;
+use alloy_primitives::{Address, U256};
 
 /// The Keccak-256 hash of the empty string `""`.
 pub const KECCAK_EMPTY: B256 =
@@ -27,6 +29,13 @@ pub fn calc_blob_gasprice(excess_blob_gas: u64) -> u128 {
         excess_blob_gas,
         BLOB_GASPRICE_UPDATE_FRACTION,
     )
+}
+
+/// Creates a simple balances map with the given balance for the base token.
+pub fn init_balances(base_balance: U256) -> TokenBalances {
+    let mut balances = TokenBalances::new();
+    balances.insert(BASE_TOKEN_ID, base_balance);
+    balances
 }
 
 /// Approximates `factor * e ** (numerator / denominator)` using Taylor expansion.
@@ -57,6 +66,14 @@ pub fn fake_exponential(factor: u64, numerator: u64, denominator: u64) -> u128 {
         i += 1;
     }
     output / denominator
+}
+
+/// Returns the token ID by hashing the address and sub ID.
+pub fn token_id_address(address: Address, sub_id: U256) -> U256 {
+    let first = &address[..];
+    let second_bytes = B256::from(sub_id);
+    let second = &second_bytes[..];
+    keccak256([first, second].concat()).into()
 }
 
 #[cfg(test)]
@@ -166,5 +183,79 @@ mod tests {
             let actual = fake_exponential(factor, numerator, denominator);
             assert_eq!(actual, expected, "test: {t:?}");
         }
+    }
+}
+
+#[cfg(feature = "std")]
+pub mod bytes_parsing {
+    use crate::{Address, U256};
+
+    use alloy_primitives::{Bytes, FixedBytes};
+    use std::{mem::size_of, vec::Vec};
+
+    #[derive(Debug)]
+    pub enum BytesParsingError {
+        InvalidInput,
+    }
+
+    impl std::error::Error for BytesParsingError {}
+
+    impl std::fmt::Display for BytesParsingError {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            match self {
+                BytesParsingError::InvalidInput => write!(f, "Invalid input"),
+            }
+        }
+    }
+
+    pub fn consume_bytes_from(
+        input: &mut Bytes,
+        no_bytes: usize,
+    ) -> Result<Vec<u8>, BytesParsingError> {
+        if input.len() < no_bytes {
+            return Err(BytesParsingError::InvalidInput);
+        }
+        Ok(input.split_to(no_bytes).to_vec())
+    }
+
+    pub fn consume_u8_from(input: &mut Bytes) -> Result<u8, BytesParsingError> {
+        const U8_LEN: usize = size_of::<u8>();
+        let bytes = consume_bytes_from(input, U8_LEN)?;
+        Ok(u8::from_be_bytes(bytes.try_into().unwrap()))
+    }
+
+    pub fn consume_u16_from(input: &mut Bytes) -> Result<u16, BytesParsingError> {
+        const U16_LEN: usize = size_of::<u16>();
+        let bytes = consume_bytes_from(input, U16_LEN)?;
+        Ok(u16::from_be_bytes(bytes.try_into().unwrap()))
+    }
+
+    pub fn consume_u32_from(input: &mut Bytes) -> Result<u32, BytesParsingError> {
+        const U32_LEN: usize = size_of::<u32>();
+        let bytes = consume_bytes_from(input, U32_LEN)?;
+        Ok(u32::from_be_bytes(bytes.try_into().unwrap()))
+    }
+
+    pub fn consume_u256_from(input: &mut Bytes) -> Result<U256, BytesParsingError> {
+        const U256_LEN: usize = U256::BYTES;
+        let bytes = consume_bytes_from(input, U256_LEN)?;
+        Ok(U256::from_be_bytes::<U256_LEN>(bytes.try_into().unwrap()))
+    }
+
+    pub fn consume_usize_from(input: &mut Bytes) -> Result<usize, BytesParsingError> {
+        const USIZE_LEN: usize = size_of::<usize>();
+        let bytes = consume_bytes_from(input, USIZE_LEN)?;
+        Ok(usize::from_be_bytes(bytes.try_into().unwrap()))
+    }
+
+    pub fn consume_address_from(input: &mut Bytes) -> Result<Address, BytesParsingError> {
+        let word = consume_word_from(input)?;
+        Ok(Address::from_word(word))
+    }
+
+    pub fn consume_word_from(input: &mut Bytes) -> Result<FixedBytes<32>, BytesParsingError> {
+        const WORD_LEN: usize = U256::BYTES;
+        let bytes = consume_bytes_from(input, WORD_LEN)?;
+        Ok(FixedBytes::from_slice(bytes.as_slice()))
     }
 }

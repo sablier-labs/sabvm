@@ -4,7 +4,9 @@ use super::{
 };
 use crate::{u64_to_address, PrecompileWithAddress};
 use blst::{blst_p1, blst_p1_affine, blst_p1_from_affine, blst_p1_mult, blst_p1_to_affine};
-use revm_primitives::{Bytes, Precompile, PrecompileError, PrecompileResult};
+use revm_primitives::{
+    Bytes, Precompile, PrecompileError, PrecompileResult, ResultInfo, ResultOrNewCall,
+};
 
 /// [EIP-2537](https://eips.ethereum.org/EIPS/eip-2537#specification) BLS12_G1MUL precompile.
 pub const PRECOMPILE: PrecompileWithAddress =
@@ -55,5 +57,8 @@ pub(super) fn g1_mul(input: &Bytes, gas_limit: u64) -> PrecompileResult {
     unsafe { blst_p1_to_affine(&mut p_aff, &p) };
 
     let out = encode_g1_point(&p_aff);
-    Ok((BASE_GAS_FEE, out))
+    Ok(ResultOrNewCall::Result(ResultInfo {
+        gas_used: BASE_GAS_FEE,
+        returned_bytes: out,
+    }))
 }

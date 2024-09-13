@@ -5,12 +5,13 @@ pub mod state;
 pub use block_hash::{BlockHash, BlockHashRef};
 pub use state::{State, StateRef};
 
+use super::DatabaseCommit;
 use crate::{
     db::{Database, DatabaseRef},
-    Account, AccountInfo, Address, Bytecode, HashMap, B256, U256,
+    state::EvmState,
+    AccountInfo, Address, Bytecode, B256, U256,
 };
-
-use super::DatabaseCommit;
+use std::vec::Vec;
 
 #[derive(Debug)]
 pub struct DatabaseComponents<S, BH> {
@@ -48,6 +49,16 @@ impl<S: State, BH: BlockHash> Database for DatabaseComponents<S, BH> {
             .block_hash(number)
             .map_err(Self::Error::BlockHash)
     }
+
+    fn get_token_ids(&self) -> Result<Vec<U256>, Self::Error> {
+        self.state.get_token_ids().map_err(Self::Error::State)
+    }
+
+    fn is_token_id_valid(&self, token_id: U256) -> Result<bool, Self::Error> {
+        self.state
+            .is_token_id_valid(token_id)
+            .map_err(Self::Error::State)
+    }
 }
 
 impl<S: StateRef, BH: BlockHashRef> DatabaseRef for DatabaseComponents<S, BH> {
@@ -74,10 +85,20 @@ impl<S: StateRef, BH: BlockHashRef> DatabaseRef for DatabaseComponents<S, BH> {
             .block_hash(number)
             .map_err(Self::Error::BlockHash)
     }
+
+    fn is_token_id_valid_ref(&self, token_id: U256) -> Result<bool, Self::Error> {
+        self.state
+            .is_token_id_valid(token_id)
+            .map_err(Self::Error::State)
+    }
+
+    fn get_token_ids_ref(&self) -> Result<Vec<U256>, Self::Error> {
+        self.state.get_token_ids().map_err(Self::Error::State)
+    }
 }
 
 impl<S: DatabaseCommit, BH: BlockHashRef> DatabaseCommit for DatabaseComponents<S, BH> {
-    fn commit(&mut self, changes: HashMap<Address, Account>) {
+    fn commit(&mut self, changes: EvmState) {
         self.state.commit(changes);
     }
 }

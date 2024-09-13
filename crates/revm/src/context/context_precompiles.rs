@@ -4,6 +4,7 @@ use crate::{
 };
 use core::ops::{Deref, DerefMut};
 use dyn_clone::DynClone;
+use revm_interpreter::CallInputs;
 use revm_precompile::Precompiles;
 use std::{boxed::Box, sync::Arc};
 
@@ -59,16 +60,16 @@ impl<DB: Database> ContextPrecompiles<DB> {
     #[inline]
     pub fn call(
         &mut self,
-        addess: Address,
-        bytes: &Bytes,
+        inputs: &CallInputs,
         gas_price: u64,
         evmctx: &mut InnerEvmContext<DB>,
     ) -> Option<PrecompileResult> {
-        let precompile = self.inner.get_mut(&addess)?;
+        let precompile = self.inner.get_mut(&inputs.bytecode_address)?;
+        let bytes = &inputs.input;
 
         match precompile {
             ContextPrecompile::Ordinary(p) => Some(p.call(bytes, gas_price, &evmctx.env)),
-            ContextPrecompile::ContextStatefulMut(p) => Some(p.call_mut(bytes, gas_price, evmctx)),
+            ContextPrecompile::ContextStatefulMut(p) => Some(p.call_mut(inputs, gas_price, evmctx)),
             ContextPrecompile::ContextStateful(p) => Some(p.call(bytes, gas_price, evmctx)),
         }
     }
@@ -112,7 +113,7 @@ pub trait ContextStatefulPrecompile<DB: Database>: Sync + Send {
 pub trait ContextStatefulPrecompileMut<DB: Database>: DynClone + Send + Sync {
     fn call_mut(
         &mut self,
-        bytes: &Bytes,
+        inputs: &CallInputs,
         gas_price: u64,
         evmctx: &mut InnerEvmContext<DB>,
     ) -> PrecompileResult;

@@ -10,11 +10,11 @@ use crate::{
         keccak256, Account, Address, AnalysisKind, Bytecode, Bytes, CreateScheme, EVMError, Env,
         Eof, HashSet, Spec,
         SpecId::{self, *},
-        B256, U256,
+        TokenTransfer, B256, BASE_TOKEN_ID, U256,
     },
     FrameOrResult, JournalCheckpoint, CALL_STACK_LIMIT,
 };
-use std::boxed::Box;
+use std::{boxed::Box, vec};
 
 /// EVM contexts contains data that EVM needs for execution.
 #[derive(Debug)]
@@ -152,12 +152,15 @@ impl<DB: Database> InnerEvmContext<DB> {
             .load_account_exist(address, &mut self.db)
     }
 
-    /// Return account balance and is_cold flag.
-    #[inline]
-    pub fn balance(&mut self, address: Address) -> Result<(U256, bool), EVMError<DB::Error>> {
+    /// Return the base token balance and the is_cold flag of the account.
+    pub fn balance(
+        &mut self,
+        token_id: U256,
+        address: Address,
+    ) -> Result<(U256, bool), EVMError<DB::Error>> {
         self.journaled_state
             .load_account(address, &mut self.db)
-            .map(|(acc, is_cold)| (acc.info.balance, is_cold))
+            .map(|(acc, is_cold)| (acc.info.get_balance(token_id), is_cold))
     }
 
     /// Return account code and if address is cold loaded.
@@ -249,7 +252,7 @@ impl<DB: Database> InnerEvmContext<DB> {
         }
 
         // Fetch balance of caller.
-        let (caller_balance, _) = self.balance(inputs.caller)?;
+        let (caller_balance, _) = self.base_balance(inputs.caller)?;
 
         // Check if caller has enough balance to send to the created contract.
         if caller_balance < inputs.value {
@@ -286,7 +289,12 @@ impl<DB: Database> InnerEvmContext<DB> {
             None,
             inputs.created_address,
             inputs.caller,
-            inputs.value,
+            vec![
+                (TokenTransfer {
+                    id: BASE_TOKEN_ID,
+                    amount: inputs.value,
+                }),
+            ],
         );
 
         let mut interpreter = Interpreter::new(contract, inputs.gas_limit, false);
@@ -359,7 +367,7 @@ impl<DB: Database> InnerEvmContext<DB> {
         }
 
         // Fetch balance of caller.
-        let (caller_balance, _) = self.balance(inputs.caller)?;
+        let (caller_balance, _) = self.base_balance(inputs.caller)?;
 
         // Check if caller has enough balance to send to the created contract.
         if caller_balance < inputs.value {
@@ -403,13 +411,19 @@ impl<DB: Database> InnerEvmContext<DB> {
 
         let bytecode = Bytecode::new_raw(inputs.init_code.clone());
 
+        // TODO: adapt for MNTs when the contract deployment is permissionless
         let contract = Contract::new(
             Bytes::new(),
             bytecode,
             Some(init_code_hash),
             created_address,
             inputs.caller,
-            inputs.value,
+            vec![
+                (TokenTransfer {
+                    id: BASE_TOKEN_ID,
+                    amount: inputs.value,
+                }),
+            ],
         );
 
         Ok(FrameOrResult::new_create_frame(
@@ -503,5 +517,13 @@ impl<DB: Database> InnerEvmContext<DB> {
         self.journaled_state.set_code(address, bytecode);
 
         interpreter_result.result = InstructionResult::Return;
+    }
+
+    /// Return account balance and is_cold flag.
+    #[inline]
+    pub fn base_balance(&mut self, address: Address) -> Result<(U256, bool), EVMError<DB::Error>> {
+        self.journaled_state
+            .load_account(address, &mut self.db)
+            .map(|(acc, is_cold)| (acc.info.get_base_balance(), is_cold))
     }
 }

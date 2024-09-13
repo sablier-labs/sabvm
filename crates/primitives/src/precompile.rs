@@ -1,12 +1,34 @@
-use crate::{Bytes, Env};
+use crate::{Address, Bytes, Env, TokenTransfer};
 use core::fmt;
 use dyn_clone::DynClone;
-use std::{boxed::Box, string::String, sync::Arc};
+use std::{boxed::Box, string::String, sync::Arc, vec::Vec};
 
 /// A precompile operation result.
 ///
-/// Returns either `Ok((gas_used, return_bytes))` or `Err(error)`.
-pub type PrecompileResult = Result<(u64, Bytes), PrecompileError>;
+/// Returns either `Ok((gas_used, returned_bytes))` or `Err(error)`.
+pub type PrecompileResult = Result<ResultOrNewCall, PrecompileError>;
+
+/// Contains either a Precompile Result or the CallInputs for an inner call.
+#[derive(Debug)]
+pub enum ResultOrNewCall {
+    Result(ResultInfo),
+    Call(PrimitiveCallInfo),
+}
+
+/// Contains the information required to make a new call.
+#[derive(Debug)]
+pub struct PrimitiveCallInfo {
+    pub target_address: Address,
+    pub token_transfers: Vec<TokenTransfer>,
+    pub input_data: Bytes,
+}
+
+/// Contains the information about the result of a precompile operation.
+#[derive(Debug)]
+pub struct ResultInfo {
+    pub gas_used: u64,
+    pub returned_bytes: Bytes,
+}
 
 pub type StandardPrecompileFn = fn(&Bytes, u64) -> PrecompileResult;
 pub type EnvPrecompileFn = fn(&Bytes, u64, env: &Env) -> PrecompileResult;
@@ -125,6 +147,12 @@ pub enum PrecompileError {
     BlobMismatchedVersion,
     /// The proof verification failed.
     BlobVerifyKzgProofFailed,
+    // The submitted input is invalid.
+    InvalidInput,
+    // The caller is not authorized to call the Precompile.
+    UnauthorizedCaller,
+    // The state change is not allowed during a static call.
+    AttemptedStateChangeDuringStaticCall,
     /// Catch-all variant for other errors.
     Other(String),
 }
@@ -153,6 +181,11 @@ impl fmt::Display for PrecompileError {
             Self::BlobInvalidInputLength => "invalid blob input length",
             Self::BlobMismatchedVersion => "mismatched blob version",
             Self::BlobVerifyKzgProofFailed => "verifying blob kzg proof failed",
+            Self::InvalidInput => "invalid input to the precompile",
+            Self::UnauthorizedCaller => "unauthorized caller for the precompile",
+            Self::AttemptedStateChangeDuringStaticCall => {
+                "attempted changing the state during a static call"
+            }
             Self::Other(s) => s,
         };
         f.write_str(s)

@@ -4,7 +4,9 @@ use super::{
 };
 use crate::{u64_to_address, PrecompileWithAddress};
 use blst::{blst_final_exp, blst_fp12, blst_fp12_is_one, blst_fp12_mul, blst_miller_loop};
-use revm_primitives::{Bytes, Precompile, PrecompileError, PrecompileResult, B256};
+use revm_primitives::{
+    Bytes, Precompile, PrecompileError, PrecompileResult, ResultInfo, ResultOrNewCall, B256,
+};
 
 /// [EIP-2537](https://eips.ethereum.org/EIPS/eip-2537#specification) BLS12_PAIRING precompile.
 pub const PRECOMPILE: PrecompileWithAddress =
@@ -24,6 +26,7 @@ const INPUT_LENGTH: usize = 384;
 /// following structure:
 ///    * 128 bytes of G1 point encoding
 ///    * 256 bytes of G2 point encoding
+///
 /// Each point is expected to be in the subgroup of order q.
 /// Output is a 32 bytes where first 31 bytes are equal to 0x00 and the last byte
 /// is 0x01 if pairing result is equal to the multiplicative identity in a pairing
@@ -98,5 +101,8 @@ pub(super) fn pairing(input: &Bytes, gas_limit: u64) -> PrecompileResult {
             result = 1;
         }
     }
-    Ok((required_gas, B256::with_last_byte(result).into()))
+    Ok(ResultOrNewCall::Result(ResultInfo {
+        gas_used: required_gas,
+        returned_bytes: B256::with_last_byte(result).into(),
+    }))
 }

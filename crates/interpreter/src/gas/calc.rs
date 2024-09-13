@@ -1,3 +1,5 @@
+use revm_primitives::TokenTransfer;
+
 use super::constants::*;
 use crate::{
     num_words,
@@ -288,7 +290,7 @@ pub const fn selfdestruct_cost(spec_id: SpecId, res: SelfDestructResult) -> u64 
 /// * Account access gas. after berlin it can be cold or warm.
 /// * Transfer value gas. If value is transferred and balance of target account is updated.
 /// * If account is not existing and needs to be created. After Spurious dragon
-/// this is only accounted if value is transferred.
+///   this is only accounted if value is transferred.
 #[inline]
 pub const fn call_cost(
     spec_id: SpecId,
@@ -358,6 +360,7 @@ pub fn validate_initial_tx_gas(
     input: &[u8],
     is_create: bool,
     access_list: &[(Address, Vec<U256>)],
+    _transferred_tokens: &[TokenTransfer],
 ) -> u64 {
     let mut initial_gas = 0;
     let zero_data_len = input.iter().filter(|v| **v == 0).count() as u64;
@@ -399,6 +402,12 @@ pub fn validate_initial_tx_gas(
     if spec_id.is_enabled_in(SpecId::SHANGHAI) && is_create {
         initial_gas += initcode_cost(input.len() as u64)
     }
+
+    //DEV: The following code leads to SabVM failing a part of Ethereum Tests. To remain compatible with them for as long as possible, only uncomment it right before the Genesis launch.
+    // gas cost of transferring the Native Tokens
+    // if !transferred_tokens.is_empty() {
+    //     initial_gas += transferred_tokens.len() as u64 * TRANSFERRED_TOKEN;
+    // }
 
     initial_gas
 }

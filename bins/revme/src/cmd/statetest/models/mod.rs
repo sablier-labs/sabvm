@@ -58,6 +58,7 @@ pub struct TxPartIndices {
 #[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct AccountInfo {
+    /// Not a balances mapping because it has to remain compatible with the upstream Ethereum tests
     pub balance: U256,
     pub code: Bytes,
     #[serde(deserialize_with = "deserialize_str_as_u64")]

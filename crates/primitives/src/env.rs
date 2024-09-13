@@ -1,11 +1,12 @@
 pub mod handler_cfg;
 
 pub use handler_cfg::{CfgEnvWithHandlerCfg, EnvWithHandlerCfg, HandlerCfg};
+use hashbrown::HashSet;
 
 use crate::{
     calc_blob_gasprice, Account, Address, Bytes, InvalidHeader, InvalidTransaction, Spec, SpecId,
-    B256, GAS_PER_BLOB, KECCAK_EMPTY, MAX_BLOB_NUMBER_PER_BLOCK, MAX_INITCODE_SIZE, U256,
-    VERSIONED_HASH_VERSION_KZG,
+    B256, BASE_TOKEN_ID, GAS_PER_BLOB, KECCAK_EMPTY, MAX_BLOB_NUMBER_PER_BLOCK, MAX_INITCODE_SIZE,
+    U256, VERSIONED_HASH_VERSION_KZG,
 };
 use core::cmp::{min, Ordering};
 use core::hash::Hash;
@@ -189,6 +190,17 @@ impl Env {
             }
         }
 
+        if !self.tx.transferred_tokens.is_empty() {
+            let slice: &[TokenTransfer] = &self.tx.transferred_tokens;
+
+            // Check that the submitted token ids are unique
+            let unique_ids: HashSet<&U256> = slice.iter().map(|token| &token.id).collect();
+
+            if unique_ids.len() != slice.len() {
+                return Err(InvalidTransaction::TokenIdsNotUnique);
+            }
+        }
+
         Ok(())
     }
 
@@ -219,29 +231,53 @@ impl Env {
             }
         }
 
-        let mut balance_check = U256::from(self.tx.gas_limit)
+        let mut required_base_balance = U256::from(self.tx.gas_limit)
             .checked_mul(self.tx.gas_price)
-            .and_then(|gas_cost| gas_cost.checked_add(self.tx.value))
+            .and_then(|gas_cost| gas_cost.checked_add(self.tx.get_base_transfer_value()))
             .ok_or(InvalidTransaction::OverflowPaymentInTransaction)?;
 
         if SPEC::enabled(SpecId::CANCUN) {
             // if the tx is not a blob tx, this will be None, so we add zero
             let data_fee = self.calc_max_data_fee().unwrap_or_default();
-            balance_check = balance_check
+            required_base_balance = required_base_balance
                 .checked_add(U256::from(data_fee))
                 .ok_or(InvalidTransaction::OverflowPaymentInTransaction)?;
         }
 
-        // Check if account has enough balance for gas_limit*gas_price and value transfer.
+        // Check if the account has enough base balance for gas_limit*gas_price and value transfer.
         // Transfer will be done inside `*_inner` functions.
-        if balance_check > account.info.balance {
+        let base_token_balance = account.info.get_base_balance();
+        if required_base_balance > base_token_balance {
             if self.cfg.is_balance_check_disabled() {
                 // Add transaction cost to balance to ensure execution doesn't fail.
-                account.info.balance = balance_check;
+                account.info.set_base_balance(required_base_balance);
             } else {
                 return Err(InvalidTransaction::LackOfFundForMaxFee {
-                    fee: Box::new(balance_check),
-                    balance: Box::new(account.info.balance),
+                    fee: Box::new(required_base_balance),
+                    balance: Box::new(base_token_balance),
+                });
+            }
+        }
+
+        // If other native tokens are being transferred in the tx, then, for each of the tokens,
+        // check that the account has a balance big enough to cover the transfer amount
+        if !self.tx.transferred_tokens.is_empty() {
+            for transferred_token in self
+                .tx
+                .transferred_tokens
+                .iter()
+                .filter(|token| token.id != BASE_TOKEN_ID)
+            {
+                let (token_id, transfer_amount) = (transferred_token.id, transferred_token.amount);
+                let token_balance = account.info.get_balance(token_id);
+                if token_balance >= transfer_amount {
+                    continue;
+                }
+
+                return Err(InvalidTransaction::NotEnoughTokenBalanceForTransfer {
+                    token_id: Box::new(token_id),
+                    required_balance: Box::new(transfer_amount),
+                    actual_balance: Box::new(token_balance),
                 });
             }
         }
@@ -376,7 +412,7 @@ impl CfgEnv {
 impl Default for CfgEnv {
     fn default() -> Self {
         Self {
-            chain_id: 706, // sum of the ASCII values for "Sablier"
+            chain_id: 706, // sum of the ASCII values for the characters in the string "Sablier"
             perf_analyse_created_bytecodes: AnalysisKind::default(),
             limit_contract_code_size: None,
             #[cfg(feature = "c-kzg")]
@@ -438,6 +474,8 @@ pub struct BlockEnv {
     ///
     /// [EIP-4844]: https://eips.ethereum.org/EIPS/eip-4844
     pub blob_excess_gas_and_price: Option<BlobExcessGasAndPrice>,
+    /// The list of tokens transferred in the transaction.
+    pub transferred_tokens: Vec<TokenTransfer>,
 }
 
 impl BlockEnv {
@@ -488,6 +526,7 @@ impl Default for BlockEnv {
             difficulty: U256::ZERO,
             prevrandao: Some(B256::ZERO),
             blob_excess_gas_and_price: Some(BlobExcessGasAndPrice::new(0)),
+            transferred_tokens: Vec::new(),
         }
     }
 }
@@ -504,8 +543,6 @@ pub struct TxEnv {
     pub gas_price: U256,
     /// The destination of the transaction.
     pub transact_to: TransactTo,
-    /// The value sent to `transact_to`.
-    pub value: U256,
     /// The data of the transaction.
     pub data: Bytes,
     /// The nonce of the transaction.
@@ -553,6 +590,9 @@ pub struct TxEnv {
     #[cfg(feature = "optimism")]
     /// Optimism fields.
     pub optimism: OptimismFields,
+
+    /// The list of tokens transferred in the transaction.
+    pub transferred_tokens: Vec<TokenTransfer>,
 }
 
 pub enum TxType {
@@ -576,6 +616,22 @@ impl TxEnv {
     pub fn clear(&mut self) {
         *self = Self::default();
     }
+
+    pub fn get_base_transfer_value(&self) -> U256 {
+        if self.transferred_tokens.is_empty() {
+            return Default::default();
+        }
+
+        if let Some(token) = self
+            .transferred_tokens
+            .iter()
+            .find(|token| token.id == BASE_TOKEN_ID)
+        {
+            return token.amount;
+        }
+
+        Default::default()
+    }
 }
 
 impl Default for TxEnv {
@@ -586,7 +642,6 @@ impl Default for TxEnv {
             gas_price: U256::ZERO,
             gas_priority_fee: None,
             transact_to: TransactTo::Call(Address::ZERO), // will do nothing
-            value: U256::ZERO,
             data: Bytes::new(),
             chain_id: None,
             nonce: None,
@@ -595,6 +650,7 @@ impl Default for TxEnv {
             max_fee_per_blob_gas: None,
             #[cfg(feature = "optimism")]
             optimism: OptimismFields::default(),
+            transferred_tokens: Vec::new(),
         }
     }
 }
@@ -740,5 +796,25 @@ mod tests {
             env.validate_tx::<crate::FrontierSpec>(),
             Err(InvalidTransaction::AccessListNotSupported)
         );
+    }
+}
+
+/// The information about a token transfer.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct TokenTransfer {
+    pub id: U256,
+    pub amount: U256,
+}
+
+impl Ord for TokenTransfer {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.amount.cmp(&other.amount)
+    }
+}
+
+impl PartialOrd for TokenTransfer {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }

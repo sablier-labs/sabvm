@@ -698,13 +698,14 @@ impl BundleState {
 mod tests {
     use super::*;
     use crate::{db::StorageWithOriginalValues, TransitionAccount};
+    use revm_interpreter::primitives::init_balances;
 
     #[test]
     fn transition_states() {
         // dummy data
         let address = Address::new([0x01; 20]);
         let acc1 = AccountInfo {
-            balance: U256::from(10),
+            balances: init_balances(U256::from(10)),
             nonce: 1,
             code_hash: KECCAK_EMPTY,
             code: None,
@@ -756,7 +757,7 @@ mod tests {
                     None,
                     Some(AccountInfo {
                         nonce: 1,
-                        balance: U256::from(10),
+                        balances: init_balances(U256::from(10)),
                         code_hash: KECCAK_EMPTY,
                         code: None,
                     }),
@@ -770,7 +771,7 @@ mod tests {
                     None,
                     Some(AccountInfo {
                         nonce: 1,
-                        balance: U256::from(10),
+                        balances: init_balances(U256::from(10)),
                         code_hash: KECCAK_EMPTY,
                         code: None,
                     }),
@@ -798,7 +799,7 @@ mod tests {
                 None,
                 Some(AccountInfo {
                     nonce: 3,
-                    balance: U256::from(20),
+                    balances: init_balances(U256::from(20)),
                     code_hash: KECCAK_EMPTY,
                     code: None,
                 }),
@@ -808,7 +809,7 @@ mod tests {
                 account1(),
                 Some(Some(AccountInfo {
                     nonce: 1,
-                    balance: U256::from(10),
+                    balances: init_balances(U256::from(10)),
                     code_hash: KECCAK_EMPTY,
                     code: None,
                 })),
@@ -825,7 +826,7 @@ mod tests {
                 account1(),
                 AccountInfo {
                     nonce: 1,
-                    balance: U256::from(10),
+                    balances: init_balances(U256::from(10)),
                     code_hash: KECCAK_EMPTY,
                     code: None,
                 },
@@ -839,7 +840,7 @@ mod tests {
                 account2(),
                 AccountInfo {
                     nonce: 1,
-                    balance: U256::from(10),
+                    balances: init_balances(U256::from(10)),
                     code_hash: KECCAK_EMPTY,
                     code: None,
                 },
@@ -858,7 +859,7 @@ mod tests {
                 account1(),
                 AccountInfo {
                     nonce: 3,
-                    balance: U256::from(20),
+                    balances: init_balances(U256::from(20)),
                     code_hash: KECCAK_EMPTY,
                     code: None,
                 },
@@ -873,7 +874,7 @@ mod tests {
                 account1(),
                 Some(Some(AccountInfo {
                     nonce: 1,
-                    balance: U256::from(10),
+                    balances: init_balances(U256::from(10)),
                     code_hash: KECCAK_EMPTY,
                     code: None,
                 })),

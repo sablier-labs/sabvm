@@ -8,7 +8,9 @@ use revm_precompile::{
     secp256k1::ec_recover_run,
     Bytes,
 };
-use revm_primitives::{hex, keccak256, Env, U256, VERSIONED_HASH_VERSION_KZG};
+use revm_primitives::{
+    hex, keccak256, Env, ResultInfo, ResultOrNewCall, U256, VERSIONED_HASH_VERSION_KZG,
+};
 use secp256k1::{Message, SecretKey, SECP256K1};
 use sha2::{Digest, Sha256};
 
@@ -37,16 +39,20 @@ pub fn benchmark_crypto_precompiles(c: &mut Criterion) {
     )
     .unwrap();
 
-    let res = run_pair(
+    let call_or_result_info = run_pair(
         &input,
         ISTANBUL_PAIR_PER_POINT,
         ISTANBUL_PAIR_BASE,
         u64::MAX,
     )
-    .unwrap()
-    .0;
+    .unwrap();
 
-    println!("gas used by regular pairing call: {:?}", res);
+    match call_or_result_info {
+        ResultOrNewCall::Result(ResultInfo { gas_used, .. }) => {
+            println!("gas used by regular pairing call: {:?}", gas_used);
+        }
+        _ => panic!("expected result, got call"),
+    }
 
     // === ECRECOVER ===
 
@@ -88,35 +94,40 @@ pub fn benchmark_crypto_precompiles(c: &mut Criterion) {
 
     let gas = 50000;
     let env = Env::default();
-    let (actual_gas, _actual_output) = run(&kzg_input, gas, &env).unwrap();
-    println!("gas used by kzg precompile: {:?}", actual_gas);
+    let call_or_result_info = run(&kzg_input, gas, &env).unwrap();
+    match call_or_result_info {
+        ResultOrNewCall::Result(ResultInfo { gas_used, .. }) => {
+            println!("gas used by kzg precompile: {:?}", gas_used);
 
-    group.bench_function(group_name("ecrecover precompile"), |b| {
-        b.iter(|| {
-            ec_recover_run(&message_and_signature, u64::MAX).unwrap();
-            black_box(())
-        })
-    });
+            group.bench_function(group_name("ecrecover precompile"), |b| {
+                b.iter(|| {
+                    ec_recover_run(&message_and_signature, u64::MAX).unwrap();
+                    black_box(())
+                })
+            });
 
-    group.bench_function(group_name("ecpairing precompile"), |b| {
-        b.iter(|| {
-            run_pair(
-                &input,
-                ISTANBUL_PAIR_PER_POINT,
-                ISTANBUL_PAIR_BASE,
-                u64::MAX,
-            )
-            .unwrap();
-            black_box(())
-        })
-    });
+            group.bench_function(group_name("ecpairing precompile"), |b| {
+                b.iter(|| {
+                    run_pair(
+                        &input,
+                        ISTANBUL_PAIR_PER_POINT,
+                        ISTANBUL_PAIR_BASE,
+                        u64::MAX,
+                    )
+                    .unwrap();
+                    black_box(())
+                })
+            });
 
-    group.bench_function(group_name("kzg precompile"), |b| {
-        b.iter(|| {
-            run(&kzg_input, gas, &env).unwrap();
-            black_box(())
-        })
-    });
+            group.bench_function(group_name("kzg precompile"), |b| {
+                b.iter(|| {
+                    run(&kzg_input, gas, &env).unwrap();
+                    black_box(())
+                })
+            });
+        }
+        _ => panic!("expected result, got call"),
+    }
 }
 
 criterion_group! {

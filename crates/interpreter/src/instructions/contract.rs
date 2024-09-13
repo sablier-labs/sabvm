@@ -3,18 +3,20 @@ mod call_helpers;
 pub use call_helpers::{
     calc_call_gas, get_memory_input_and_out_ranges, resize_memory_and_return_range,
 };
-use revm_primitives::{keccak256, BerlinSpec};
+use revm_primitives::{keccak256, BerlinSpec, TokenTransfer, BASE_TOKEN_ID};
 
 use crate::{
     gas::{self, cost_per_word, EOF_CREATE_GAS, KECCAK256WORD},
     instructions::utility::read_u16,
     interpreter::Interpreter,
     primitives::{Address, Bytes, Eof, Spec, SpecId::*, U256},
-    CallInputs, CallScheme, CallValue, CreateInputs, CreateScheme, EOFCreateInput, Host,
+    CallInputs, CallScheme, CallValues, CreateInputs, CreateScheme, EOFCreateInput, Host,
     InstructionResult, InterpreterAction, InterpreterResult, LoadAccountResult, MAX_INITCODE_SIZE,
 };
 use core::{cmp::max, ops::Range};
 use std::boxed::Box;
+use std::vec;
+use std::vec::Vec;
 
 /// Resize memory and return memory range if successful.
 /// Return `None` if there is not enough gas. And if `len`
@@ -209,9 +211,8 @@ pub fn extcall<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host
     };
 
     pop!(interpreter, value);
-    let has_transfer = value != U256::ZERO;
-
-    let Some(gas_limit) = extcall_gas_calc(interpreter, host, target_address, has_transfer) else {
+    let Some(gas_limit) = extcall_gas_calc(interpreter, host, target_address, value != U256::ZERO)
+    else {
         return;
     };
     // TODO Check if static and value 0
@@ -224,7 +225,12 @@ pub fn extcall<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host
             target_address,
             caller: interpreter.contract.target_address,
             bytecode_address: target_address,
-            value: CallValue::Transfer(value),
+            values: CallValues::Transfer(vec![
+                (TokenTransfer {
+                    id: BASE_TOKEN_ID,
+                    amount: value,
+                }),
+            ]),
             scheme: CallScheme::Call,
             is_static: interpreter.is_static,
             is_eof: true,
@@ -256,7 +262,7 @@ pub fn extdelegatecall<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpret
             target_address,
             caller: interpreter.contract.target_address,
             bytecode_address: target_address,
-            value: CallValue::Apparent(interpreter.contract.call_value),
+            values: CallValues::Apparent(interpreter.contract.call_values.clone()),
             // TODO(EOF) should be EofDelegateCall?
             scheme: CallScheme::DelegateCall,
             is_static: interpreter.is_static,
@@ -288,7 +294,7 @@ pub fn extstaticcall<H: Host + ?Sized>(interpreter: &mut Interpreter, host: &mut
             target_address,
             caller: interpreter.contract.target_address,
             bytecode_address: target_address,
-            value: CallValue::Transfer(U256::ZERO),
+            values: CallValues::Transfer(Vec::new()),
             scheme: CallScheme::Call,
             is_static: interpreter.is_static,
             is_eof: true,
@@ -414,7 +420,12 @@ pub fn call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, host: &
             target_address: to,
             caller: interpreter.contract.target_address,
             bytecode_address: to,
-            value: CallValue::Transfer(value),
+            values: CallValues::Transfer(vec![
+                (TokenTransfer {
+                    id: BASE_TOKEN_ID,
+                    amount: value,
+                }),
+            ]),
             scheme: CallScheme::Call,
             is_static: interpreter.is_static,
             is_eof: false,
@@ -465,7 +476,12 @@ pub fn call_code<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, ho
             target_address: interpreter.contract.target_address,
             caller: interpreter.contract.target_address,
             bytecode_address: to,
-            value: CallValue::Transfer(value),
+            values: CallValues::Transfer(vec![
+                (TokenTransfer {
+                    id: BASE_TOKEN_ID,
+                    amount: value,
+                }),
+            ]),
             scheme: CallScheme::CallCode,
             is_static: interpreter.is_static,
             is_eof: false,
@@ -506,7 +522,7 @@ pub fn delegate_call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter
             target_address: interpreter.contract.target_address,
             caller: interpreter.contract.caller,
             bytecode_address: to,
-            value: CallValue::Apparent(interpreter.contract.call_value),
+            values: CallValues::Apparent(interpreter.contract.call_values.clone()),
             scheme: CallScheme::DelegateCall,
             is_static: interpreter.is_static,
             is_eof: false,
@@ -547,7 +563,7 @@ pub fn static_call<H: Host + ?Sized, SPEC: Spec>(interpreter: &mut Interpreter, 
             target_address: to,
             caller: interpreter.contract.target_address,
             bytecode_address: to,
-            value: CallValue::Transfer(U256::ZERO),
+            values: CallValues::Transfer(Vec::new()),
             scheme: CallScheme::StaticCall,
             is_static: true,
             is_eof: false,

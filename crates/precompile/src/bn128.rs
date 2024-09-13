@@ -1,6 +1,7 @@
 use crate::{
     utilities::{bool_to_bytes32, right_pad},
-    Address, Error, Precompile, PrecompileResult, PrecompileWithAddress,
+    Address, Error, Precompile, PrecompileResult, PrecompileWithAddress, ResultInfo,
+    ResultOrNewCall,
 };
 use bn::{AffineG1, AffineG2, Fq, Fq2, Group, Gt, G1, G2};
 
@@ -135,7 +136,10 @@ pub fn run_add(input: &[u8], gas_cost: u64, gas_limit: u64) -> PrecompileResult 
         sum.x().to_big_endian(&mut output[..32]).unwrap();
         sum.y().to_big_endian(&mut output[32..]).unwrap();
     }
-    Ok((gas_cost, output.into()))
+    Ok(ResultOrNewCall::Result(ResultInfo {
+        gas_used: gas_cost,
+        returned_bytes: output.into(),
+    }))
 }
 
 pub fn run_mul(input: &[u8], gas_cost: u64, gas_limit: u64) -> PrecompileResult {
@@ -155,7 +159,10 @@ pub fn run_mul(input: &[u8], gas_cost: u64, gas_limit: u64) -> PrecompileResult 
         mul.x().to_big_endian(&mut output[..32]).unwrap();
         mul.y().to_big_endian(&mut output[32..]).unwrap();
     }
-    Ok((gas_cost, output.into()))
+    Ok(ResultOrNewCall::Result(ResultInfo {
+        gas_used: gas_cost,
+        returned_bytes: output.into(),
+    }))
 }
 
 pub fn run_pair(
@@ -211,7 +218,10 @@ pub fn run_pair(
 
         mul == Gt::one()
     };
-    Ok((gas_used, bool_to_bytes32(success)))
+    Ok(ResultOrNewCall::Result(ResultInfo {
+        gas_used,
+        returned_bytes: bool_to_bytes32(success),
+    }))
 }
 
 #[cfg(test)]
@@ -240,8 +250,15 @@ mod tests {
         )
         .unwrap();
 
-        let (_, res) = run_add(&input, BYZANTIUM_ADD_GAS_COST, 500).unwrap();
-        assert_eq!(res, expected);
+        let call_or_result_info = run_add(&input, BYZANTIUM_ADD_GAS_COST, 500).unwrap();
+        match call_or_result_info {
+            ResultOrNewCall::Result(used_gas_and_returned_bytes) => {
+                assert_eq!(used_gas_and_returned_bytes.returned_bytes, expected);
+            }
+            ResultOrNewCall::Call(_) => {
+                panic!("expected result but got call in test_alt_bn128_add")
+            }
+        }
 
         // zero sum test
         let input = hex::decode(
@@ -259,8 +276,15 @@ mod tests {
         )
         .unwrap();
 
-        let (_, res) = run_add(&input, BYZANTIUM_ADD_GAS_COST, 500).unwrap();
-        assert_eq!(res, expected);
+        let call_or_result_info = run_add(&input, BYZANTIUM_ADD_GAS_COST, 500).unwrap();
+        match call_or_result_info {
+            ResultOrNewCall::Result(used_gas_and_returned_bytes) => {
+                assert_eq!(used_gas_and_returned_bytes.returned_bytes, expected);
+            }
+            ResultOrNewCall::Call(_) => {
+                panic!("expected result but got call in test_alt_bn128_add")
+            }
+        }
 
         // out of gas test
         let input = hex::decode(
@@ -285,8 +309,15 @@ mod tests {
         )
         .unwrap();
 
-        let (_, res) = run_add(&input, BYZANTIUM_ADD_GAS_COST, 500).unwrap();
-        assert_eq!(res, expected);
+        let call_or_result_info = run_add(&input, BYZANTIUM_ADD_GAS_COST, 500).unwrap();
+        match call_or_result_info {
+            ResultOrNewCall::Result(used_gas_and_returned_bytes) => {
+                assert_eq!(used_gas_and_returned_bytes.returned_bytes, expected);
+            }
+            ResultOrNewCall::Call(_) => {
+                panic!("expected result but got call in test_alt_bn128_add")
+            }
+        }
 
         // point not on curve fail
         let input = hex::decode(
@@ -318,8 +349,15 @@ mod tests {
         )
         .unwrap();
 
-        let (_, res) = run_mul(&input, BYZANTIUM_MUL_GAS_COST, 40_000).unwrap();
-        assert_eq!(res, expected);
+        let call_or_result_info = run_mul(&input, BYZANTIUM_MUL_GAS_COST, 40_000).unwrap();
+        match call_or_result_info {
+            ResultOrNewCall::Result(used_gas_and_returned_bytes) => {
+                assert_eq!(used_gas_and_returned_bytes.returned_bytes, expected);
+            }
+            ResultOrNewCall::Call(_) => {
+                panic!("expected result but got call in test_alt_bn128_add")
+            }
+        }
 
         // out of gas test
         let input = hex::decode(
@@ -348,8 +386,15 @@ mod tests {
         )
         .unwrap();
 
-        let (_, res) = run_mul(&input, BYZANTIUM_MUL_GAS_COST, 40_000).unwrap();
-        assert_eq!(res, expected);
+        let call_or_result_info = run_mul(&input, BYZANTIUM_MUL_GAS_COST, 40_000).unwrap();
+        match call_or_result_info {
+            ResultOrNewCall::Result(used_gas_and_returned_bytes) => {
+                assert_eq!(used_gas_and_returned_bytes.returned_bytes, expected);
+            }
+            ResultOrNewCall::Call(_) => {
+                panic!("expected result but got call in test_alt_bn128_add")
+            }
+        }
 
         // no input test
         let input = [0u8; 0];
@@ -360,8 +405,15 @@ mod tests {
         )
         .unwrap();
 
-        let (_, res) = run_mul(&input, BYZANTIUM_MUL_GAS_COST, 40_000).unwrap();
-        assert_eq!(res, expected);
+        let call_or_result_info = run_add(&input, BYZANTIUM_MUL_GAS_COST, 40_000).unwrap();
+        match call_or_result_info {
+            ResultOrNewCall::Result(used_gas_and_returned_bytes) => {
+                assert_eq!(used_gas_and_returned_bytes.returned_bytes, expected);
+            }
+            ResultOrNewCall::Call(_) => {
+                panic!("expected result but got call in test_alt_bn128_add")
+            }
+        }
 
         // point not on curve fail
         let input = hex::decode(
@@ -398,14 +450,21 @@ mod tests {
             hex::decode("0000000000000000000000000000000000000000000000000000000000000001")
                 .unwrap();
 
-        let (_, res) = run_pair(
+        let call_or_result_info = run_pair(
             &input,
             BYZANTIUM_PAIR_PER_POINT,
             BYZANTIUM_PAIR_BASE,
             260_000,
         )
         .unwrap();
-        assert_eq!(res, expected);
+        match call_or_result_info {
+            ResultOrNewCall::Result(used_gas_and_returned_bytes) => {
+                assert_eq!(used_gas_and_returned_bytes.returned_bytes, expected);
+            }
+            ResultOrNewCall::Call(_) => {
+                panic!("expected result but got call in test_alt_bn128_add")
+            }
+        }
 
         // out of gas test
         let input = hex::decode(
@@ -439,14 +498,21 @@ mod tests {
             hex::decode("0000000000000000000000000000000000000000000000000000000000000001")
                 .unwrap();
 
-        let (_, res) = run_pair(
+        let call_or_result_info = run_pair(
             &input,
             BYZANTIUM_PAIR_PER_POINT,
             BYZANTIUM_PAIR_BASE,
             260_000,
         )
         .unwrap();
-        assert_eq!(res, expected);
+        match call_or_result_info {
+            ResultOrNewCall::Result(used_gas_and_returned_bytes) => {
+                assert_eq!(used_gas_and_returned_bytes.returned_bytes, expected);
+            }
+            ResultOrNewCall::Call(_) => {
+                panic!("expected result but got call in test_alt_bn128_add")
+            }
+        }
 
         // point not on curve fail
         let input = hex::decode(

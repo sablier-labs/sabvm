@@ -1,5 +1,5 @@
 use crate::{Error, Precompile, PrecompileResult, PrecompileWithAddress};
-use revm_primitives::Bytes;
+use revm_primitives::{Bytes, ResultInfo, ResultOrNewCall};
 
 const F_ROUND: u64 = 1;
 const INPUT_LENGTH: usize = 213;
@@ -51,7 +51,10 @@ pub fn run(input: &Bytes, gas_limit: u64) -> PrecompileResult {
         out[i..i + 8].copy_from_slice(&h.to_le_bytes());
     }
 
-    Ok((gas_used, out.into()))
+    Ok(ResultOrNewCall::Result(ResultInfo {
+        gas_used,
+        returned_bytes: out.into(),
+    }))
 }
 
 pub mod algo {

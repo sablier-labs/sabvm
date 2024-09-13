@@ -1,7 +1,8 @@
 use crate::interpreter::{InstructionResult, SelfDestructResult};
 use crate::primitives::{
-    db::Database, hash_map::Entry, Account, Address, Bytecode, EVMError, EvmState, EvmStorageSlot,
-    HashMap, HashSet, Log, SpecId::*, TransientStorage, KECCAK_EMPTY, PRECOMPILE3, U256,
+    db::Database, hash_map::Entry, token_id_address, Account, Address, Bytecode, EVMError,
+    EvmState, EvmStorageSlot, HashSet, Log, SpecId::*, TokenTransfer, TransientStorage,
+    BASE_TOKEN_ID, KECCAK_EMPTY, PRECOMPILE3, U256,
 };
 use core::mem;
 use revm_interpreter::primitives::SpecId;
@@ -50,7 +51,7 @@ impl JournaledState {
     ///
     pub fn new(spec: SpecId, warm_preloaded_addresses: HashSet<Address>) -> JournaledState {
         Self {
-            state: HashMap::new(),
+            state: EvmState::default(),
             transient_storage: TransientStorage::default(),
             logs: Vec::new(),
             journal: vec![vec![]],
@@ -77,7 +78,7 @@ impl JournaledState {
     /// be removed from state.
     #[inline]
     pub fn touch(&mut self, address: &Address) {
-        if let Some(account) = self.state.get_mut(address) {
+        if let Some(account) = self.state.accounts.get_mut(address) {
             Self::touch_account(self.journal.last_mut().unwrap(), address, account);
         }
     }
@@ -132,6 +133,7 @@ impl JournaledState {
     #[inline]
     pub fn account(&self, address: Address) -> &Account {
         self.state
+            .accounts
             .get(&address)
             .expect("Account expected to be loaded") // Always assume that acc is already loaded
     }
@@ -146,7 +148,7 @@ impl JournaledState {
     /// Assume account is warm
     #[inline]
     pub fn set_code(&mut self, address: Address, code: Bytecode) {
-        let account = self.state.get_mut(&address).unwrap();
+        let account = self.state.accounts.get_mut(&address).unwrap();
         Self::touch_account(self.journal.last_mut().unwrap(), &address, account);
 
         self.journal
@@ -160,7 +162,7 @@ impl JournaledState {
 
     #[inline]
     pub fn inc_nonce(&mut self, address: Address) -> Option<u64> {
-        let account = self.state.get_mut(&address).unwrap();
+        let account = self.state.accounts.get_mut(&address).unwrap();
         // Check if nonce is going to overflow.
         if account.info.nonce == u64::MAX {
             return None;
@@ -176,47 +178,56 @@ impl JournaledState {
         Some(account.info.nonce)
     }
 
-    /// Transfers balance from two accounts. Returns error if sender balance is not enough.
+    /// Transfers tokens between two accounts. Returns error if sender balance is not enough.
     #[inline]
     pub fn transfer<DB: Database>(
         &mut self,
         from: &Address,
         to: &Address,
-        balance: U256,
+        transfers: &Vec<TokenTransfer>,
         db: &mut DB,
     ) -> Result<Option<InstructionResult>, EVMError<DB::Error>> {
+        self.load_native_token_ids(db)?;
+
         // load accounts
         self.load_account(*from, db)?;
         self.load_account(*to, db)?;
 
-        // sub balance from
-        let from_account = &mut self.state.get_mut(from).unwrap();
-        Self::touch_account(self.journal.last_mut().unwrap(), from, from_account);
-        let from_balance = &mut from_account.info.balance;
+        for transfer in transfers {
+            let token_id = transfer.id;
+            let amount = transfer.amount;
 
-        let Some(from_balance_incr) = from_balance.checked_sub(balance) else {
-            return Ok(Some(InstructionResult::OutOfFunds));
-        };
-        *from_balance = from_balance_incr;
+            // sub amount from
+            let from_account = self.state.accounts.get_mut(from).unwrap();
+            Self::touch_account(self.journal.last_mut().unwrap(), from, from_account);
 
-        // add balance to
-        let to_account = &mut self.state.get_mut(to).unwrap();
-        Self::touch_account(self.journal.last_mut().unwrap(), to, to_account);
-        let to_balance = &mut to_account.info.balance;
-        let Some(to_balance_decr) = to_balance.checked_add(balance) else {
-            return Ok(Some(InstructionResult::OverflowPayment));
-        };
-        *to_balance = to_balance_decr;
-        // Overflow of U256 balance is not possible to happen on mainnet. We don't bother to return funds from from_acc.
+            let from_balance = from_account.info.get_balance(token_id);
+            let Some(from_balance_decr) = from_balance.checked_sub(amount) else {
+                return Ok(Some(InstructionResult::OutOfFunds));
+            };
+            from_account.info.set_balance(token_id, from_balance_decr);
 
-        self.journal
-            .last_mut()
-            .unwrap()
-            .push(JournalEntry::BalanceTransfer {
-                from: *from,
-                to: *to,
-                balance,
-            });
+            // add amount to
+            let to_account = self.state.accounts.get_mut(to).unwrap();
+            Self::touch_account(self.journal.last_mut().unwrap(), to, to_account);
+            let to_balance = to_account.info.get_balance(token_id);
+            let Some(to_balance_incr) = to_balance.checked_add(amount) else {
+                return Ok(Some(InstructionResult::OverflowPayment));
+            };
+            to_account.info.set_balance(token_id, to_balance_incr);
+
+            // Overflow of U256 balance is not possible to happen on mainnet. We don't bother to return funds from from_acc.
+
+            self.journal
+                .last_mut()
+                .unwrap()
+                .push(JournalEntry::BalanceTransfer {
+                    from: *from,
+                    to: *to,
+                    token_id,
+                    amount,
+                });
+        }
 
         Ok(None)
     }
@@ -248,7 +259,7 @@ impl JournaledState {
         let checkpoint = self.checkpoint();
 
         // Newly created account is present, as we just loaded it.
-        let account = self.state.get_mut(&address).unwrap();
+        let account = self.state.accounts.get_mut(&address).unwrap();
         let last_journal = self.journal.last_mut().unwrap();
 
         // New account can be created if:
@@ -284,11 +295,11 @@ impl JournaledState {
         Self::touch_account(last_journal, &address, account);
 
         // Add balance to created account, as we already have target here.
-        let Some(new_balance) = account.info.balance.checked_add(balance) else {
+        let Some(new_base_balance) = account.info.get_base_balance().checked_add(balance) else {
             self.checkpoint_revert(checkpoint);
             return Err(InstructionResult::OverflowPayment);
         };
-        account.info.balance = new_balance;
+        account.info.set_base_balance(new_base_balance);
 
         // EIP-161: State trie clearing (invariant-preserving alternative)
         if spec_id.is_enabled_in(SPURIOUS_DRAGON) {
@@ -297,15 +308,16 @@ impl JournaledState {
         }
 
         // Sub balance from caller
-        let caller_account = self.state.get_mut(&caller).unwrap();
+        let caller_account = self.state.accounts.get_mut(&caller).unwrap();
         // Balance is already checked in `create_inner`, so it is safe to just subtract.
-        caller_account.info.balance -= balance;
+        caller_account.info.decrease_base_balance(balance);
 
         // add journal entry of transferred balance
         last_journal.push(JournalEntry::BalanceTransfer {
             from: caller,
             to: address,
-            balance,
+            token_id: BASE_TOKEN_ID,
+            amount: balance,
         });
 
         Ok(checkpoint)
@@ -322,14 +334,14 @@ impl JournaledState {
         for entry in journal_entries.into_iter().rev() {
             match entry {
                 JournalEntry::AccountLoaded { address } => {
-                    state.remove(&address);
+                    state.accounts.remove(&address);
                 }
                 JournalEntry::AccountTouched { address } => {
                     if is_spurious_dragon_enabled && address == PRECOMPILE3 {
                         continue;
                     }
                     // remove touched status
-                    state.get_mut(&address).unwrap().unmark_touch();
+                    state.accounts.get_mut(&address).unwrap().unmark_touch();
                 }
                 JournalEntry::AccountDestroyed {
                     address,
@@ -337,7 +349,7 @@ impl JournaledState {
                     was_destroyed,
                     had_balance,
                 } => {
-                    let account = state.get_mut(&address).unwrap();
+                    let account = state.accounts.get_mut(&address).unwrap();
                     // set previous state of selfdestructed flag, as there could be multiple
                     // selfdestructs in one transaction.
                     if was_destroyed {
@@ -347,25 +359,30 @@ impl JournaledState {
                         // flag that is not selfdestructed
                         account.unmark_selfdestruct();
                     }
-                    account.info.balance += had_balance;
+                    account.info.increase_base_balance(had_balance);
 
                     if address != target {
-                        let target = state.get_mut(&target).unwrap();
-                        target.info.balance -= had_balance;
+                        let target = state.accounts.get_mut(&target).unwrap();
+                        target.info.decrease_base_balance(had_balance);
                     }
                 }
-                JournalEntry::BalanceTransfer { from, to, balance } => {
+                JournalEntry::BalanceTransfer {
+                    from,
+                    to,
+                    token_id,
+                    amount,
+                } => {
                     // we don't need to check overflow and underflow when adding and subtracting the balance.
-                    let from = state.get_mut(&from).unwrap();
-                    from.info.balance += balance;
-                    let to = state.get_mut(&to).unwrap();
-                    to.info.balance -= balance;
+                    let from = state.accounts.get_mut(&from).unwrap();
+                    from.info.increase_balance(token_id, amount);
+                    let to = state.accounts.get_mut(&to).unwrap();
+                    to.info.decrease_balance(token_id, amount);
                 }
                 JournalEntry::NonceChange { address } => {
-                    state.get_mut(&address).unwrap().info.nonce -= 1;
+                    state.accounts.get_mut(&address).unwrap().info.nonce -= 1;
                 }
                 JournalEntry::AccountCreated { address } => {
-                    let account = &mut state.get_mut(&address).unwrap();
+                    let account = &mut state.accounts.get_mut(&address).unwrap();
                     account.unmark_created();
                     account.info.nonce = 0;
                 }
@@ -374,7 +391,7 @@ impl JournaledState {
                     key,
                     had_value,
                 } => {
-                    let storage = &mut state.get_mut(&address).unwrap().storage;
+                    let storage = &mut state.accounts.get_mut(&address).unwrap().storage;
                     if let Some(had_value) = had_value {
                         storage.get_mut(&key).unwrap().present_value = had_value;
                     } else {
@@ -396,9 +413,29 @@ impl JournaledState {
                     }
                 }
                 JournalEntry::CodeChange { address } => {
-                    let acc = state.get_mut(&address).unwrap();
+                    let acc = state.accounts.get_mut(&address).unwrap();
                     acc.info.code_hash = KECCAK_EMPTY;
                     acc.info.code = None;
+                }
+                JournalEntry::TokensBurned {
+                    token_holder,
+                    token_id,
+                    burned_amount,
+                } => {
+                    let holder_acc = state.accounts.get_mut(&token_holder).unwrap();
+                    holder_acc.info.increase_balance(token_id, burned_amount);
+                }
+                JournalEntry::TokenIdsLoaded { token_ids: _ } => {
+                    state.token_ids.clear();
+                }
+                JournalEntry::TokensMinted {
+                    minter: _,
+                    recipient,
+                    token_id,
+                    minted_amount,
+                } => {
+                    let minter_acc = state.accounts.get_mut(&recipient).unwrap();
+                    minter_acc.info.decrease_balance(token_id, minted_amount);
                 }
             }
         }
@@ -471,22 +508,28 @@ impl JournaledState {
         if address != target {
             // Both accounts are loaded before this point, `address` as we execute its contract.
             // and `target` at the beginning of the function.
-            let acc_balance = self.state.get_mut(&address).unwrap().info.balance;
+            let acc_balance = self
+                .state
+                .accounts
+                .get_mut(&address)
+                .unwrap()
+                .info
+                .get_base_balance();
 
-            let target_account = self.state.get_mut(&target).unwrap();
+            let target_account = self.state.accounts.get_mut(&target).unwrap();
             Self::touch_account(self.journal.last_mut().unwrap(), &target, target_account);
-            target_account.info.balance += acc_balance;
+            target_account.info.increase_base_balance(acc_balance);
         }
 
-        let acc = self.state.get_mut(&address).unwrap();
-        let balance = acc.info.balance;
+        let acc = self.state.accounts.get_mut(&address).unwrap();
+        let balance = acc.info.get_base_balance();
         let previously_destroyed = acc.is_selfdestructed();
         let is_cancun_enabled = SpecId::enabled(self.spec, CANCUN);
 
         // EIP-6780 (Cancun hard-fork): selfdestruct only if contract is created in the same tx
         let journal_entry = if acc.is_created() || !is_cancun_enabled {
             acc.mark_selfdestruct();
-            acc.info.balance = U256::ZERO;
+            acc.info.set_base_balance(U256::ZERO);
             Some(JournalEntry::AccountDestroyed {
                 address,
                 target,
@@ -494,11 +537,12 @@ impl JournaledState {
                 had_balance: balance,
             })
         } else if address != target {
-            acc.info.balance = U256::ZERO;
+            acc.info.set_base_balance(U256::ZERO);
             Some(JournalEntry::BalanceTransfer {
                 from: address,
                 to: target,
-                balance,
+                token_id: BASE_TOKEN_ID,
+                amount: balance,
             })
         } else {
             // State is not changed:
@@ -529,7 +573,7 @@ impl JournaledState {
         db: &mut DB,
     ) -> Result<&mut Account, EVMError<DB::Error>> {
         // load or get account.
-        let account = match self.state.entry(address) {
+        let account = match self.state.accounts.entry(address) {
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(vac) => vac.insert(
                 db.basic(address)
@@ -555,7 +599,7 @@ impl JournaledState {
         address: Address,
         db: &mut DB,
     ) -> Result<(&mut Account, bool), EVMError<DB::Error>> {
-        Ok(match self.state.entry(address) {
+        Ok(match self.state.accounts.entry(address) {
             Entry::Occupied(entry) => (entry.into_mut(), false),
             Entry::Vacant(vac) => {
                 let account =
@@ -638,7 +682,7 @@ impl JournaledState {
         db: &mut DB,
     ) -> Result<(U256, bool), EVMError<DB::Error>> {
         // assume acc is warm
-        let account = self.state.get_mut(&address).unwrap();
+        let account = self.state.accounts.get_mut(&address).unwrap();
         // only if account is created in this tx we can assume that storage is empty.
         let is_newly_created = account.is_created();
         let load = match account.storage.entry(key) {
@@ -684,7 +728,7 @@ impl JournaledState {
     ) -> Result<SStoreResult, EVMError<DB::Error>> {
         // assume that acc exists and load the slot.
         let (present, is_cold) = self.sload(address, key, db)?;
-        let acc = self.state.get_mut(&address).unwrap();
+        let acc = self.state.accounts.get_mut(&address).unwrap();
 
         // if there is no original value in dirty return present value, that is our original.
         let slot = acc.storage.get_mut(&key).unwrap();
@@ -770,10 +814,126 @@ impl JournaledState {
         }
     }
 
-    /// push log into subroutine
+    /// Push log into subroutine
     #[inline]
     pub fn log(&mut self, log: Log) {
         self.logs.push(log);
+    }
+
+    pub fn burn<DB: Database>(
+        &mut self,
+        burner: Address,
+        sub_id: U256,
+        token_holder: Address,
+        amount: U256,
+        db: &mut DB,
+    ) -> bool {
+        if amount == U256::ZERO {
+            return false;
+        }
+
+        if self.load_native_token_ids(db).is_err() {
+            return false;
+        }
+
+        if self.load_account(token_holder, db).is_err() {
+            return false;
+        }
+
+        let token_id = token_id_address(burner, sub_id);
+
+        let result = db.is_token_id_valid(token_id);
+        if result.is_err() || result.is_ok_and(|r| !r) {
+            return false;
+        }
+        let account = self.state.accounts.get_mut(&token_holder).unwrap();
+        let balance = account.info.get_balance(token_id);
+        if let Some(new_balance) = balance.checked_sub(amount) {
+            account.info.set_balance(token_id, new_balance);
+        } else {
+            return false;
+        }
+
+        // Add journal entry of the burned tokens
+        self.journal
+            .last_mut()
+            .unwrap()
+            .push(JournalEntry::TokensBurned {
+                token_holder,
+                token_id,
+                burned_amount: amount,
+            });
+
+        true
+    }
+
+    /// Load the token ids into memory.
+    ///
+    /// Return whether the loading was cold.
+    #[inline]
+    pub fn load_native_token_ids<DB: Database>(
+        &mut self,
+        db: &mut DB,
+    ) -> Result<bool, EVMError<DB::Error>> {
+        if !self.state.token_ids.is_empty() {
+            Ok(false)
+        } else {
+            self.state.token_ids = db.get_token_ids().map_err(EVMError::Database)?;
+
+            // journal the loading of token ids.
+            self.journal
+                .last_mut()
+                .unwrap()
+                .push(JournalEntry::TokenIdsLoaded {
+                    token_ids: self.state.token_ids.clone(),
+                });
+
+            Ok(true)
+        }
+    }
+
+    pub fn mint<DB: Database>(
+        &mut self,
+        minter: Address,
+        recipient: Address,
+        sub_id: U256,
+        amount: U256,
+        db: &mut DB,
+    ) -> bool {
+        if self.load_native_token_ids(db).is_err() {
+            return false;
+        }
+
+        if self.load_account(minter, db).is_err() {
+            return false;
+        }
+
+        let token_id = token_id_address(minter, sub_id);
+        let account = self.state.accounts.get_mut(&recipient).unwrap();
+        let balance = account.info.get_balance(token_id);
+        if let Some(new_balance) = balance.checked_add(amount) {
+            account.info.set_balance(token_id, new_balance);
+        } else {
+            return false;
+        }
+
+        // add the id of the minted token to the collection, if it's not already there
+        if !self.state.token_ids.contains(&token_id) {
+            self.state.token_ids.push(token_id);
+        }
+
+        // add journal entry of the minted tokens
+        self.journal
+            .last_mut()
+            .unwrap()
+            .push(JournalEntry::TokensMinted {
+                minter,
+                recipient,
+                token_id,
+                minted_amount: amount,
+            });
+
+        true
     }
 }
 
@@ -805,7 +965,8 @@ pub enum JournalEntry {
     BalanceTransfer {
         from: Address,
         to: Address,
-        balance: U256,
+        token_id: U256,
+        amount: U256,
     },
     /// Increment nonce
     /// Action: Increment nonce by one
@@ -838,6 +999,27 @@ pub enum JournalEntry {
     /// Action: Account code changed
     /// Revert: Revert to previous bytecode.
     CodeChange { address: Address },
+    /// Tokens burned
+    /// Action: Burn tokens
+    /// Revert: Refund the burned tokens
+    TokensBurned {
+        token_holder: Address,
+        token_id: U256,
+        burned_amount: U256,
+    },
+    /// Token ids Loaded
+    /// Action: Add the loaded token ids to the state
+    /// Revert: Remove the loaded token ids from the state
+    TokenIdsLoaded { token_ids: Vec<U256> },
+    /// Tokens minted
+    /// Action: Mint tokens
+    /// Revert: Burn the minted tokens
+    TokensMinted {
+        minter: Address,
+        recipient: Address,
+        token_id: U256,
+        minted_amount: U256,
+    },
 }
 
 /// SubRoutine checkpoint that will help us to go back from this
